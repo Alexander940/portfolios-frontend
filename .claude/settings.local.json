@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install react-router-dom zustand axios react-hook-form zod lucide-react @hookform/resolvers)",
+      "Bash(npm install:*)",
+      "Bash(npm run build:*)",
+      "Bash(npm run lint:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
