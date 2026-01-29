@@ -1,94 +1,148 @@
-import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios';
-import type { ApiError } from '@/types';
+import axios, {
+  type AxiosError,
+  type AxiosInstance,
+  type InternalAxiosRequestConfig,
+} from 'axios';
+import type { ApiErrorResponse } from '@/types';
+import { transformAxiosError } from './apiErrors';
 
 /**
- * Axios instance configured for the API
+ * Axios configuration and instance
  *
  * Features:
- * - Automatic token injection from auth store
- * - Response interceptor for error handling
- * - Request interceptor for auth headers
+ * - Automatic token injection via Authorization header
+ * - Request/Response interceptors
+ * - Centralized error handling
+ * - Development logging
+ * - Configurable timeout
  */
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_TIMEOUT = parseInt(import.meta.env.VITE_API_TIMEOUT || '30000', 10);
 
-export const apiClient = axios.create({
+/**
+ * Main API client instance
+ * Uses JSON as default content type
+ */
+export const apiClient: AxiosInstance = axios.create({
   baseURL: API_URL,
+  timeout: API_TIMEOUT,
   headers: {
     'Content-Type': 'application/json',
+    Accept: 'application/json',
   },
-  timeout: 10000,
 });
 
-// Request interceptor to add auth token
-apiClient.interceptors.request.use(
-  (config: InternalAxiosRequestConfig) => {
-    // Get token from localStorage (set by auth store when rememberMe is true)
-    // or from the auth store directly via a callback
-    const token = getAccessToken();
+// =============================================================================
+// Token Management
+// =============================================================================
 
-    if (token && config.headers) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-
-    return config;
-  },
-  (error) => Promise.reject(error)
-);
-
-// Response interceptor for error handling
-apiClient.interceptors.response.use(
-  (response) => response,
-  async (error: AxiosError<ApiError>) => {
-    const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
-
-    // Handle 401 errors (unauthorized) - attempt token refresh
-    if (error.response?.status === 401 && !originalRequest._retry) {
-      originalRequest._retry = true;
-
-      try {
-        // Attempt to refresh the token
-        const refreshed = await refreshAccessToken();
-
-        if (refreshed && originalRequest.headers) {
-          originalRequest.headers.Authorization = `Bearer ${getAccessToken()}`;
-          return apiClient(originalRequest);
-        }
-      } catch {
-        // Refresh failed, redirect to login
-        handleAuthError();
-      }
-    }
-
-    // Transform error to a consistent format
-    const apiError: ApiError = {
-      message: error.response?.data?.message || error.message || 'An unexpected error occurred',
-      code: error.response?.data?.code,
-      status: error.response?.status || 500,
-      errors: error.response?.data?.errors,
-    };
-
-    return Promise.reject(apiError);
-  }
-);
-
-// Token management callbacks - will be set by auth store
+/**
+ * Token getter function - will be set by auth store
+ */
 let getAccessToken: () => string | null = () => null;
-let refreshAccessToken: () => Promise<boolean> = async () => false;
+
+/**
+ * Auth error handler - will be set by auth store
+ */
 let handleAuthError: () => void = () => {};
 
 /**
  * Configure axios with auth callbacks from the store
- * This is called during app initialization
+ * Called during app initialization
  */
 export function configureAxiosAuth(callbacks: {
   getToken: () => string | null;
-  refreshToken: () => Promise<boolean>;
   onAuthError: () => void;
 }) {
   getAccessToken = callbacks.getToken;
-  refreshAccessToken = callbacks.refreshToken;
   handleAuthError = callbacks.onAuthError;
+}
+
+// =============================================================================
+// Request Interceptor
+// =============================================================================
+
+apiClient.interceptors.request.use(
+  (config: InternalAxiosRequestConfig) => {
+    // Inject auth token if available
+    const token = getAccessToken();
+    if (token && config.headers) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+
+    // Development logging
+    if (import.meta.env.DEV) {
+      console.log(`[API Request] ${config.method?.toUpperCase()} ${config.url}`);
+    }
+
+    return config;
+  },
+  (error) => {
+    if (import.meta.env.DEV) {
+      console.error('[API Request Error]', error);
+    }
+    return Promise.reject(error);
+  }
+);
+
+// =============================================================================
+// Response Interceptor
+// =============================================================================
+
+apiClient.interceptors.response.use(
+  (response) => {
+    // Development logging
+    if (import.meta.env.DEV) {
+      console.log(
+        `[API Response] ${response.config.method?.toUpperCase()} ${response.config.url}`,
+        response.status
+      );
+    }
+    return response;
+  },
+  (error: AxiosError<ApiErrorResponse>) => {
+    // Development logging
+    if (import.meta.env.DEV) {
+      console.error(
+        `[API Error] ${error.config?.method?.toUpperCase()} ${error.config?.url}`,
+        error.response?.status,
+        error.response?.data
+      );
+    }
+
+    // Handle 401 Unauthorized - token expired or invalid
+    if (error.response?.status === 401) {
+      // Only trigger auth error if we had a token (not during login)
+      const token = getAccessToken();
+      if (token) {
+        handleAuthError();
+      }
+    }
+
+    // Transform to standardized ApiError
+    const apiError = transformAxiosError(error);
+    return Promise.reject(apiError);
+  }
+);
+
+// =============================================================================
+// Utility Functions
+// =============================================================================
+
+/**
+ * Creates a cancel token source for request cancellation
+ * Usage:
+ * const { token, cancel } = createCancelToken();
+ * apiClient.get('/endpoint', { cancelToken: token });
+ * cancel(); // To cancel the request
+ */
+export function createCancelToken() {
+  const controller = new AbortController();
+  return {
+    signal: controller.signal,
+    cancel: () => controller.abort(),
+  };
 }
 
 export default apiClient;

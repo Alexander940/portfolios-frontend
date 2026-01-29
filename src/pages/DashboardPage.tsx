@@ -28,7 +28,7 @@ export function DashboardPage() {
 
             <div className="flex items-center gap-4">
               <span className="text-sm text-gray-600">
-                Hola, <span className="font-medium">{user?.firstName}</span>
+                Hola, <span className="font-medium">{user?.username}</span>
               </span>
               <Button
                 variant="ghost"
@@ -47,7 +47,7 @@ export function DashboardPage() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-8">
           <h1 className="text-2xl font-bold text-gray-900">
-            Bienvenido de nuevo, {user?.firstName}
+            Bienvenido de nuevo, {user?.username}
           </h1>
           <p className="text-gray-600 mt-1">
             Aquí está el resumen de tu portafolio de inversiones.

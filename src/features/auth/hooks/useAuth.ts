@@ -1,40 +1,76 @@
-import { useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useCallback, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../stores';
-import type { LoginCredentials } from '../types';
+import type { LoginCredentials, RegisterData } from '../types';
 
 /**
  * Custom hook for authentication operations
  *
- * Provides a clean interface to auth operations with navigation handling.
- * Wraps the auth store and adds common patterns like redirect after login/logout.
+ * Provides a clean interface to auth operations with:
+ * - Navigation handling after login/logout
+ * - Redirect to intended destination after login
+ * - App initialization (restore session from storage)
  */
 export function useAuth() {
   const navigate = useNavigate();
+  const location = useLocation();
 
   const {
     user,
     isAuthenticated,
     isLoading,
+    isInitialized,
     error,
     login: storeLogin,
+    register: storeRegister,
     logout: storeLogout,
     clearError,
+    initialize,
   } = useAuthStore();
 
   /**
-   * Login and redirect to dashboard on success
+   * Initialize auth on mount
+   * Checks for existing token and restores session if valid
+   */
+  useEffect(() => {
+    initialize();
+  }, [initialize]);
+
+  /**
+   * Login and redirect to dashboard (or intended destination)
    */
   const login = useCallback(
-    async (credentials: LoginCredentials, redirectTo = '/dashboard') => {
+    async (credentials: LoginCredentials) => {
       try {
         await storeLogin(credentials);
-        navigate(redirectTo);
+
+        // Redirect to the page they were trying to access, or dashboard
+        const from = (location.state as { from?: { pathname: string } })?.from?.pathname || '/dashboard';
+        navigate(from, { replace: true });
       } catch {
         // Error is already set in the store
       }
     },
-    [storeLogin, navigate]
+    [storeLogin, navigate, location.state]
+  );
+
+  /**
+   * Register a new account
+   * On success, redirects to login page with success message
+   */
+  const register = useCallback(
+    async (data: RegisterData) => {
+      try {
+        await storeRegister(data);
+        // Redirect to login page after successful registration
+        navigate('/login', {
+          state: { message: 'Cuenta creada exitosamente. Por favor inicia sesión.' },
+        });
+      } catch {
+        // Error is already set in the store
+      }
+    },
+    [storeRegister, navigate]
   );
 
   /**
@@ -42,15 +78,20 @@ export function useAuth() {
    */
   const logout = useCallback(() => {
     storeLogout();
-    navigate('/login');
+    navigate('/login', { replace: true });
   }, [storeLogout, navigate]);
 
   return {
+    // State
     user,
     isAuthenticated,
     isLoading,
+    isInitialized,
     error,
+
+    // Actions
     login,
+    register,
     logout,
     clearError,
   };

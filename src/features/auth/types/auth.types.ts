@@ -2,65 +2,93 @@ import type { User } from '@/types';
 
 /**
  * Authentication-related type definitions
+ * Based on auth-api.md documentation
  */
 
-// Login form data
+// =============================================================================
+// Request Types
+// =============================================================================
+
+/**
+ * Login credentials
+ * Note: API uses OAuth2 password flow with form-urlencoded
+ * The 'username' field actually expects the email
+ */
 export interface LoginCredentials {
   email: string;
   password: string;
   rememberMe?: boolean;
 }
 
-// Registration form data
+/**
+ * Registration data
+ * POST /auth/register - expects JSON body
+ */
 export interface RegisterData {
+  username: string;
   email: string;
   password: string;
-  firstName: string;
-  lastName: string;
 }
 
-// Authentication tokens
-export interface AuthTokens {
-  accessToken: string;
-  refreshToken: string;
-  expiresIn: number;
+// =============================================================================
+// Response Types
+// =============================================================================
+
+/**
+ * Login response from API
+ * POST /auth/login returns: { access_token: string, token_type: "bearer" }
+ */
+export interface LoginApiResponse {
+  access_token: string;
+  token_type: string;
 }
 
-// Login response from API
-export interface LoginResponse {
-  user: User;
-  tokens: AuthTokens;
+/**
+ * Register response from API
+ * POST /auth/register returns: { id: number, username: string, email: string }
+ */
+export interface RegisterApiResponse {
+  id: number;
+  username: string;
+  email: string;
 }
 
-// Auth state for the store
+/**
+ * Current user response from API
+ * GET /auth/me returns: { id: number, username: string, email: string }
+ */
+export type CurrentUserResponse = User;
+
+// =============================================================================
+// Store Types
+// =============================================================================
+
+/**
+ * Auth state for Zustand store
+ */
 export interface AuthState {
   user: User | null;
   accessToken: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  isInitialized: boolean;
   error: string | null;
 }
 
-// Auth actions for the store
+/**
+ * Auth actions for Zustand store
+ */
 export interface AuthActions {
   login: (credentials: LoginCredentials) => Promise<void>;
+  register: (data: RegisterData) => Promise<void>;
   logout: () => void;
-  refreshToken: () => Promise<void>;
   clearError: () => void;
   setUser: (user: User) => void;
   checkAuth: () => Promise<void>;
+  initialize: () => Promise<void>;
 }
 
-// Combined auth store type
+/**
+ * Combined auth store type
+ */
 export type AuthStore = AuthState & AuthActions;
-
-// Password reset request
-export interface PasswordResetRequest {
-  email: string;
-}
-
-// Password reset confirmation
-export interface PasswordResetConfirm {
-  token: string;
-  newPassword: string;
-}

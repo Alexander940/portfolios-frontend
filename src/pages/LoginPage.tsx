@@ -112,20 +112,6 @@ export function LoginPage() {
 
             {/* Login form */}
             <LoginForm />
-
-            {/* Demo credentials hint (development only) */}
-            {import.meta.env.DEV && (
-              <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-100">
-                <p className="text-xs text-blue-700 font-medium mb-1">
-                  Credenciales de prueba:
-                </p>
-                <p className="text-xs text-blue-600">
-                  Email: demo@example.com
-                  <br />
-                  Password: demo123
-                </p>
-              </div>
-            )}
           </div>
 
           {/* Footer */}

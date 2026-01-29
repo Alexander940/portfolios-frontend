@@ -2,19 +2,17 @@
  * Global type definitions for the application
  */
 
-// Generic API response wrapper
-export interface ApiResponse<T> {
-  data: T;
-  message?: string;
-  status: number;
+// API error response from backend
+// Backend returns: { detail: "error message" }
+export interface ApiErrorResponse {
+  detail: string;
 }
 
-// API error response
+// Internal API error for error handling
 export interface ApiError {
   message: string;
-  code?: string;
   status: number;
-  errors?: Record<string, string[]>;
+  detail?: string;
 }
 
 // Pagination metadata
@@ -31,24 +29,15 @@ export interface PaginatedResponse<T> {
   meta: PaginationMeta;
 }
 
-// Base entity with common fields
-export interface BaseEntity {
-  id: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-// User entity
-export interface User extends BaseEntity {
+/**
+ * User entity as returned by the backend
+ * Backend returns: { id: number, username: string, email: string }
+ */
+export interface User {
+  id: number;
+  username: string;
   email: string;
-  firstName: string;
-  lastName: string;
-  avatarUrl?: string;
-  role: UserRole;
-  isEmailVerified: boolean;
 }
-
-export type UserRole = 'admin' | 'user' | 'viewer';
 
 // Utility type for making specific properties optional
 export type PartialBy<T, K extends keyof T> = Omit<T, K> & Partial<Pick<T, K>>;
