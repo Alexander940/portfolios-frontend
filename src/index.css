@@ -30,8 +30,10 @@ html {
   scroll-behavior: smooth;
 }
 
-/* Modal z-index layers */
+/* Z-index layers */
 :root {
+  --z-header: 40;
+  --z-mobile-menu: 45;
   --z-modal-backdrop: 50;
   --z-modal: 51;
 }
