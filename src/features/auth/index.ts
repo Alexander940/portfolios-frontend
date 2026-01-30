@@ -1,11 +1,11 @@
 // Components
-export { LoginForm } from './components';
+export { LoginForm, RegisterForm, RegisterModal } from './components';
 
 // Hooks
 export { useAuth } from './hooks';
 
 // Store
-export { useAuthStore } from './stores';
+export { useAuthStore, useModalStore } from './stores';
 
 // Services
 export { authService } from './services';
@@ -21,3 +21,5 @@ export type {
   AuthStore,
   AuthActions,
 } from './types';
+
+export type { ModalStore } from './stores/modalStore';

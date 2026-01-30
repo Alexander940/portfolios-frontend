@@ -5,6 +5,7 @@ import { Mail, Lock, AlertCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button, Input, Checkbox } from '@/components/ui';
 import { useAuth } from '../hooks';
+import { useModalStore } from '../stores/modalStore';
 
 /**
  * Login form validation schema
@@ -35,6 +36,7 @@ type LoginFormData = z.infer<typeof loginSchema>;
  */
 export function LoginForm() {
   const { login, isLoading, error, clearError } = useAuth();
+  const { openModal } = useModalStore();
 
   const {
     register,
@@ -123,12 +125,13 @@ export function LoginForm() {
       {/* Sign up link */}
       <p className="text-center text-sm text-gray-600">
         ¿No tienes una cuenta?{' '}
-        <Link
-          to="/register"
+        <button
+          type="button"
+          onClick={() => openModal('register')}
           className="font-medium text-[#1e3a5f] hover:text-[#2d5a8a] transition-colors"
         >
           Regístrate aquí
-        </Link>
+        </button>
       </p>
     </form>
   );

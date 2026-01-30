@@ -29,3 +29,9 @@ body {
 html {
   scroll-behavior: smooth;
 }
+
+/* Modal z-index layers */
+:root {
+  --z-modal-backdrop: 50;
+  --z-modal: 51;
+}

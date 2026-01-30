@@ -4,7 +4,10 @@
       "Bash(npm install react-router-dom zustand axios react-hook-form zod lucide-react @hookform/resolvers)",
       "Bash(npm install:*)",
       "Bash(npm run build:*)",
-      "Bash(npm run lint:*)"
+      "Bash(npm run lint:*)",
+      "Bash(cat:*)",
+      "Bash(npx playwright install:*)",
+      "Bash(npm run test:e2e:*)"
     ],
     "deny": [],
     "ask": []

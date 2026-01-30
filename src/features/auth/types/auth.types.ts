@@ -25,9 +25,11 @@ export interface LoginCredentials {
  * POST /auth/register - expects JSON body
  */
 export interface RegisterData {
-  username: string;
   email: string;
+  username: string;
   password: string;
+  first_name?: string;
+  last_name?: string;
 }
 
 // =============================================================================
@@ -45,12 +47,17 @@ export interface LoginApiResponse {
 
 /**
  * Register response from API
- * POST /auth/register returns: { id: number, username: string, email: string }
+ * POST /auth/register returns user data with optional fields
  */
 export interface RegisterApiResponse {
-  id: number;
-  username: string;
+  user_id: string;
   email: string;
+  username: string;
+  first_name: string | null;
+  last_name: string | null;
+  subscription_tier: string;
+  is_active: boolean;
+  created_at: string;
 }
 
 /**

@@ -1,5 +1,6 @@
-import { TrendingUp } from 'lucide-react';
-import { LoginForm } from '@/features/auth';
+import { useEffect } from 'react';
+import { TrendingUp, CheckCircle, X } from 'lucide-react';
+import { LoginForm, RegisterModal, useModalStore } from '@/features/auth';
 
 /**
  * LoginPage
@@ -10,6 +11,18 @@ import { LoginForm } from '@/features/auth';
  * - Responsive design (stacked on mobile)
  */
 export function LoginPage() {
+  const { successMessage, clearSuccessMessage } = useModalStore();
+
+  // Auto-clear success message after 5 seconds
+  useEffect(() => {
+    if (successMessage) {
+      const timer = setTimeout(() => {
+        clearSuccessMessage();
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [successMessage, clearSuccessMessage]);
+
   return (
     <div className="min-h-screen flex">
       {/* Left panel - Decorative (hidden on mobile) */}
@@ -98,6 +111,27 @@ export function LoginPage() {
             </div>
           </div>
 
+          {/* Success message */}
+          {successMessage && (
+            <div
+              className="mb-4 flex items-center justify-between gap-2 p-4 text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg"
+              role="alert"
+            >
+              <div className="flex items-center gap-2">
+                <CheckCircle className="w-5 h-5 flex-shrink-0" />
+                <span>{successMessage}</span>
+              </div>
+              <button
+                type="button"
+                onClick={clearSuccessMessage}
+                className="p-1 rounded hover:bg-green-100 transition-colors"
+                aria-label="Cerrar mensaje"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+
           {/* Card container */}
           <div className="bg-white rounded-2xl shadow-xl p-8 sm:p-10">
             {/* Header */}
@@ -121,6 +155,9 @@ export function LoginPage() {
           </p>
         </div>
       </div>
+
+      {/* Registration Modal */}
+      <RegisterModal />
     </div>
   );
 }
