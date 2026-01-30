@@ -6,4 +6,3 @@ export { ScreeningPage } from './ScreeningPage';
 export { PortfolioAnalysisPage } from './PortfolioAnalysisPage';
 export { RankPage } from './RankPage';
 export { StrategyBuilderPage } from './StrategyBuilderPage';
-export { ReportsHubPage } from './ReportsHubPage';

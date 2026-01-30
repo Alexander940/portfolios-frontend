@@ -10,5 +10,4 @@ export {
   PortfolioAnalysisPage,
   RankPage,
   StrategyBuilderPage,
-  ReportsHubPage,
 } from './dashboard';

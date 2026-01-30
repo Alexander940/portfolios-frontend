@@ -6,7 +6,6 @@ import {
   PieChart,
   Award,
   Blocks,
-  FileText,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -30,5 +29,4 @@ export const NAV_ITEMS: NavItem[] = [
   { path: '/dashboard/analysis', label: 'Portfolio Analysis', icon: PieChart },
   { path: '/dashboard/rank', label: 'Rank', icon: Award },
   { path: '/dashboard/builder', label: 'Strategy Builder', icon: Blocks },
-  { path: '/dashboard/reports', label: 'Reports Hub', icon: FileText },
 ];

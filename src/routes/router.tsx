@@ -30,9 +30,6 @@ const RankPage = lazy(() =>
 const StrategyBuilderPage = lazy(() =>
   import('@/pages/dashboard/StrategyBuilderPage').then((m) => ({ default: m.StrategyBuilderPage }))
 );
-const ReportsHubPage = lazy(() =>
-  import('@/pages/dashboard/ReportsHubPage').then((m) => ({ default: m.ReportsHubPage }))
-);
 
 /**
  * Loading fallback component for lazy-loaded pages
@@ -124,10 +121,6 @@ export const router = createBrowserRouter([
       {
         path: 'builder',
         element: withSuspense(StrategyBuilderPage),
-      },
-      {
-        path: 'reports',
-        element: withSuspense(ReportsHubPage),
       },
     ],
   },
