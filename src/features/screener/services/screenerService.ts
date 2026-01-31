@@ -7,16 +7,18 @@ import type { ScreenerRequest, ScreenerResponse, ScreenerOptions } from '../type
  * Handles all screener-related API calls.
  * Based on screener-api.md documentation.
  *
+ * Note: Base URL already includes /api/v1, so endpoints are relative to that.
+ *
  * Endpoints:
- * - POST /api/v1/screener/ - Screen stocks with filters
- * - GET /api/v1/screener/options - Get dropdown options
+ * - POST /screener/ - Screen stocks with filters
+ * - GET /screener/options - Get dropdown options
  */
 
 export const screenerService = {
   /**
    * Screen stocks based on filter criteria
    *
-   * POST /api/v1/screener/
+   * POST /screener/
    * Content-Type: application/json
    *
    * @param filters - Filter parameters (all optional)
@@ -31,7 +33,7 @@ export const screenerService = {
     const cleanedFilters = cleanFilters(filters);
 
     const response = await apiClient.post<ScreenerResponse>(
-      '/api/v1/screener/',
+      '/screener/',
       cleanedFilters,
       { signal }
     );
@@ -42,12 +44,12 @@ export const screenerService = {
   /**
    * Get available options for dropdown filters
    *
-   * GET /api/v1/screener/options
+   * GET /screener/options
    *
    * @returns Available countries, exchanges, and sectors
    */
   async getOptions(): Promise<ScreenerOptions> {
-    const response = await apiClient.get<ScreenerOptions>('/api/v1/screener/options');
+    const response = await apiClient.get<ScreenerOptions>('/screener/options');
     return response.data;
   },
 };
