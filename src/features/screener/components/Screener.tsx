@@ -4,6 +4,7 @@ import { ActiveFilters } from './ActiveFilters';
 import { FilterModal } from './FilterModal';
 import { ResultsTable } from './ResultsTable';
 import { TablePagination } from './TablePagination';
+import { ColumnPresetTabs } from './ColumnPresetTabs';
 import { useScreenerData, useScreenerUrlSync } from '../hooks';
 
 /**
@@ -44,6 +45,16 @@ export function Screener() {
 
       {/* Results Section */}
       <div className="space-y-4">
+        {/* Column preset tabs */}
+        <div className="flex items-center justify-between gap-4">
+          <ColumnPresetTabs />
+          {!error && !isLoading && data.length > 0 && (
+            <span className="text-xs text-gray-500">
+              {totalCount.toLocaleString()} results
+            </span>
+          )}
+        </div>
+
         {/* Results Table */}
         <ResultsTable
           data={data}

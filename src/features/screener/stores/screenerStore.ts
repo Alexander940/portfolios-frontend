@@ -1,6 +1,27 @@
 import { create } from 'zustand';
 import type { RangeFilter, FilterValue, RatingLetter, ScreenerRequest } from '../types';
-import { DEFAULT_PAGE_SIZE, ratingsToApiFilter } from '../constants';
+import {
+  DEFAULT_COLUMN_PRESET,
+  DEFAULT_PAGE_SIZE,
+  TABLE_COLUMN_PRESETS,
+  ratingsToApiFilter,
+} from '../constants';
+import type { ColumnPresetId } from '../constants';
+
+const COLUMN_PRESET_STORAGE_KEY = 'screener.columnPreset';
+
+function loadStoredColumnPreset(): ColumnPresetId {
+  if (typeof window === 'undefined') return DEFAULT_COLUMN_PRESET;
+  try {
+    const stored = window.localStorage.getItem(COLUMN_PRESET_STORAGE_KEY);
+    if (stored && TABLE_COLUMN_PRESETS.some((p) => p.id === stored)) {
+      return stored as ColumnPresetId;
+    }
+  } catch {
+    // ignore
+  }
+  return DEFAULT_COLUMN_PRESET;
+}
 
 /**
  * Filter state for additional filters (non-primary)
@@ -29,6 +50,9 @@ interface ScreenerState {
 
   // Modal state
   activeFilterKey: string | null;
+
+  // Column visibility preset
+  columnPreset: ColumnPresetId;
 }
 
 /**
@@ -57,6 +81,9 @@ interface ScreenerActions {
   openFilterModal: (filterKey: string) => void;
   closeFilterModal: () => void;
 
+  // Column preset actions
+  setColumnPreset: (preset: ColumnPresetId) => void;
+
   // Get API request params
   getApiRequest: () => ScreenerRequest;
 
@@ -77,6 +104,7 @@ const initialState: ScreenerState = {
   page: 1,
   pageSize: DEFAULT_PAGE_SIZE,
   activeFilterKey: null,
+  columnPreset: loadStoredColumnPreset(),
 };
 
 /**
@@ -137,6 +165,18 @@ export const useScreenerStore = create<ScreenerState & ScreenerActions>((set, ge
   // Modal actions
   openFilterModal: (filterKey) => set({ activeFilterKey: filterKey }),
   closeFilterModal: () => set({ activeFilterKey: null }),
+
+  // Column preset actions
+  setColumnPreset: (preset) => {
+    if (typeof window !== 'undefined') {
+      try {
+        window.localStorage.setItem(COLUMN_PRESET_STORAGE_KEY, preset);
+      } catch {
+        // ignore
+      }
+    }
+    set({ columnPreset: preset });
+  },
 
   // Get API request params
   getApiRequest: () => {

@@ -33,4 +33,8 @@ export {
   DEFAULT_TABLE_COLUMNS,
   PAGE_SIZE_OPTIONS,
   DEFAULT_PAGE_SIZE,
+  TABLE_COLUMN_PRESETS,
+  DEFAULT_COLUMN_PRESET,
+  getColumnPreset,
 } from './constants';
+export type { ColumnPresetId, ColumnPreset } from './constants';

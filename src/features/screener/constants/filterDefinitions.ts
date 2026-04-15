@@ -451,3 +451,123 @@ export const PAGE_SIZE_OPTIONS = [20, 50, 100, 200] as const;
  * Default page size
  */
 export const DEFAULT_PAGE_SIZE = 50;
+
+// =============================================================================
+// Table Column Presets
+// =============================================================================
+
+export type ColumnPresetId = 'overview' | 'trendrating' | 'performance' | 'fundamentals' | 'all';
+
+export interface ColumnPreset {
+  id: ColumnPresetId;
+  label: string;
+  description: string;
+  columns: TableColumn[];
+}
+
+const PINNED_COLUMNS: TableColumn[] = [
+  { key: 'ticker', label: 'Ticker', sortable: true, align: 'left', width: '110px' },
+  { key: 'name', label: 'Name', sortable: true, align: 'left', width: '220px' },
+];
+
+const METADATA_COLUMNS: TableColumn[] = [
+  { key: 'exchange', label: 'Market', sortable: true, align: 'left', width: '100px' },
+  { key: 'sector', label: 'Sector', sortable: true, align: 'left', width: '150px' },
+  { key: 'country', label: 'Country', sortable: true, align: 'left', width: '100px' },
+];
+
+const TRENDRATING_COLUMNS: TableColumn[] = [
+  { key: 'rating', label: 'Rating', sortable: true, align: 'center', width: '90px', format: formatRating },
+  { key: 'smart_momentum', label: 'Smart Momentum', sortable: true, align: 'right', width: '140px', format: (v) => formatNumber(v, 2) },
+  { key: 'trend_strength', label: 'Trend Strength', sortable: true, align: 'right', width: '130px', format: (v) => formatNumber(v, 2) },
+  { key: 'retracement', label: 'Retracement', sortable: true, align: 'right', width: '120px', format: formatPercent },
+  { key: 'new_high_low', label: 'New High/Low', sortable: true, align: 'center', width: '120px' },
+  { key: 'days_since_rating', label: 'Days in Rating', sortable: true, align: 'right', width: '120px', format: (v) => formatNumber(v, 0) },
+];
+
+const PERFORMANCE_COLUMNS: TableColumn[] = [
+  { key: 'return_1w', label: '1W', sortable: true, align: 'right', width: '90px', format: formatPercent },
+  { key: 'return_1m', label: '1M', sortable: true, align: 'right', width: '90px', format: formatPercent },
+  { key: 'return_3m', label: '3M', sortable: true, align: 'right', width: '90px', format: formatPercent },
+  { key: 'return_6m', label: '6M', sortable: true, align: 'right', width: '90px', format: formatPercent },
+  { key: 'return_12m', label: '12M', sortable: true, align: 'right', width: '90px', format: formatPercent },
+  { key: 'return_ytd', label: 'YTD', sortable: true, align: 'right', width: '90px', format: formatPercent },
+  { key: 'sharpe_6m', label: 'Sharpe 6M', sortable: true, align: 'right', width: '110px', format: (v) => formatNumber(v, 2) },
+  { key: 'sharpe_12m', label: 'Sharpe 12M', sortable: true, align: 'right', width: '110px', format: (v) => formatNumber(v, 2) },
+  { key: 'liquidity_usd_m', label: 'Liquidity', sortable: true, align: 'right', width: '110px', format: formatLiquidity },
+];
+
+const FUNDAMENTALS_COLUMNS: TableColumn[] = [
+  { key: 'pe_ratio', label: 'P/E', sortable: true, align: 'right', width: '90px', format: (v) => formatNumber(v, 1) },
+  { key: 'ps_ratio', label: 'P/S', sortable: true, align: 'right', width: '90px', format: (v) => formatNumber(v, 2) },
+  { key: 'pb_ratio', label: 'P/B', sortable: true, align: 'right', width: '90px', format: (v) => formatNumber(v, 2) },
+  { key: 'pcf_ratio', label: 'P/CF', sortable: true, align: 'right', width: '90px', format: (v) => formatNumber(v, 2) },
+  { key: 'pd_ratio', label: 'P/D', sortable: true, align: 'right', width: '90px', format: (v) => formatNumber(v, 2) },
+  { key: 'dividend_yield', label: 'Div Yield', sortable: true, align: 'right', width: '100px', format: formatPercent },
+  { key: 'revenue_growth_3m', label: 'Rev. Growth 3M', sortable: true, align: 'right', width: '140px', format: formatPercent },
+  { key: 'revenue_growth_12m', label: 'Rev. Growth 12M', sortable: true, align: 'right', width: '150px', format: formatPercent },
+  { key: 'earnings_growth_3m', label: 'EPS Growth 3M', sortable: true, align: 'right', width: '140px', format: formatPercent },
+  { key: 'earnings_growth_12m', label: 'EPS Growth 12M', sortable: true, align: 'right', width: '150px', format: formatPercent },
+];
+
+/**
+ * Table column visibility presets.
+ *
+ * Each preset defines which columns are shown. Ticker + Name are always pinned
+ * to the left (handled by ResultsTable via the first two columns).
+ */
+export const TABLE_COLUMN_PRESETS: ColumnPreset[] = [
+  {
+    id: 'overview',
+    label: 'Overview',
+    description: 'Key identifiers + top-line metrics',
+    columns: [
+      ...PINNED_COLUMNS,
+      { key: 'exchange', label: 'Market', sortable: true, align: 'left', width: '100px' },
+      { key: 'sector', label: 'Sector', sortable: true, align: 'left', width: '120px' },
+      { key: 'rating', label: 'Rating', sortable: true, align: 'center', width: '80px', format: formatRating },
+      { key: 'return_1m', label: '1M', sortable: true, align: 'right', width: '90px', format: formatPercent },
+      { key: 'return_3m', label: '3M', sortable: true, align: 'right', width: '90px', format: formatPercent },
+      { key: 'return_12m', label: '12M', sortable: true, align: 'right', width: '90px', format: formatPercent },
+      { key: 'pe_ratio', label: 'P/E', sortable: true, align: 'right', width: '80px', format: (v) => formatNumber(v, 1) },
+      { key: 'dividend_yield', label: 'Div Yield', sortable: true, align: 'right', width: '100px', format: formatPercent },
+      { key: 'liquidity_usd_m', label: 'Liquidity', sortable: true, align: 'right', width: '110px', format: formatLiquidity },
+    ],
+  },
+  {
+    id: 'trendrating',
+    label: 'TrendRating',
+    description: 'Rating, momentum, trend strength and retracement',
+    columns: [...PINNED_COLUMNS, ...TRENDRATING_COLUMNS],
+  },
+  {
+    id: 'performance',
+    label: 'Performance',
+    description: 'Multi-horizon returns, Sharpe ratios and liquidity',
+    columns: [...PINNED_COLUMNS, ...PERFORMANCE_COLUMNS],
+  },
+  {
+    id: 'fundamentals',
+    label: 'Fundamentals',
+    description: 'Valuation multiples, growth and dividend',
+    columns: [...PINNED_COLUMNS, ...FUNDAMENTALS_COLUMNS],
+  },
+  {
+    id: 'all',
+    label: 'All',
+    description: 'Every available metric (scroll horizontal)',
+    columns: [
+      ...PINNED_COLUMNS,
+      ...METADATA_COLUMNS,
+      ...TRENDRATING_COLUMNS,
+      ...PERFORMANCE_COLUMNS,
+      ...FUNDAMENTALS_COLUMNS,
+    ],
+  },
+];
+
+export const DEFAULT_COLUMN_PRESET: ColumnPresetId = 'overview';
+
+export function getColumnPreset(id: ColumnPresetId): ColumnPreset {
+  return TABLE_COLUMN_PRESETS.find((p) => p.id === id) ?? TABLE_COLUMN_PRESETS[0];
+}
