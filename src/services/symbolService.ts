@@ -33,7 +33,7 @@ export async function searchSymbols(
   signal?: AbortSignal,
 ): Promise<SymbolSearchResult[]> {
   const { data } = await apiClient.get<SymbolSearchResult[]>(
-    '/api/v1/symbols/search',
+    '/symbols/search',
     { params: { q: query, limit }, signal },
   );
   return data;
@@ -45,7 +45,7 @@ export async function getPriceHistory(
   signal?: AbortSignal,
 ): Promise<PriceHistoryResponse> {
   const { data } = await apiClient.get<PriceHistoryResponse>(
-    `/api/v1/symbols/${symbolId}/prices`,
+    `/symbols/${symbolId}/prices`,
     { params: { period }, signal },
   );
   return data;
