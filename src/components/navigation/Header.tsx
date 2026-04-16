@@ -7,6 +7,8 @@ import { NAV_ITEMS } from '@/config/navigation';
 import { SearchBar } from './SearchBar';
 import { NavLink } from './NavLink';
 import { MobileMenu } from './MobileMenu';
+import { SymbolModal } from '@/components/symbol';
+import type { SymbolSearchResult } from '@/services/symbolService';
 
 /**
  * Header Component
@@ -21,6 +23,7 @@ import { MobileMenu } from './MobileMenu';
  */
 export function Header() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [selectedSymbol, setSelectedSymbol] = useState<SymbolSearchResult | null>(null);
   const { user, logout } = useAuth();
 
   const toggleMobileMenu = () => {
@@ -49,7 +52,7 @@ export function Header() {
 
             {/* Search bar - hidden on mobile */}
             <div className="hidden lg:block">
-              <SearchBar />
+              <SearchBar onSelect={setSelectedSymbol} />
             </div>
           </div>
 
@@ -107,6 +110,19 @@ export function Header() {
 
       {/* Mobile menu */}
       <MobileMenu isOpen={isMobileMenuOpen} onClose={closeMobileMenu} />
+
+      {/* Symbol detail modal */}
+      {selectedSymbol && (
+        <SymbolModal
+          isOpen={!!selectedSymbol}
+          onClose={() => setSelectedSymbol(null)}
+          symbolId={selectedSymbol.symbol_id}
+          ticker={selectedSymbol.ticker}
+          name={selectedSymbol.name}
+          exchange={selectedSymbol.exchange}
+          sector={selectedSymbol.sector}
+        />
+      )}
     </header>
   );
 }
