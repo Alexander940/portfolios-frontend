@@ -172,7 +172,17 @@ export const useAuthStore = create<AuthStore>()(
         const token = getTokenFromStorage();
 
         if (!token) {
-          set({ isInitialized: true });
+          // Clear any stale persisted state (user/isAuthenticated) when the
+          // token is gone — e.g. tab closed with sessionStorage, or token
+          // cleared manually. Without this reset, ProtectedRoute would
+          // see a stale isAuthenticated=true and let the user through,
+          // only for every API call to fail with 401.
+          set({
+            user: null,
+            accessToken: null,
+            isAuthenticated: false,
+            isInitialized: true,
+          });
           return;
         }
 
