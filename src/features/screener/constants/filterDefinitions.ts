@@ -326,7 +326,7 @@ export const OTHER_FILTERS: FilterDefinition[] = [
     category: 'others',
     type: 'multiselect',
     apiKey: 'rating',
-    description: 'Trendrating rating (A, B, C, D)',
+    description: 'Trend rating (A, B, C, D)',
   },
 ];
 
@@ -346,7 +346,7 @@ export const ADDITIONAL_FILTERS: FilterDefinition[] = [
  * Filter categories with display labels
  */
 export const FILTER_CATEGORIES = [
-  { key: 'trendrating', label: 'Trendrating' },
+  { key: 'trendrating', label: 'Trend' },
   { key: 'fundamentals', label: 'Fundamentals' },
   { key: 'performance', label: 'Performance' },
   { key: 'others', label: 'Others' },
@@ -536,7 +536,7 @@ export const TABLE_COLUMN_PRESETS: ColumnPreset[] = [
   },
   {
     id: 'trendrating',
-    label: 'TrendRating',
+    label: 'Trend',
     description: 'Rating, momentum, trend strength and retracement',
     columns: [...PINNED_COLUMNS, ...TRENDRATING_COLUMNS],
   },
