@@ -44,3 +44,94 @@ export async function createPortfolioFromScreener(
   );
   return data;
 }
+
+export interface PortfolioList {
+  items: PortfolioResponse[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface PortfolioPositionDetail {
+  position_id: string;
+  symbol_id: string;
+  ticker: string;
+  name: string;
+  sector: string | null;
+  country: string | null;
+  quantity: number;
+  average_cost: number;
+  weight_pct: number | null;
+  entry_date: string | null;
+  entry_rating: number | null;
+  current_price: number | null;
+  current_value: number | null;
+  unrealized_pnl: number | null;
+  unrealized_pnl_pct: number | null;
+  current_rating: number | null;
+  rating_changed: boolean;
+}
+
+export interface PortfolioPositionDetailList {
+  items: PortfolioPositionDetail[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export type PositionSortField =
+  | 'weight'
+  | 'pnl_pct'
+  | 'ticker'
+  | 'entry_date'
+  | 'current_value';
+
+export type SortOrder = 'asc' | 'desc';
+
+export async function listPortfolios(
+  limit = 50,
+  offset = 0,
+  signal?: AbortSignal,
+): Promise<PortfolioList> {
+  const { data } = await apiClient.get<PortfolioList>('/portfolios/', {
+    params: { limit, offset },
+    signal,
+  });
+  return data;
+}
+
+export async function getPortfolio(
+  portfolioId: string,
+  signal?: AbortSignal,
+): Promise<PortfolioResponse> {
+  const { data } = await apiClient.get<PortfolioResponse>(
+    `/portfolios/${portfolioId}`,
+    { signal },
+  );
+  return data;
+}
+
+export async function listPortfolioPositions(
+  portfolioId: string,
+  params: {
+    sort_by?: PositionSortField;
+    sort_order?: SortOrder;
+    limit?: number;
+    offset?: number;
+  } = {},
+  signal?: AbortSignal,
+): Promise<PortfolioPositionDetailList> {
+  const { data } = await apiClient.get<PortfolioPositionDetailList>(
+    `/portfolios/${portfolioId}/positions`,
+    {
+      params: {
+        sort_by: params.sort_by ?? 'weight',
+        sort_order: params.sort_order ?? 'desc',
+        limit: params.limit ?? 200,
+        offset: params.offset ?? 0,
+      },
+      signal,
+    },
+  );
+  return data;
+}
