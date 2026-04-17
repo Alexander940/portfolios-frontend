@@ -97,7 +97,6 @@ export function SavePortfolioModal({
     }
   }
 
-  const tooMany = totalCount > 100;
   const noResults = totalCount === 0;
 
   return (
@@ -178,7 +177,7 @@ export function SavePortfolioModal({
           className={`
             flex items-center gap-2 p-3 rounded-lg text-sm
             ${
-              tooMany || noResults
+              noResults
                 ? 'bg-amber-50 text-amber-800 border border-amber-200'
                 : 'bg-blue-50 text-blue-800 border border-blue-200'
             }
@@ -187,11 +186,6 @@ export function SavePortfolioModal({
           <Bookmark size={16} />
           {noResults ? (
             <span>No stocks match the current filters.</span>
-          ) : tooMany ? (
-            <span>
-              {totalCount.toLocaleString()} stocks match — narrow filters to ≤ 100 to
-              save as portfolio.
-            </span>
           ) : (
             <span>
               Portfolio will include{' '}
@@ -217,7 +211,7 @@ export function SavePortfolioModal({
           </Button>
           <Button
             type="submit"
-            disabled={isSubmitting || tooMany || noResults}
+            disabled={isSubmitting || noResults}
             leftIcon={
               isSubmitting ? <Loader2 size={16} className="animate-spin" /> : undefined
             }
