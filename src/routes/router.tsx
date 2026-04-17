@@ -115,6 +115,10 @@ export const router = createBrowserRouter([
         element: withSuspense(PortfolioAnalysisPage),
       },
       {
+        path: 'analysis/:portfolioId',
+        element: withSuspense(PortfolioAnalysisPage),
+      },
+      {
         path: 'rank',
         element: withSuspense(RankPage),
       },
