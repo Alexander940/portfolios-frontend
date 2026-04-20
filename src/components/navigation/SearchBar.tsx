@@ -76,57 +76,33 @@ export function SearchBar({ onSelect }: SearchBarProps) {
   }
 
   return (
-    <div ref={containerRef} className="relative">
-      <Search
-        className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-        size={18}
-      />
-      {isLoading && (
-        <Loader2
-          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 animate-spin"
-          size={16}
-        />
-      )}
+    <div ref={containerRef} className="search-wrap">
+      <Search className="search-icon" size={14} />
+      {isLoading && <Loader2 className="search-loading" size={14} />}
       <input
         type="text"
         value={query}
         onChange={(e) => setQuery(e.target.value.toUpperCase())}
         onKeyDown={handleKeyDown}
         onFocus={() => results.length > 0 && setIsOpen(true)}
-        placeholder="Buscar ticker..."
-        className="
-          w-64 pl-10 pr-10 py-2
-          bg-gray-100 border border-transparent rounded-lg
-          text-sm text-gray-900 placeholder-gray-500
-          focus:outline-none focus:ring-2 focus:ring-[#1e3a5f] focus:border-transparent focus:bg-white
-          transition-colors duration-200
-        "
+        placeholder="Search portfolios, tickers, actions…"
+        className="search-input"
       />
 
       {isOpen && results.length > 0 && (
-        <div className="absolute top-full left-0 mt-1 w-80 bg-white rounded-xl border border-gray-200 shadow-xl z-50 overflow-hidden">
+        <div className="search-results">
           {results.map((symbol, idx) => (
             <button
               key={symbol.symbol_id}
               type="button"
               onClick={() => handleSelect(symbol)}
               onMouseEnter={() => setActiveIndex(idx)}
-              className={`
-                w-full px-4 py-3 text-left flex items-center gap-3 transition-colors
-                ${idx === activeIndex ? 'bg-[#f0f4fa]' : 'hover:bg-gray-50'}
-                ${idx > 0 ? 'border-t border-gray-100' : ''}
-              `}
+              className={`search-result ${idx === activeIndex ? 'active' : ''}`}
             >
-              <span className="font-semibold text-gray-900 text-sm w-16 shrink-0">
-                {symbol.ticker}
-              </span>
-              <span className="text-sm text-gray-600 truncate flex-1">
-                {symbol.name}
-              </span>
+              <span className="search-result-ticker">{symbol.ticker}</span>
+              <span className="search-result-name">{symbol.name}</span>
               {symbol.exchange && (
-                <span className="text-xs text-gray-400 shrink-0">
-                  {symbol.exchange}
-                </span>
+                <span className="search-result-exchange">{symbol.exchange}</span>
               )}
             </button>
           ))}

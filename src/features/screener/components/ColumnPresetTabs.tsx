@@ -12,8 +12,24 @@ export function ColumnPresetTabs() {
   const setColumnPreset = useScreenerStore((state) => state.setColumnPreset);
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <span className="text-xs font-medium uppercase tracking-wider text-gray-500 mr-1">
+    <div
+      style={{
+        display: 'flex',
+        flexWrap: 'wrap',
+        alignItems: 'center',
+        gap: 6,
+      }}
+    >
+      <span
+        style={{
+          fontSize: 10,
+          fontWeight: 600,
+          textTransform: 'uppercase',
+          letterSpacing: '0.06em',
+          color: 'var(--c-text-dim)',
+          marginRight: 4,
+        }}
+      >
         View:
       </span>
       {TABLE_COLUMN_PRESETS.map((preset) => {
@@ -24,15 +40,7 @@ export function ColumnPresetTabs() {
             type="button"
             title={preset.description}
             onClick={() => setColumnPreset(preset.id as ColumnPresetId)}
-            className={`
-              px-3 py-1.5 rounded-full text-xs font-semibold transition-colors
-              border
-              ${
-                active
-                  ? 'bg-[#1e3a5f] text-white border-[#1e3a5f]'
-                  : 'bg-white text-gray-600 border-gray-200 hover:border-[#1e3a5f] hover:text-[#1e3a5f]'
-              }
-            `}
+            className={`chip ${active ? 'active' : ''}`}
           >
             {preset.label}
           </button>

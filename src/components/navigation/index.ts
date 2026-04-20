@@ -1,4 +1,3 @@
-export { Header } from './Header';
-export { NavLink } from './NavLink';
+export { Sidebar } from './Sidebar';
+export { Topbar } from './Topbar';
 export { SearchBar } from './SearchBar';
-export { MobileMenu } from './MobileMenu';

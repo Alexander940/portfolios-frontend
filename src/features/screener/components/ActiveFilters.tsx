@@ -22,8 +22,17 @@ export function ActiveFilters() {
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <span className="text-sm text-gray-500">Active filters:</span>
+    <div
+      style={{
+        display: 'flex',
+        flexWrap: 'wrap',
+        alignItems: 'center',
+        gap: 6,
+      }}
+    >
+      <span style={{ fontSize: 12, color: 'var(--c-text-dim)' }}>
+        Active filters:
+      </span>
 
       {filterKeys.map((key) => {
         const filterDef = getFilterDefinition(key);
@@ -46,7 +55,16 @@ export function ActiveFilters() {
         <button
           type="button"
           onClick={clearAllFilters}
-          className="text-sm text-gray-500 hover:text-gray-700 underline ml-2"
+          style={{
+            fontSize: 12,
+            color: 'var(--c-text-dim)',
+            textDecoration: 'underline',
+            marginLeft: 8,
+            background: 'none',
+            border: 0,
+            cursor: 'pointer',
+            fontFamily: 'inherit',
+          }}
         >
           Clear all
         </button>
@@ -67,14 +85,32 @@ interface FilterChipProps {
 
 function FilterChip({ label, value, onClick, onRemove }: FilterChipProps) {
   return (
-    <div className="inline-flex items-center gap-1 pl-3 pr-1 py-1 bg-[#1e3a5f]/10 text-[#1e3a5f] rounded-full text-sm">
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 2,
+        padding: '3px 4px 3px 10px',
+        background: 'var(--c-accent-soft)',
+        color: 'var(--c-accent-text)',
+        border: '1px solid var(--c-accent)',
+        borderRadius: 100,
+        fontSize: 12,
+      }}
+    >
       <button
         type="button"
         onClick={onClick}
-        className="hover:underline focus:outline-none focus:underline"
+        style={{
+          background: 'none',
+          border: 0,
+          color: 'inherit',
+          cursor: 'pointer',
+          fontFamily: 'inherit',
+          padding: 0,
+        }}
       >
-        <span className="font-medium">{label}:</span>{' '}
-        <span>{value}</span>
+        <span style={{ fontWeight: 500 }}>{label}:</span> <span>{value}</span>
       </button>
       <button
         type="button"
@@ -82,12 +118,22 @@ function FilterChip({ label, value, onClick, onRemove }: FilterChipProps) {
           e.stopPropagation();
           onRemove();
         }}
-        className="p-1 rounded-full hover:bg-[#1e3a5f]/20 focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]"
+        style={{
+          padding: 4,
+          borderRadius: '50%',
+          background: 'none',
+          border: 0,
+          color: 'inherit',
+          cursor: 'pointer',
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
         aria-label={`Remove ${label} filter`}
       >
-        <X size={14} />
+        <X size={12} />
       </button>
-    </div>
+    </span>
   );
 }
 

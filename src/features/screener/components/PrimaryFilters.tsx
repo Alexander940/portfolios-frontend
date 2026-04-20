@@ -88,10 +88,18 @@ function RatingFilter({ value, onChange }: RatingFilterProps) {
 
   return (
     <div>
-      <label className="block text-sm font-medium text-gray-700 mb-1">
+      <label
+        style={{
+          display: 'block',
+          fontSize: 12,
+          fontWeight: 500,
+          color: 'var(--c-text-soft)',
+          marginBottom: 6,
+        }}
+      >
         Rating
       </label>
-      <div className="flex gap-2">
+      <div style={{ display: 'flex', gap: 6 }}>
         {RATING_CONFIGS.map((config) => {
           const isSelected = value.includes(config.letter);
           return (
@@ -99,24 +107,20 @@ function RatingFilter({ value, onChange }: RatingFilterProps) {
               key={config.letter}
               type="button"
               onClick={() => toggleRating(config.letter)}
-              className={`
-                w-10 h-10 rounded-lg font-bold text-sm
-                border-2 transition-all duration-150
-                focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#1e3a5f]
-                ${
-                  isSelected
-                    ? 'text-white shadow-md'
-                    : 'bg-white text-gray-400 border-gray-200 hover:border-gray-300'
-                }
-              `}
-              style={
-                isSelected
-                  ? {
-                      backgroundColor: config.color,
-                      borderColor: config.color,
-                    }
-                  : undefined
-              }
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 'var(--radius-sm)',
+                fontWeight: 700,
+                fontSize: 13,
+                border: '1.5px solid',
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+                transition: 'all 0.12s',
+                background: isSelected ? config.color : 'var(--c-bg)',
+                color: isSelected ? '#fff' : 'var(--c-text-dim)',
+                borderColor: isSelected ? config.color : 'var(--c-border)',
+              }}
               aria-pressed={isSelected}
               aria-label={`Rating ${config.letter}`}
             >

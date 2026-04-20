@@ -1,21 +1,43 @@
-import { Portfolio } from '@/features/portfolio';
+import { useParams } from 'react-router-dom';
+import { Download, GitCompare } from 'lucide-react';
+import { Portfolio, PortfolioStatCards } from '@/features/portfolio';
 
 /**
  * PortfolioAnalysisPage
  *
- * Dashboard entry point for viewing a model portfolio's positions
- * with current prices, P&L and rating info.
+ * List view: page header + stat cards + portfolios table.
+ * Detail view (when :portfolioId is present): defers entirely to <Portfolio/>.
  */
 export function PortfolioAnalysisPage() {
+  const { portfolioId } = useParams<{ portfolioId: string }>();
+
+  if (portfolioId) {
+    return <Portfolio />;
+  }
+
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Portfolio Analysis</h1>
-        <p className="text-gray-600 mt-1">
-          Detailed performance view of your portfolio positions.
-        </p>
+    <>
+      <div className="page-header">
+        <div>
+          <h1 className="page-title">Portfolio Analysis</h1>
+          <div className="page-sub">
+            Monitor portfolios, react to rating events, and rebalance with context.
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button type="button" className="chip">
+            <Download size={12} />
+            Export
+          </button>
+          <button type="button" className="chip">
+            <GitCompare size={12} />
+            Compare
+          </button>
+        </div>
       </div>
+
+      <PortfolioStatCards />
       <Portfolio />
-    </div>
+    </>
   );
 }

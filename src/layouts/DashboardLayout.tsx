@@ -1,19 +1,32 @@
-import { Outlet } from 'react-router-dom';
-import { Header } from '@/components/navigation';
+import { Outlet, useLocation } from 'react-router-dom';
+import { Sidebar, Topbar } from '@/components/navigation';
+import { RelevantEventsRail } from '@/features/portfolio';
 
 /**
- * DashboardLayout Component
+ * DashboardLayout
  *
- * Main layout wrapper for all dashboard pages.
- * Provides consistent header navigation and renders child routes via Outlet.
+ * App shell with persistent left sidebar, topbar, and main content area.
+ * The right-side "Relevant Events" rail is shown only on the Portfolio
+ * Analysis list view.
  */
 export function DashboardLayout() {
+  const { pathname } = useLocation();
+  const showRail = pathname === '/dashboard/analysis';
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Header />
-      <main>
-        <Outlet />
-      </main>
+    <div className="app-shell">
+      <Sidebar />
+      <Topbar />
+      <div className={`app-main ${showRail ? 'has-rail' : ''}`}>
+        <div className="app-main-content">
+          <Outlet />
+        </div>
+        {showRail && (
+          <aside className="app-main-rail" aria-label="Relevant events">
+            <RelevantEventsRail />
+          </aside>
+        )}
+      </div>
     </div>
   );
 }

@@ -126,15 +126,28 @@ export function Portfolio() {
   if (!portfolioId) {
     if (portfoliosLoading) {
       return (
-        <div className="flex items-center justify-center py-24">
-          <Loader2 className="w-8 h-8 text-gray-400 animate-spin" />
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '64px 0',
+          }}
+        >
+          <Loader2
+            size={28}
+            color="var(--c-text-dim)"
+            style={{ animation: 'spin 1s linear infinite' }}
+          />
         </div>
       );
     }
     if (portfoliosError) {
       return (
-        <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
-          <p className="text-gray-600">{portfoliosError}</p>
+        <div className="card" style={{ padding: 48, textAlign: 'center' }}>
+          <p style={{ color: 'var(--c-text-soft)', margin: 0 }}>
+            {portfoliosError}
+          </p>
         </div>
       );
     }
@@ -143,12 +156,14 @@ export function Portfolio() {
 
   // ===== Detail view =====
   return (
-    <div className="space-y-5">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <button
+        type="button"
         onClick={() => navigate('/dashboard/analysis')}
-        className="inline-flex items-center gap-2 text-sm text-gray-600 hover:text-[#1e3a5f] transition-colors"
+        className="topbar-btn"
+        style={{ alignSelf: 'flex-start', padding: '6px 0' }}
       >
-        <ArrowLeft size={16} />
+        <ArrowLeft size={14} />
         Back to all portfolios
       </button>
 

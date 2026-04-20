@@ -9,24 +9,38 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 
-/**
- * Navigation item configuration
- */
 export interface NavItem {
   path: string;
   label: string;
   icon: LucideIcon;
 }
 
-/**
- * Main navigation items for the dashboard
- */
-export const NAV_ITEMS: NavItem[] = [
-  { path: '/dashboard/alerts', label: 'Alerts', icon: Bell },
-  { path: '/dashboard/strategy', label: 'Strategy Tracker', icon: Target },
-  { path: '/dashboard/markets', label: 'Markets', icon: TrendingUp },
-  { path: '/dashboard/screening', label: 'Screening', icon: Filter },
-  { path: '/dashboard/analysis', label: 'Portfolio Analysis', icon: PieChart },
-  { path: '/dashboard/rank', label: 'Rank', icon: Award },
-  { path: '/dashboard/builder', label: 'Strategy Builder', icon: Blocks },
+export interface NavSection {
+  label: string;
+  items: NavItem[];
+}
+
+export const NAV_SECTIONS: NavSection[] = [
+  {
+    label: 'Workspace',
+    items: [
+      { path: '/dashboard/analysis', label: 'Portfolios', icon: PieChart },
+      { path: '/dashboard/strategy', label: 'Strategy Tracker', icon: Target },
+      { path: '/dashboard/alerts', label: 'Alerts', icon: Bell },
+    ],
+  },
+  {
+    label: 'Research',
+    items: [
+      { path: '/dashboard/markets', label: 'Markets', icon: TrendingUp },
+      { path: '/dashboard/screening', label: 'Screener', icon: Filter },
+      { path: '/dashboard/builder', label: 'Strategy Builder', icon: Blocks },
+      { path: '/dashboard/rank', label: 'Rank', icon: Award },
+    ],
+  },
 ];
+
+/**
+ * Flat list of all nav items, kept for any consumer that still needs it.
+ */
+export const NAV_ITEMS: NavItem[] = NAV_SECTIONS.flatMap((s) => s.items);

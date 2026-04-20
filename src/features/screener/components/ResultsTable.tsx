@@ -1,6 +1,19 @@
-import { ArrowUpDown, ArrowUp, ArrowDown, AlertCircle, RefreshCw, TrendingUp, TrendingDown } from 'lucide-react';
+import {
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+  AlertCircle,
+  RefreshCw,
+  TrendingUp,
+  TrendingDown,
+} from 'lucide-react';
 import { useScreenerStore } from '../stores';
-import { formatCellValue, getColumnPreset, getRatingLetter, RATING_CONFIGS } from '../constants';
+import {
+  formatCellValue,
+  getColumnPreset,
+  getRatingLetter,
+  RATING_CONFIGS,
+} from '../constants';
 import type { Stock, TableColumn } from '../types';
 
 interface ResultsTableProps {
@@ -10,23 +23,14 @@ interface ResultsTableProps {
   onRetry: () => void;
 }
 
-/**
- * How many columns are pinned to the left.
- * First N columns of every preset are treated as pinned (sticky).
- */
 const PINNED_COLUMNS_COUNT = 2;
 
-/**
- * ResultsTable Component
- *
- * Displays filtered stock results with:
- * - Column visibility presets (Overview / TrendRating / Performance / Fundamentals / All)
- * - Ticker + Name pinned to the left (stay visible during horizontal scroll)
- * - Sortable columns
- * - Sticky header on vertical scroll
- * - Loading skeleton, empty and error states
- */
-export function ResultsTable({ data, isLoading, error, onRetry }: ResultsTableProps) {
+export function ResultsTable({
+  data,
+  isLoading,
+  error,
+  onRetry,
+}: ResultsTableProps) {
   const sortBy = useScreenerStore((state) => state.sortBy);
   const sortOrder = useScreenerStore((state) => state.sortOrder);
   const toggleSort = useScreenerStore((state) => state.toggleSort);
@@ -35,33 +39,63 @@ export function ResultsTable({ data, isLoading, error, onRetry }: ResultsTablePr
   const preset = getColumnPreset(columnPreset);
   const columns = preset.columns;
 
-  // Error state
   if (error) {
     return (
-      <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
-        <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
-        <h3 className="text-lg font-medium text-gray-900 mb-2">Error loading data</h3>
-        <p className="text-gray-500 mb-4">{error}</p>
-        <button
-          onClick={onRetry}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-[#1e3a5f] text-white rounded-lg hover:bg-[#2d5a8a] transition-colors"
+      <div className="card" style={{ padding: 48, textAlign: 'center' }}>
+        <AlertCircle
+          size={36}
+          color="var(--c-neg)"
+          style={{ margin: '0 auto 12px' }}
+        />
+        <h3
+          style={{
+            fontSize: 15,
+            fontWeight: 600,
+            color: 'var(--c-text)',
+            margin: '0 0 6px',
+          }}
         >
-          <RefreshCw size={16} />
+          Error loading data
+        </h3>
+        <p style={{ color: 'var(--c-text-dim)', margin: '0 0 16px', fontSize: 13 }}>
+          {error}
+        </p>
+        <button type="button" className="topbar-btn primary" onClick={onRetry}>
+          <RefreshCw size={14} />
           Try again
         </button>
       </div>
     );
   }
 
-  // Empty state
   if (!isLoading && data.length === 0) {
     return (
-      <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
-        <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-          <ArrowUpDown className="w-8 h-8 text-gray-400" />
+      <div className="card" style={{ padding: 48, textAlign: 'center' }}>
+        <div
+          style={{
+            width: 56,
+            height: 56,
+            background: 'var(--c-bg-soft)',
+            borderRadius: '50%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            margin: '0 auto 12px',
+          }}
+        >
+          <ArrowUpDown size={24} color="var(--c-text-dim)" />
         </div>
-        <h3 className="text-lg font-medium text-gray-900 mb-2">No results found</h3>
-        <p className="text-gray-500">
+        <h3
+          style={{
+            fontSize: 15,
+            fontWeight: 600,
+            color: 'var(--c-text)',
+            margin: '0 0 6px',
+          }}
+        >
+          No results found
+        </h3>
+        <p style={{ color: 'var(--c-text-dim)', margin: 0, fontSize: 13 }}>
           Try adjusting your filters to find more stocks.
         </p>
       </div>
@@ -77,11 +111,13 @@ export function ResultsTable({ data, isLoading, error, onRetry }: ResultsTablePr
   }
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-      <div className="overflow-x-auto">
-        <table className="w-full border-separate border-spacing-0">
-          {/* Header */}
-          <thead className="sticky top-0 z-20">
+    <div className="card">
+      <div style={{ overflow: 'auto' }}>
+        <table
+          className="tbl"
+          style={{ borderCollapse: 'separate', borderSpacing: 0 }}
+        >
+          <thead>
             <tr>
               {columns.map((column, idx) => {
                 const pinned = idx < PINNED_COLUMNS_COUNT;
@@ -101,23 +137,23 @@ export function ResultsTable({ data, isLoading, error, onRetry }: ResultsTablePr
             </tr>
           </thead>
 
-          {/* Body */}
           <tbody>
-            {isLoading ? (
-              Array.from({ length: 10 }).map((_, idx) => (
-                <TableRowSkeleton key={idx} columns={columns} pinnedOffsets={pinnedOffsets} />
-              ))
-            ) : (
-              data.map((stock, rowIdx) => (
-                <TableRow
-                  key={stock.symbol_id}
-                  stock={stock}
-                  columns={columns}
-                  pinnedOffsets={pinnedOffsets}
-                  zebra={rowIdx % 2 === 1}
-                />
-              ))
-            )}
+            {isLoading
+              ? Array.from({ length: 10 }).map((_, idx) => (
+                  <TableRowSkeleton
+                    key={idx}
+                    columns={columns}
+                    pinnedOffsets={pinnedOffsets}
+                  />
+                ))
+              : data.map((stock) => (
+                  <TableRow
+                    key={stock.symbol_id}
+                    stock={stock}
+                    columns={columns}
+                    pinnedOffsets={pinnedOffsets}
+                  />
+                ))}
           </tbody>
         </table>
       </div>
@@ -128,7 +164,7 @@ export function ResultsTable({ data, isLoading, error, onRetry }: ResultsTablePr
 function parseWidth(width: string | undefined): number {
   if (!width) return 120;
   const n = parseInt(width, 10);
-  return isNaN(n) ? 120 : n;
+  return Number.isNaN(n) ? 120 : n;
 }
 
 // =============================================================================
@@ -145,42 +181,62 @@ interface TableHeaderProps {
   isLastPinned: boolean;
 }
 
-function TableHeader({ column, sortBy, sortOrder, onSort, pinned, pinnedLeft, isLastPinned }: TableHeaderProps) {
+function TableHeader({
+  column,
+  sortBy,
+  sortOrder,
+  onSort,
+  pinned,
+  pinnedLeft,
+  isLastPinned,
+}: TableHeaderProps) {
   const isSorted = sortBy === column.key;
 
   return (
     <th
-      className={`
-        px-4 py-3 text-xs font-semibold text-gray-600 uppercase tracking-wider
-        bg-gray-50 border-b border-gray-200
-        ${column.align === 'right' ? 'text-right' : column.align === 'center' ? 'text-center' : 'text-left'}
-        ${column.sortable ? 'cursor-pointer hover:bg-gray-100 select-none' : ''}
-        ${pinned ? 'sticky z-10' : ''}
-        ${isLastPinned ? 'border-r border-gray-200 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)]' : ''}
-      `}
+      className={`${column.sortable ? 'sortable' : ''} ${isSorted ? 'sorted' : ''}`}
       style={{
         width: column.width,
         minWidth: column.width,
+        textAlign:
+          column.align === 'right'
+            ? 'right'
+            : column.align === 'center'
+            ? 'center'
+            : 'left',
+        position: pinned ? 'sticky' : undefined,
         left: pinned ? pinnedLeft : undefined,
+        top: 0,
+        zIndex: pinned ? 12 : 10,
+        borderRight: isLastPinned ? '1px solid var(--c-border)' : undefined,
+        boxShadow: isLastPinned
+          ? '2px 0 4px -2px rgba(16,24,40,0.06)'
+          : undefined,
       }}
       onClick={() => column.sortable && onSort(column.key)}
     >
-      <div className={`flex items-center gap-1 ${column.align === 'right' ? 'justify-end' : column.align === 'center' ? 'justify-center' : ''}`}>
-        <span>{column.label}</span>
+      <span
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 4,
+        }}
+      >
+        {column.label}
         {column.sortable && (
-          <span className="text-gray-400">
+          <span className="sort-icon">
             {isSorted ? (
               sortOrder === 'asc' ? (
-                <ArrowUp size={14} className="text-[#1e3a5f]" />
+                <ArrowUp size={12} />
               ) : (
-                <ArrowDown size={14} className="text-[#1e3a5f]" />
+                <ArrowDown size={12} />
               )
             ) : (
-              <ArrowUpDown size={14} />
+              <ArrowUpDown size={12} />
             )}
           </span>
         )}
-      </div>
+      </span>
     </th>
   );
 }
@@ -193,13 +249,11 @@ interface TableRowProps {
   stock: Stock;
   columns: TableColumn[];
   pinnedOffsets: number[];
-  zebra: boolean;
 }
 
-function TableRow({ stock, columns, pinnedOffsets, zebra }: TableRowProps) {
-  const rowBg = zebra ? 'bg-gray-50/40' : 'bg-white';
+function TableRow({ stock, columns, pinnedOffsets }: TableRowProps) {
   return (
-    <tr className="group">
+    <tr className="clickable">
       {columns.map((column, idx) => {
         const pinned = idx < PINNED_COLUMNS_COUNT;
         return (
@@ -210,7 +264,6 @@ function TableRow({ stock, columns, pinnedOffsets, zebra }: TableRowProps) {
             pinned={pinned}
             pinnedLeft={pinned ? pinnedOffsets[idx] : undefined}
             isLastPinned={pinned && idx === PINNED_COLUMNS_COUNT - 1}
-            rowBg={rowBg}
           />
         );
       })}
@@ -228,25 +281,32 @@ interface TableCellProps {
   pinned: boolean;
   pinnedLeft?: number;
   isLastPinned: boolean;
-  rowBg: string;
 }
 
-function TableCell({ stock, column, pinned, pinnedLeft, isLastPinned, rowBg }: TableCellProps) {
-  const baseClasses = `
-    px-4 py-3 text-sm border-b border-gray-100
-    ${rowBg}
-    group-hover:bg-[#f0f4fa]
-    ${pinned ? 'sticky z-[5]' : ''}
-    ${isLastPinned ? 'border-r border-gray-200 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)]' : ''}
-  `;
-  const alignClass =
-    column.align === 'right' ? 'text-right' :
-    column.align === 'center' ? 'text-center' : 'text-left';
-
+function TableCell({
+  stock,
+  column,
+  pinned,
+  pinnedLeft,
+  isLastPinned,
+}: TableCellProps) {
   const style: React.CSSProperties = {
     width: column.width,
     minWidth: column.width,
+    position: pinned ? 'sticky' : undefined,
     left: pinned ? pinnedLeft : undefined,
+    background: 'var(--c-bg)',
+    zIndex: pinned ? 5 : undefined,
+    borderRight: isLastPinned ? '1px solid var(--c-border)' : undefined,
+    boxShadow: isLastPinned
+      ? '2px 0 4px -2px rgba(16,24,40,0.06)'
+      : undefined,
+    textAlign:
+      column.align === 'right'
+        ? 'right'
+        : column.align === 'center'
+        ? 'center'
+        : 'left',
   };
 
   // Rating (letter badge)
@@ -254,16 +314,26 @@ function TableCell({ stock, column, pinned, pinnedLeft, isLastPinned, rowBg }: T
     const letter = getRatingLetter(stock.rating);
     const config = letter ? RATING_CONFIGS.find((c) => c.letter === letter) : null;
     return (
-      <td className={`${baseClasses} text-center`} style={style}>
+      <td style={style}>
         {letter && config ? (
           <span
-            className="inline-flex items-center justify-center w-7 h-7 rounded-full text-white text-sm font-bold"
-            style={{ backgroundColor: config.color }}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 24,
+              height: 24,
+              borderRadius: '50%',
+              color: '#fff',
+              fontSize: 12,
+              fontWeight: 700,
+              backgroundColor: config.color,
+            }}
           >
             {letter}
           </span>
         ) : (
-          <span className="text-gray-400">—</span>
+          <span style={{ color: 'var(--c-text-dim)' }}>—</span>
         )}
       </td>
     );
@@ -273,42 +343,73 @@ function TableCell({ stock, column, pinned, pinnedLeft, isLastPinned, rowBg }: T
   if (column.key === 'new_high_low') {
     const val = stock.new_high_low;
     return (
-      <td className={`${baseClasses} text-center`} style={style}>
+      <td style={style}>
         {val === 'high' ? (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-50 text-green-700 text-xs font-semibold">
-            <TrendingUp size={12} /> High
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 4,
+              padding: '1px 8px',
+              borderRadius: 100,
+              background: 'color-mix(in oklch, var(--c-pos) 14%, transparent)',
+              color: 'var(--c-pos)',
+              fontSize: 11,
+              fontWeight: 600,
+            }}
+          >
+            <TrendingUp size={11} /> High
           </span>
         ) : val === 'low' ? (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-50 text-red-700 text-xs font-semibold">
-            <TrendingDown size={12} /> Low
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 4,
+              padding: '1px 8px',
+              borderRadius: 100,
+              background: 'color-mix(in oklch, var(--c-neg) 14%, transparent)',
+              color: 'var(--c-neg)',
+              fontSize: 11,
+              fontWeight: 600,
+            }}
+          >
+            <TrendingDown size={11} /> Low
           </span>
         ) : (
-          <span className="text-gray-400">—</span>
+          <span style={{ color: 'var(--c-text-dim)' }}>—</span>
         )}
       </td>
     );
   }
 
   // Return / growth columns: colored by sign
-  if (column.key.startsWith('return_') || column.key.startsWith('revenue_growth') || column.key.startsWith('earnings_growth')) {
+  if (
+    column.key.startsWith('return_') ||
+    column.key.startsWith('revenue_growth') ||
+    column.key.startsWith('earnings_growth')
+  ) {
     const numValue = stock[column.key] as number | null;
     const colorClass =
       numValue === null || numValue === undefined
-        ? 'text-gray-400'
+        ? 'dim'
         : numValue >= 0
-        ? 'text-green-600'
-        : 'text-red-600';
+        ? 'pos'
+        : 'neg';
     return (
-      <td className={`${baseClasses} ${alignClass} font-medium ${colorClass}`} style={style}>
+      <td className={colorClass} style={{ ...style, fontWeight: 500 }}>
         {formatCellValue(stock, column)}
       </td>
     );
   }
 
-  // Ticker: bold, highlighted
+  // Ticker: bold
   if (column.key === 'ticker') {
     return (
-      <td className={`${baseClasses} ${alignClass} font-semibold text-gray-900`} style={style}>
+      <td
+        className="name-cell"
+        style={{ ...style, fontWeight: 600, color: 'var(--c-text)' }}
+      >
         {formatCellValue(stock, column)}
       </td>
     );
@@ -318,8 +419,8 @@ function TableCell({ stock, column, pinned, pinnedLeft, isLastPinned, rowBg }: T
   if (column.key === 'name') {
     const value = formatCellValue(stock, column);
     return (
-      <td className={`${baseClasses} ${alignClass} text-gray-700`} style={style}>
-        <span className="truncate block" title={value}>
+      <td className="name-cell" style={style}>
+        <span title={String(value)} style={{ color: 'var(--c-text-soft)' }}>
           {value}
         </span>
       </td>
@@ -327,11 +428,7 @@ function TableCell({ stock, column, pinned, pinnedLeft, isLastPinned, rowBg }: T
   }
 
   // Default cell
-  return (
-    <td className={`${baseClasses} ${alignClass} text-gray-700`} style={style}>
-      {formatCellValue(stock, column)}
-    </td>
-  );
+  return <td style={style}>{formatCellValue(stock, column)}</td>;
 }
 
 // =============================================================================
@@ -343,7 +440,10 @@ interface TableRowSkeletonProps {
   pinnedOffsets: number[];
 }
 
-function TableRowSkeleton({ columns, pinnedOffsets }: TableRowSkeletonProps) {
+function TableRowSkeleton({
+  columns,
+  pinnedOffsets,
+}: TableRowSkeletonProps) {
   return (
     <tr>
       {columns.map((column, idx) => {
@@ -352,25 +452,40 @@ function TableRowSkeleton({ columns, pinnedOffsets }: TableRowSkeletonProps) {
         return (
           <td
             key={column.key}
-            className={`
-              px-4 py-3 bg-white border-b border-gray-100
-              ${pinned ? 'sticky z-[5]' : ''}
-              ${isLastPinned ? 'border-r border-gray-200' : ''}
-            `}
             style={{
               width: column.width,
               minWidth: column.width,
+              position: pinned ? 'sticky' : undefined,
               left: pinned ? pinnedOffsets[idx] : undefined,
+              background: 'var(--c-bg)',
+              zIndex: pinned ? 5 : undefined,
+              borderRight: isLastPinned
+                ? '1px solid var(--c-border)'
+                : undefined,
             }}
           >
             <div
-              className={`
-                h-5 bg-gray-200 rounded animate-pulse
-                ${column.key === 'ticker' ? 'w-16' : ''}
-                ${column.key === 'name' ? 'w-32' : ''}
-                ${column.key === 'rating' ? 'w-7 h-7 rounded-full mx-auto' : ''}
-                ${!['ticker', 'name', 'rating'].includes(column.key) ? 'w-16 ml-auto' : ''}
-              `}
+              style={{
+                height: 16,
+                width:
+                  column.key === 'ticker'
+                    ? 56
+                    : column.key === 'name'
+                    ? 128
+                    : column.key === 'rating'
+                    ? 24
+                    : 64,
+                background: 'var(--c-bg-softer)',
+                borderRadius: 4,
+                animation: 'pulse 1.6s ease-in-out infinite',
+                marginLeft:
+                  column.align === 'right'
+                    ? 'auto'
+                    : column.align === 'center'
+                    ? 'auto'
+                    : undefined,
+                marginRight: column.align === 'center' ? 'auto' : undefined,
+              }}
             />
           </td>
         );

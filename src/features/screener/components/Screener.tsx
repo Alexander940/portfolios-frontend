@@ -31,33 +31,43 @@ export function Screener() {
   const canSaveAsPortfolio = !error && !isLoading && totalCount > 0;
 
   return (
-    <div className="space-y-6">
-      {/* Filters Section */}
-      <div className="bg-white rounded-xl border border-gray-200 p-6">
-        <div className="space-y-4">
-          {/* Primary Filters Row */}
-          <div className="flex flex-col lg:flex-row lg:items-end gap-4">
-            <div className="flex-1">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div className="card" style={{ padding: 20 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div
+            style={{
+              display: 'flex',
+              gap: 16,
+              alignItems: 'flex-end',
+              flexWrap: 'wrap',
+            }}
+          >
+            <div style={{ flex: 1, minWidth: 280 }}>
               <PrimaryFilters />
             </div>
-            <div className="flex-shrink-0">
+            <div style={{ flexShrink: 0 }}>
               <AdditionalFiltersMenu />
             </div>
           </div>
 
-          {/* Active Filters */}
           <ActiveFilters />
         </div>
       </div>
 
-      {/* Results Section */}
-      <div className="space-y-4">
-        {/* Column preset tabs + Save as Portfolio */}
-        <div className="flex items-center justify-between gap-4 flex-wrap">
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 12,
+            flexWrap: 'wrap',
+          }}
+        >
           <ColumnPresetTabs />
-          <div className="flex items-center gap-3">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             {!error && !isLoading && data.length > 0 && (
-              <span className="text-xs text-gray-500">
+              <span style={{ fontSize: 11, color: 'var(--c-text-dim)' }}>
                 {totalCount.toLocaleString()} results
               </span>
             )}
@@ -78,7 +88,6 @@ export function Screener() {
           </div>
         </div>
 
-        {/* Results Table */}
         <ResultsTable
           data={data}
           isLoading={isLoading}
@@ -86,16 +95,13 @@ export function Screener() {
           onRetry={refresh}
         />
 
-        {/* Pagination */}
         {!error && (data.length > 0 || isLoading) && (
           <TablePagination totalCount={totalCount} />
         )}
       </div>
 
-      {/* Filter Configuration Modal */}
       <FilterModal />
 
-      {/* Save as Portfolio Modal */}
       <SavePortfolioModal
         isOpen={isSaveOpen}
         onClose={() => setIsSaveOpen(false)}

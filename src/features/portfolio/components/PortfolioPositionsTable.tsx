@@ -1,4 +1,13 @@
-import { ArrowUp, ArrowDown, ArrowUpDown, AlertCircle, RefreshCw, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import {
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown,
+  AlertCircle,
+  RefreshCw,
+  TrendingUp,
+  TrendingDown,
+  Minus,
+} from 'lucide-react';
 import type {
   PortfolioPositionDetail,
   PositionSortField,
@@ -17,25 +26,25 @@ interface Column {
 const PINNED_COUNT = 2;
 
 const COLUMNS: Column[] = [
-  { key: 'ticker', label: 'Ticker', align: 'left', width: '110px', sortBy: 'ticker', sortable: true },
-  { key: 'name', label: 'Name', align: 'left', width: '220px', sortable: false },
-  { key: 'sector', label: 'Sector', align: 'left', width: '150px', sortable: false },
-  { key: 'weight_pct', label: 'Weight %', align: 'right', width: '100px', sortBy: 'weight', sortable: true },
-  { key: 'quantity', label: 'Quantity', align: 'right', width: '120px', sortable: false },
-  { key: 'average_cost', label: 'Avg Cost', align: 'right', width: '110px', sortable: false },
-  { key: 'current_price', label: 'Current', align: 'right', width: '110px', sortable: false },
-  { key: 'current_value', label: 'Value', align: 'right', width: '130px', sortBy: 'current_value', sortable: true },
-  { key: 'unrealized_pnl', label: 'P&L ($)', align: 'right', width: '130px', sortable: false },
-  { key: 'unrealized_pnl_pct', label: 'P&L %', align: 'right', width: '110px', sortBy: 'pnl_pct', sortable: true },
-  { key: 'rating', label: 'Rating', align: 'center', width: '140px', sortable: false },
-  { key: 'entry_date', label: 'Entry', align: 'left', width: '120px', sortBy: 'entry_date', sortable: true },
+  { key: 'ticker',           label: 'Ticker',   align: 'left',   width: '110px', sortBy: 'ticker',         sortable: true },
+  { key: 'name',             label: 'Name',     align: 'left',   width: '220px',                           sortable: false },
+  { key: 'sector',           label: 'Sector',   align: 'left',   width: '150px',                           sortable: false },
+  { key: 'weight_pct',       label: 'Weight %', align: 'right',  width: '100px', sortBy: 'weight',         sortable: true },
+  { key: 'quantity',         label: 'Quantity', align: 'right',  width: '120px',                           sortable: false },
+  { key: 'average_cost',     label: 'Avg Cost', align: 'right',  width: '110px',                           sortable: false },
+  { key: 'current_price',    label: 'Current',  align: 'right',  width: '110px',                           sortable: false },
+  { key: 'current_value',    label: 'Value',    align: 'right',  width: '130px', sortBy: 'current_value',  sortable: true },
+  { key: 'unrealized_pnl',   label: 'P&L ($)',  align: 'right',  width: '130px',                           sortable: false },
+  { key: 'unrealized_pnl_pct', label: 'P&L %',  align: 'right',  width: '110px', sortBy: 'pnl_pct',        sortable: true },
+  { key: 'rating',           label: 'Rating',   align: 'center', width: '140px',                           sortable: false },
+  { key: 'entry_date',       label: 'Entry',    align: 'left',   width: '120px', sortBy: 'entry_date',     sortable: true },
 ];
 
 const RATING_CONFIG: Record<number, { letter: string; color: string }> = {
-  3: { letter: 'A', color: '#10b981' },
-  2: { letter: 'B', color: '#22c55e' },
-  1: { letter: 'C', color: '#f59e0b' },
-  [-1]: { letter: 'D', color: '#ef4444' },
+  3:    { letter: 'A', color: 'var(--c-pos)' },
+  2:    { letter: 'B', color: 'var(--c-pos)' },
+  1:    { letter: 'C', color: 'var(--c-warn)' },
+  [-1]: { letter: 'D', color: 'var(--c-neg)' },
 };
 
 interface PortfolioPositionsTableProps {
@@ -67,7 +76,7 @@ function fmtDate(iso: string | null | undefined): string {
 
 function parseWidth(w: string): number {
   const n = parseInt(w, 10);
-  return isNaN(n) ? 120 : n;
+  return Number.isNaN(n) ? 120 : n;
 }
 
 export function PortfolioPositionsTable({
@@ -81,15 +90,27 @@ export function PortfolioPositionsTable({
 }: PortfolioPositionsTableProps) {
   if (error) {
     return (
-      <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
-        <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
-        <h3 className="text-lg font-medium text-gray-900 mb-2">Could not load positions</h3>
-        <p className="text-gray-500 mb-4">{error}</p>
-        <button
-          onClick={onRetry}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-[#1e3a5f] text-white rounded-lg hover:bg-[#2d5a8a] transition-colors"
+      <div className="card" style={{ padding: 48, textAlign: 'center' }}>
+        <AlertCircle
+          size={36}
+          color="var(--c-neg)"
+          style={{ margin: '0 auto 12px' }}
+        />
+        <h3
+          style={{
+            fontSize: 15,
+            fontWeight: 600,
+            color: 'var(--c-text)',
+            margin: '0 0 6px',
+          }}
         >
-          <RefreshCw size={16} />
+          Could not load positions
+        </h3>
+        <p style={{ color: 'var(--c-text-dim)', margin: '0 0 16px', fontSize: 13 }}>
+          {error}
+        </p>
+        <button type="button" className="topbar-btn primary" onClick={onRetry}>
+          <RefreshCw size={14} />
           Retry
         </button>
       </div>
@@ -98,9 +119,18 @@ export function PortfolioPositionsTable({
 
   if (!isLoading && positions.length === 0) {
     return (
-      <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
-        <h3 className="text-lg font-medium text-gray-900 mb-2">No positions yet</h3>
-        <p className="text-gray-500">
+      <div className="card" style={{ padding: 48, textAlign: 'center' }}>
+        <h3
+          style={{
+            fontSize: 15,
+            fontWeight: 600,
+            color: 'var(--c-text)',
+            margin: '0 0 6px',
+          }}
+        >
+          No positions yet
+        </h3>
+        <p style={{ color: 'var(--c-text-dim)', margin: 0, fontSize: 13 }}>
           This portfolio has no stocks. Add positions from the Screener.
         </p>
       </div>
@@ -125,10 +155,10 @@ export function PortfolioPositionsTable({
   }
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-      <div className="overflow-x-auto">
-        <table className="w-full border-separate border-spacing-0">
-          <thead className="sticky top-0 z-20">
+    <div className="card">
+      <div style={{ overflow: 'auto' }}>
+        <table className="tbl" style={{ borderCollapse: 'separate', borderSpacing: 0 }}>
+          <thead>
             <tr>
               {COLUMNS.map((col, idx) => {
                 const pinned = idx < PINNED_COUNT;
@@ -137,45 +167,51 @@ export function PortfolioPositionsTable({
                 return (
                   <th
                     key={col.key}
-                    className={`
-                      px-4 py-3 text-xs font-semibold text-gray-600 uppercase tracking-wider
-                      bg-gray-50 border-b border-gray-200
-                      ${col.align === 'right' ? 'text-right' : col.align === 'center' ? 'text-center' : 'text-left'}
-                      ${col.sortable ? 'cursor-pointer hover:bg-gray-100 select-none' : ''}
-                      ${pinned ? 'sticky z-10' : ''}
-                      ${isLastPinned ? 'border-r border-gray-200 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)]' : ''}
-                    `}
+                    className={`${col.sortable ? 'sortable' : ''} ${isSorted ? 'sorted' : ''}`}
                     style={{
                       width: col.width,
                       minWidth: col.width,
+                      textAlign:
+                        col.align === 'right'
+                          ? 'right'
+                          : col.align === 'center'
+                          ? 'center'
+                          : 'left',
+                      position: pinned ? 'sticky' : undefined,
                       left: pinned ? pinnedOffsets[idx] : undefined,
+                      top: 0,
+                      zIndex: pinned ? 12 : 10,
+                      borderRight: isLastPinned
+                        ? '1px solid var(--c-border)'
+                        : undefined,
+                      boxShadow: isLastPinned
+                        ? '2px 0 4px -2px rgba(16,24,40,0.06)'
+                        : undefined,
                     }}
                     onClick={() => handleSort(col)}
                   >
-                    <div
-                      className={`flex items-center gap-1 ${
-                        col.align === 'right'
-                          ? 'justify-end'
-                          : col.align === 'center'
-                          ? 'justify-center'
-                          : ''
-                      }`}
+                    <span
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 4,
+                      }}
                     >
-                      <span>{col.label}</span>
+                      {col.label}
                       {col.sortable && (
-                        <span className="text-gray-400">
+                        <span className="sort-icon">
                           {isSorted ? (
                             sortOrder === 'asc' ? (
-                              <ArrowUp size={14} className="text-[#1e3a5f]" />
+                              <ArrowUp size={12} />
                             ) : (
-                              <ArrowDown size={14} className="text-[#1e3a5f]" />
+                              <ArrowDown size={12} />
                             )
                           ) : (
-                            <ArrowUpDown size={14} />
+                            <ArrowUpDown size={12} />
                           )}
                         </span>
                       )}
-                    </div>
+                    </span>
                   </th>
                 );
               })}
@@ -187,12 +223,11 @@ export function PortfolioPositionsTable({
               ? Array.from({ length: 10 }).map((_, i) => (
                   <PositionSkeletonRow key={i} pinnedOffsets={pinnedOffsets} />
                 ))
-              : positions.map((pos, idx) => (
+              : positions.map((pos) => (
                   <PositionRow
                     key={pos.position_id}
                     pos={pos}
                     pinnedOffsets={pinnedOffsets}
-                    zebra={idx % 2 === 1}
                   />
                 ))}
           </tbody>
@@ -205,94 +240,105 @@ export function PortfolioPositionsTable({
 function PositionRow({
   pos,
   pinnedOffsets,
-  zebra,
 }: {
   pos: PortfolioPositionDetail;
   pinnedOffsets: number[];
-  zebra: boolean;
 }) {
-  const rowBg = zebra ? 'bg-gray-50/40' : 'bg-white';
   const pnl = pos.unrealized_pnl;
   const pnlPct = pos.unrealized_pnl_pct;
-  const pnlColor =
+  const pnlClass =
     pnl === null || pnl === undefined
-      ? 'text-gray-400'
+      ? 'dim'
       : pnl > 0
-      ? 'text-green-600'
+      ? 'pos'
       : pnl < 0
-      ? 'text-red-600'
-      : 'text-gray-700';
+      ? 'neg'
+      : 'zero';
 
-  const makeCellClasses = (idx: number, align: 'left' | 'right' | 'center', extra = '') => {
+  const cellStyle = (idx: number): React.CSSProperties => {
     const pinned = idx < PINNED_COUNT;
     const isLastPinned = pinned && idx === PINNED_COUNT - 1;
-    return `
-      px-4 py-3 text-sm border-b border-gray-100
-      ${rowBg}
-      group-hover:bg-[#f0f4fa]
-      ${align === 'right' ? 'text-right' : align === 'center' ? 'text-center' : 'text-left'}
-      ${pinned ? 'sticky z-[5]' : ''}
-      ${isLastPinned ? 'border-r border-gray-200 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)]' : ''}
-      ${extra}
-    `;
-  };
-
-  const makeStyle = (idx: number): React.CSSProperties => {
-    const pinned = idx < PINNED_COUNT;
     return {
       width: COLUMNS[idx].width,
       minWidth: COLUMNS[idx].width,
+      position: pinned ? 'sticky' : undefined,
       left: pinned ? pinnedOffsets[idx] : undefined,
+      background: 'var(--c-bg)',
+      zIndex: pinned ? 5 : undefined,
+      borderRight: isLastPinned ? '1px solid var(--c-border)' : undefined,
+      boxShadow: isLastPinned ? '2px 0 4px -2px rgba(16,24,40,0.06)' : undefined,
+      textAlign:
+        COLUMNS[idx].align === 'right'
+          ? 'right'
+          : COLUMNS[idx].align === 'center'
+          ? 'center'
+          : 'left',
     };
   };
 
   return (
-    <tr className="group">
-      <td className={makeCellClasses(0, 'left', 'font-semibold text-gray-900')} style={makeStyle(0)}>
+    <tr>
+      <td
+        className="name-cell"
+        style={{ ...cellStyle(0), fontWeight: 600, color: 'var(--c-text)' }}
+      >
         {pos.ticker}
       </td>
-      <td className={makeCellClasses(1, 'left', 'text-gray-700')} style={makeStyle(1)}>
-        <span className="truncate block" title={pos.name}>
+      <td className="name-cell" style={cellStyle(1)}>
+        <span title={pos.name} style={{ color: 'var(--c-text)' }}>
           {pos.name}
         </span>
       </td>
-      <td className={makeCellClasses(2, 'left', 'text-gray-700')} style={makeStyle(2)}>
+      <td className="name-cell dim" style={cellStyle(2)}>
         {pos.sector ?? '—'}
       </td>
-      <td className={makeCellClasses(3, 'right', 'text-gray-700 font-medium')} style={makeStyle(3)}>
+      <td style={cellStyle(3)}>
         {pos.weight_pct !== null ? `${fmtNumber(pos.weight_pct, 2)}%` : '—'}
       </td>
-      <td className={makeCellClasses(4, 'right', 'text-gray-700')} style={makeStyle(4)}>
-        {fmtNumber(pos.quantity, 4)}
-      </td>
-      <td className={makeCellClasses(5, 'right', 'text-gray-700')} style={makeStyle(5)}>
-        ${fmtNumber(pos.average_cost, 2)}
-      </td>
-      <td className={makeCellClasses(6, 'right', 'text-gray-700')} style={makeStyle(6)}>
+      <td style={cellStyle(4)}>{fmtNumber(pos.quantity, 4)}</td>
+      <td style={cellStyle(5)}>${fmtNumber(pos.average_cost, 2)}</td>
+      <td style={cellStyle(6)}>
         {pos.current_price !== null ? `$${fmtNumber(pos.current_price, 2)}` : '—'}
       </td>
-      <td className={makeCellClasses(7, 'right', 'text-gray-700 font-medium')} style={makeStyle(7)}>
+      <td style={{ ...cellStyle(7), fontWeight: 500 }}>
         {pos.current_value !== null ? `$${fmtNumber(pos.current_value, 2)}` : '—'}
       </td>
-      <td className={makeCellClasses(8, 'right', `font-semibold ${pnlColor}`)} style={makeStyle(8)}>
+      <td className={pnlClass} style={{ ...cellStyle(8), fontWeight: 600 }}>
         {pnl !== null && pnl !== undefined ? (
-          <span className="inline-flex items-center gap-1 justify-end w-full">
-            {pnl > 0 ? <TrendingUp size={12} /> : pnl < 0 ? <TrendingDown size={12} /> : <Minus size={12} />}
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 4,
+              justifyContent: 'flex-end',
+            }}
+          >
+            {pnl > 0 ? (
+              <TrendingUp size={11} />
+            ) : pnl < 0 ? (
+              <TrendingDown size={11} />
+            ) : (
+              <Minus size={11} />
+            )}
             {pnl > 0 ? '+' : ''}${fmtNumber(Math.abs(pnl), 2)}
           </span>
         ) : (
           '—'
         )}
       </td>
-      <td className={makeCellClasses(9, 'right', `font-semibold ${pnlColor}`)} style={makeStyle(9)}>
+      <td className={pnlClass} style={{ ...cellStyle(9), fontWeight: 600 }}>
         {pnlPct !== null && pnlPct !== undefined
           ? `${pnlPct > 0 ? '+' : ''}${fmtNumber(pnlPct, 2)}%`
           : '—'}
       </td>
-      <td className={makeCellClasses(10, 'center')} style={makeStyle(10)}>
-        <RatingCell entry={pos.entry_rating} current={pos.current_rating} changed={pos.rating_changed} />
+      <td style={cellStyle(10)}>
+        <RatingCell
+          entry={pos.entry_rating}
+          current={pos.current_rating}
+          changed={pos.rating_changed}
+        />
       </td>
-      <td className={makeCellClasses(11, 'left', 'text-gray-600')} style={makeStyle(11)}>
+      <td className="dim" style={cellStyle(11)}>
         {fmtDate(pos.entry_date)}
       </td>
     </tr>
@@ -301,14 +347,25 @@ function PositionRow({
 
 function RatingBadge({ rating }: { rating: number | null | undefined }) {
   if (rating === null || rating === undefined) {
-    return <span className="text-gray-300 text-xs">—</span>;
+    return <span style={{ color: 'var(--c-text-dim)', fontSize: 11 }}>—</span>;
   }
   const cfg = RATING_CONFIG[rating];
-  if (!cfg) return <span className="text-gray-400 text-xs">—</span>;
+  if (!cfg)
+    return <span style={{ color: 'var(--c-text-dim)', fontSize: 11 }}>—</span>;
   return (
     <span
-      className="inline-flex items-center justify-center w-6 h-6 rounded-full text-white text-xs font-bold"
-      style={{ backgroundColor: cfg.color }}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: 22,
+        height: 22,
+        borderRadius: '50%',
+        color: '#fff',
+        fontSize: 11,
+        fontWeight: 700,
+        background: cfg.color,
+      }}
     >
       {cfg.letter}
     </span>
@@ -325,19 +382,35 @@ function RatingCell({
   changed: boolean;
 }) {
   if (entry === null && current === null) {
-    return <span className="text-gray-300 text-xs">—</span>;
+    return <span style={{ color: 'var(--c-text-dim)', fontSize: 11 }}>—</span>;
   }
   return (
-    <div className="inline-flex items-center gap-1">
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 4,
+        justifyContent: 'center',
+      }}
+    >
       <RatingBadge rating={entry} />
-      <span className="text-gray-300 text-xs">→</span>
+      <span style={{ color: 'var(--c-text-dim)', fontSize: 11 }}>→</span>
       <RatingBadge rating={current} />
       {changed && (
-        <span className="ml-1 text-[10px] font-semibold text-amber-600 uppercase">
+        <span
+          style={{
+            marginLeft: 4,
+            fontSize: 9,
+            fontWeight: 600,
+            color: 'var(--c-warn)',
+            textTransform: 'uppercase',
+            letterSpacing: '0.05em',
+          }}
+        >
           changed
         </span>
       )}
-    </div>
+    </span>
   );
 }
 
@@ -350,18 +423,27 @@ function PositionSkeletonRow({ pinnedOffsets }: { pinnedOffsets: number[] }) {
         return (
           <td
             key={col.key}
-            className={`
-              px-4 py-3 bg-white border-b border-gray-100
-              ${pinned ? 'sticky z-[5]' : ''}
-              ${isLastPinned ? 'border-r border-gray-200' : ''}
-            `}
             style={{
               width: col.width,
               minWidth: col.width,
+              position: pinned ? 'sticky' : undefined,
               left: pinned ? pinnedOffsets[idx] : undefined,
+              background: 'var(--c-bg)',
+              zIndex: pinned ? 5 : undefined,
+              borderRight: isLastPinned
+                ? '1px solid var(--c-border)'
+                : undefined,
             }}
           >
-            <div className="h-5 w-full bg-gray-200 rounded animate-pulse" />
+            <div
+              style={{
+                height: 16,
+                width: '100%',
+                background: 'var(--c-bg-softer)',
+                borderRadius: 4,
+                animation: 'pulse 1.6s ease-in-out infinite',
+              }}
+            />
           </td>
         );
       })}
