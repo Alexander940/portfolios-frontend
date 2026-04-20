@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { Bell, LogOut } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Bell, LogOut, Plus } from 'lucide-react';
 import { useAuth } from '@/features/auth';
 import { SearchBar } from './SearchBar';
 import { SymbolModal } from '@/components/symbol';
@@ -13,6 +14,7 @@ import type { SymbolSearchResult } from '@/services/symbolService';
  */
 export function Topbar() {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
   const [selectedSymbol, setSelectedSymbol] = useState<SymbolSearchResult | null>(
     null,
   );
@@ -30,6 +32,7 @@ export function Topbar() {
   }, []);
 
   const initials = getInitials(user?.username);
+  const asOfLabel = formatAsOfNow();
 
   return (
     <header className="app-topbar">
@@ -39,9 +42,22 @@ export function Topbar() {
 
       <div className="topbar-spacer" />
 
+      <button type="button" className="topbar-btn" tabIndex={-1}>
+        {asOfLabel}
+      </button>
+
       <button type="button" className="topbar-icon-btn" aria-label="Alerts">
         <Bell size={16} />
         <span className="dot" />
+      </button>
+
+      <button
+        type="button"
+        className="topbar-btn primary"
+        onClick={() => navigate('/dashboard/screening')}
+      >
+        <Plus size={13} strokeWidth={2.25} />
+        New portfolio
       </button>
 
       <div ref={menuRef} style={{ position: 'relative' }}>
@@ -97,4 +113,15 @@ function getInitials(username: string | undefined): string {
   if (parts.length === 0) return username.charAt(0).toUpperCase();
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
   return (parts[0][0] + parts[1][0]).toUpperCase();
+}
+
+function formatAsOfNow(): string {
+  const d = new Date();
+  const date = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const time = d.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: false,
+  });
+  return `As of ${date}, ${time}`;
 }

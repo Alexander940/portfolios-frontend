@@ -1,5 +1,4 @@
 import { NavLink } from 'react-router-dom';
-import { TrendingUp } from 'lucide-react';
 import { NAV_SECTIONS } from '@/config/navigation';
 
 /**
@@ -11,9 +10,7 @@ export function Sidebar() {
   return (
     <aside className="app-sidebar" aria-label="Primary navigation">
       <div className="brand">
-        <div className="brand-mark">
-          <TrendingUp size={16} strokeWidth={2.25} />
-        </div>
+        <div className="brand-mark">P</div>
         <span className="brand-name">Portafolios</span>
       </div>
 
