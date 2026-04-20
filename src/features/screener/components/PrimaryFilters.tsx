@@ -89,13 +89,7 @@ function RatingFilter({ value, onChange }: RatingFilterProps) {
   return (
     <div>
       <label
-        style={{
-          display: 'block',
-          fontSize: 12,
-          fontWeight: 500,
-          color: 'var(--c-text-soft)',
-          marginBottom: 6,
-        }}
+        className="block text-sm font-medium text-gray-700 mb-1"
       >
         Rating
       </label>
@@ -108,8 +102,8 @@ function RatingFilter({ value, onChange }: RatingFilterProps) {
               type="button"
               onClick={() => toggleRating(config.letter)}
               style={{
-                width: 36,
-                height: 36,
+                width: 42,
+                height: 42,
                 borderRadius: 'var(--radius-sm)',
                 fontWeight: 700,
                 fontSize: 13,

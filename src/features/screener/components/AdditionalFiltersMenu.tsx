@@ -50,14 +50,16 @@ export function AdditionalFiltersMenu() {
 
   return (
     <div>
-      {/* Invisible spacer label so the button bottom aligns with the
-          bottom of the labeled multi-selects in PrimaryFilters. */}
+      {/* Invisible spacer label that matches the MultiSelect's label box
+          (14px text + 4px margin) so this column lines up with Market /
+          Sector / Rating in PrimaryFilters. */}
       <div
         aria-hidden="true"
         style={{
-          fontSize: 12,
+          fontSize: 14,
+          lineHeight: '20px',
           fontWeight: 500,
-          marginBottom: 6,
+          marginBottom: 4,
           visibility: 'hidden',
           userSelect: 'none',
         }}
@@ -71,7 +73,8 @@ export function AdditionalFiltersMenu() {
           onClick={() => setIsOpen((v) => !v)}
           className={isOpen ? 'chip active' : 'chip'}
           style={{
-            padding: '7px 12px',
+            minHeight: 42,
+            padding: '0 14px',
             fontSize: 13,
             borderRadius: 'var(--radius-sm)',
             fontWeight: 500,
