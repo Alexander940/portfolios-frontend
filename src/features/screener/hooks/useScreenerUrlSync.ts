@@ -28,14 +28,21 @@ export function useScreenerUrlSync() {
   const page = useScreenerStore((state) => state.page);
   const pageSize = useScreenerStore((state) => state.pageSize);
   const hydrateFromUrl = useScreenerStore((state) => state.hydrateFromUrl);
+  const clearAllFilters = useScreenerStore((state) => state.clearAllFilters);
 
-  // Hydrate store from URL on mount
+  // Hydrate store from URL on mount.
+  // If the URL has no params, reset to a clean slate so leftover in-memory
+  // state from a previous visit doesn't silently re-apply.
   useEffect(() => {
-    if (!isInitializedRef.current && searchParams.toString()) {
-      hydrateFromUrl(searchParams);
+    if (!isInitializedRef.current) {
+      if (searchParams.toString()) {
+        hydrateFromUrl(searchParams);
+      } else {
+        clearAllFilters();
+      }
+      isInitializedRef.current = true;
     }
-    isInitializedRef.current = true;
-  }, [searchParams, hydrateFromUrl]);
+  }, [searchParams, hydrateFromUrl, clearAllFilters]);
 
   // Sync state to URL with debounce
   useEffect(() => {

@@ -32,7 +32,7 @@ export function Screener() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <div className="card" style={{ padding: 20 }}>
+      <div className="card" style={{ padding: 20, overflow: 'visible' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div
             style={{
