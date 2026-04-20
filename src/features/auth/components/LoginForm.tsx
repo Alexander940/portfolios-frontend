@@ -1,15 +1,11 @@
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Mail, Lock, AlertCircle } from 'lucide-react';
-import { Link } from 'react-router-dom';
-import { Button, Input, Checkbox } from '@/components/ui';
+import { AlertCircle, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { useAuth } from '../hooks';
 import { useModalStore } from '../stores/modalStore';
 
-/**
- * Login form validation schema
- */
 const loginSchema = z.object({
   email: z
     .string()
@@ -25,18 +21,13 @@ const loginSchema = z.object({
 type LoginFormData = z.infer<typeof loginSchema>;
 
 /**
- * LoginForm Component
- *
- * Features:
- * - Email/password validation with Zod
- * - "Remember me" checkbox
- * - Loading state with disabled form
- * - Error display
- * - Link to password recovery
+ * LoginForm — Cloud Design Prime styling, same auth logic as before.
  */
 export function LoginForm() {
   const { login, isLoading, error, clearError } = useAuth();
   const { openModal } = useModalStore();
+
+  const [showPassword, setShowPassword] = useState(false);
 
   const {
     register,
@@ -61,78 +52,109 @@ export function LoginForm() {
   };
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-      {/* Global error message */}
+    <form onSubmit={handleSubmit(onSubmit)} noValidate>
       {error && (
-        <div
-          className="flex items-center gap-2 p-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg"
-          role="alert"
-        >
-          <AlertCircle className="w-5 h-5 flex-shrink-0" />
+        <div className="login-alert error" role="alert">
+          <AlertCircle size={16} style={{ flexShrink: 0, marginTop: 1 }} />
           <span>{error}</span>
         </div>
       )}
 
-      {/* Email field */}
-      <Input
-        label="Correo electrónico"
-        type="email"
-        autoComplete="email"
-        leftIcon={<Mail size={20} />}
-        error={errors.email?.message}
-        disabled={isLoading}
-        {...register('email')}
-      />
+      <div className="login-fields">
+        <div className="login-field">
+          <div className="login-field-head">
+            <label htmlFor="login-email">Correo electrónico</label>
+          </div>
+          <input
+            id="login-email"
+            type="email"
+            autoComplete="email"
+            disabled={isLoading}
+            className="login-input"
+            placeholder="tu@correo.com"
+            {...register('email')}
+          />
+          {errors.email && (
+            <div className="login-field-error">{errors.email.message}</div>
+          )}
+        </div>
 
-      {/* Password field */}
-      <Input
-        label="Contraseña"
-        type="password"
-        autoComplete="current-password"
-        leftIcon={<Lock size={20} />}
-        error={errors.password?.message}
-        disabled={isLoading}
-        {...register('password')}
-      />
+        <div className="login-field">
+          <div className="login-field-head">
+            <label htmlFor="login-password">Contraseña</label>
+            <button
+              type="button"
+              className="login-link"
+              onClick={(e) => e.preventDefault()}
+              tabIndex={-1}
+            >
+              ¿Olvidaste?
+            </button>
+          </div>
+          <div className="login-pass">
+            <input
+              id="login-password"
+              type={showPassword ? 'text' : 'password'}
+              autoComplete="current-password"
+              disabled={isLoading}
+              placeholder="Tu contraseña"
+              {...register('password')}
+            />
+            <button
+              type="button"
+              className="login-pass-toggle"
+              onClick={() => setShowPassword((s) => !s)}
+              aria-label={
+                showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'
+              }
+              tabIndex={-1}
+            >
+              {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+            </button>
+          </div>
+          {errors.password && (
+            <div className="login-field-error">{errors.password.message}</div>
+          )}
+        </div>
 
-      {/* Remember me & Forgot password */}
-      <div className="flex items-center justify-between">
-        <Checkbox
-          label="Recordarme"
+        <label className="login-check">
+          <input
+            type="checkbox"
+            disabled={isLoading}
+            {...register('rememberMe')}
+          />
+          <span>Recordarme en este dispositivo</span>
+        </label>
+
+        <button
+          type="submit"
+          className="login-cta"
           disabled={isLoading}
-          {...register('rememberMe')}
-        />
-
-        <Link
-          to="/forgot-password"
-          className="text-sm font-medium text-[#1e3a5f] hover:text-[#2d5a8a] transition-colors"
         >
-          ¿Olvidaste tu contraseña?
-        </Link>
+          {isLoading ? (
+            <>
+              <Loader2
+                size={16}
+                style={{ animation: 'spin 0.9s linear infinite' }}
+              />
+              Iniciando sesión…
+            </>
+          ) : (
+            'Iniciar sesión'
+          )}
+        </button>
       </div>
 
-      {/* Submit button */}
-      <Button
-        type="submit"
-        className="w-full"
-        size="lg"
-        isLoading={isLoading}
-        disabled={isLoading}
-      >
-        {isLoading ? 'Iniciando sesión...' : 'Iniciar sesión'}
-      </Button>
-
-      {/* Sign up link */}
-      <p className="text-center text-sm text-gray-600">
-        ¿No tienes una cuenta?{' '}
+      <div className="login-foot">
+        ¿No tienes cuenta?{' '}
         <button
           type="button"
+          className="login-link"
           onClick={() => openModal('register')}
-          className="font-medium text-[#1e3a5f] hover:text-[#2d5a8a] transition-colors"
         >
-          Regístrate aquí
+          Regístrate →
         </button>
-      </p>
+      </div>
     </form>
   );
 }
