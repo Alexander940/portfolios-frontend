@@ -28,12 +28,13 @@ export function LoginArt() {
       <div className="art-content">
         <div className="art-eyebrow">Portafolios / v1.0</div>
         <h1 className="art-headline">
-          El centro de control para gestores{' '}
-          <span className="art-headline-accent">disciplinados</span>.
+          The control room for{' '}
+          <span className="art-headline-accent">disciplined</span> portfolio
+          managers.
         </h1>
         <p className="art-sub">
-          Monitorea cada posición, reacciona a los cambios de rating al
-          instante y rebalancea con convicción.
+          Monitor every position, react to rating changes the moment they hit
+          the tape, and rebalance with conviction.
         </p>
 
         <div className="art-card art-card-1">
@@ -100,7 +101,7 @@ export function LoginArt() {
       <div className="art-footer">
         <div>SOC 2 Type II · ISO 27001 · MiFID II ready</div>
         <div className="art-status">
-          <span className="art-status-dot" /> Mercados abiertos · NYSE
+          <span className="art-status-dot" /> Markets open · NYSE
         </div>
       </div>
     </div>

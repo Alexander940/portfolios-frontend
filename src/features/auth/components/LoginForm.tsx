@@ -9,12 +9,12 @@ import { useModalStore } from '../stores/modalStore';
 const loginSchema = z.object({
   email: z
     .string()
-    .min(1, 'El email es requerido')
-    .email('Ingresa un email válido'),
+    .min(1, 'Email is required')
+    .email('Enter a valid email'),
   password: z
     .string()
-    .min(1, 'La contraseña es requerida')
-    .min(6, 'La contraseña debe tener al menos 6 caracteres'),
+    .min(1, 'Password is required')
+    .min(6, 'Password must be at least 6 characters'),
   rememberMe: z.boolean().optional(),
 });
 
@@ -63,7 +63,7 @@ export function LoginForm() {
       <div className="login-fields">
         <div className="login-field">
           <div className="login-field-head">
-            <label htmlFor="login-email">Correo electrónico</label>
+            <label htmlFor="login-email">Work email</label>
           </div>
           <input
             id="login-email"
@@ -71,7 +71,7 @@ export function LoginForm() {
             autoComplete="email"
             disabled={isLoading}
             className="login-input"
-            placeholder="tu@correo.com"
+            placeholder="you@company.com"
             {...register('email')}
           />
           {errors.email && (
@@ -81,14 +81,14 @@ export function LoginForm() {
 
         <div className="login-field">
           <div className="login-field-head">
-            <label htmlFor="login-password">Contraseña</label>
+            <label htmlFor="login-password">Password</label>
             <button
               type="button"
               className="login-link"
               onClick={(e) => e.preventDefault()}
               tabIndex={-1}
             >
-              ¿Olvidaste?
+              Forgot?
             </button>
           </div>
           <div className="login-pass">
@@ -97,16 +97,14 @@ export function LoginForm() {
               type={showPassword ? 'text' : 'password'}
               autoComplete="current-password"
               disabled={isLoading}
-              placeholder="Tu contraseña"
+              placeholder="Enter your password"
               {...register('password')}
             />
             <button
               type="button"
               className="login-pass-toggle"
               onClick={() => setShowPassword((s) => !s)}
-              aria-label={
-                showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'
-              }
+              aria-label={showPassword ? 'Hide password' : 'Show password'}
               tabIndex={-1}
             >
               {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
@@ -123,7 +121,7 @@ export function LoginForm() {
             disabled={isLoading}
             {...register('rememberMe')}
           />
-          <span>Recordarme en este dispositivo</span>
+          <span>Keep me signed in on this device</span>
         </label>
 
         <button
@@ -137,22 +135,22 @@ export function LoginForm() {
                 size={16}
                 style={{ animation: 'spin 0.9s linear infinite' }}
               />
-              Iniciando sesión…
+              Signing in…
             </>
           ) : (
-            'Iniciar sesión'
+            'Sign in'
           )}
         </button>
       </div>
 
       <div className="login-foot">
-        ¿No tienes cuenta?{' '}
+        New to Portafolios?{' '}
         <button
           type="button"
           className="login-link"
           onClick={() => openModal('register')}
         >
-          Regístrate →
+          Create an account →
         </button>
       </div>
     </form>

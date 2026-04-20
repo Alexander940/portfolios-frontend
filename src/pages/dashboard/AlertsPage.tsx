@@ -9,7 +9,7 @@ export function AlertsPage() {
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-900">Alerts</h1>
         <p className="text-gray-600 mt-1">
-          Configura y gestiona tus alertas de trading.
+          Configure and manage your trading alerts.
         </p>
       </div>
 
@@ -18,10 +18,10 @@ export function AlertsPage() {
           <Bell className="w-8 h-8 text-[#1e3a5f]" />
         </div>
         <h3 className="text-lg font-medium text-gray-900 mb-2">
-          Alertas - En construcción
+          Alerts — Under construction
         </h3>
         <p className="text-gray-500 max-w-md mx-auto">
-          Pronto podrás configurar alertas personalizadas para tus activos.
+          Custom alerts for your holdings will be available soon.
         </p>
       </div>
     </div>

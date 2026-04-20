@@ -12,26 +12,26 @@ import { useAuth } from '../hooks';
 const registerSchema = z.object({
   email: z
     .string()
-    .min(1, 'El correo es requerido')
-    .email('Ingresa un correo válido'),
+    .min(1, 'Email is required')
+    .email('Enter a valid email'),
   username: z
     .string()
-    .min(1, 'El nombre de usuario es requerido')
-    .min(3, 'El usuario debe tener al menos 3 caracteres')
-    .max(100, 'El usuario no puede exceder 100 caracteres'),
+    .min(1, 'Username is required')
+    .min(3, 'Username must be at least 3 characters')
+    .max(100, 'Username cannot exceed 100 characters'),
   password: z
     .string()
-    .min(1, 'La contraseña es requerida')
-    .min(8, 'La contraseña debe tener al menos 8 caracteres')
-    .max(128, 'La contraseña no puede exceder 128 caracteres'),
+    .min(1, 'Password is required')
+    .min(8, 'Password must be at least 8 characters')
+    .max(128, 'Password cannot exceed 128 characters'),
   first_name: z
     .string()
-    .max(100, 'El nombre no puede exceder 100 caracteres')
+    .max(100, 'First name cannot exceed 100 characters')
     .optional()
     .or(z.literal('')),
   last_name: z
     .string()
-    .max(100, 'El apellido no puede exceder 100 caracteres')
+    .max(100, 'Last name cannot exceed 100 characters')
     .optional()
     .or(z.literal('')),
 });
@@ -101,7 +101,7 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
 
       {/* Email field */}
       <Input
-        label="Correo electrónico"
+        label="Work email"
         type="email"
         autoComplete="email"
         leftIcon={<Mail size={20} />}
@@ -112,7 +112,7 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
 
       {/* Username field */}
       <Input
-        label="Nombre de usuario"
+        label="Username"
         type="text"
         autoComplete="username"
         leftIcon={<User size={20} />}
@@ -123,7 +123,7 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
 
       {/* Password field */}
       <Input
-        label="Contraseña"
+        label="Password"
         type="password"
         autoComplete="new-password"
         leftIcon={<Lock size={20} />}
@@ -136,7 +136,7 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
       <div className="grid grid-cols-2 gap-4">
         {/* First name field */}
         <Input
-          label="Nombre (opcional)"
+          label="First name (optional)"
           type="text"
           autoComplete="given-name"
           error={errors.first_name?.message}
@@ -146,7 +146,7 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
 
         {/* Last name field */}
         <Input
-          label="Apellido (opcional)"
+          label="Last name (optional)"
           type="text"
           autoComplete="family-name"
           error={errors.last_name?.message}
@@ -163,7 +163,7 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
         isLoading={isLoading}
         disabled={isLoading}
       >
-        {isLoading ? 'Creando cuenta...' : 'Crear cuenta'}
+        {isLoading ? 'Creating account…' : 'Create account'}
       </Button>
     </form>
   );

@@ -9,7 +9,7 @@ export function StrategyTrackerPage() {
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-900">Strategy Tracker</h1>
         <p className="text-gray-600 mt-1">
-          Monitorea el rendimiento de tus estrategias de trading.
+          Monitor the performance of your trading strategies.
         </p>
       </div>
 
@@ -18,10 +18,10 @@ export function StrategyTrackerPage() {
           <Target className="w-8 h-8 text-[#1e3a5f]" />
         </div>
         <h3 className="text-lg font-medium text-gray-900 mb-2">
-          Strategy Tracker - En construcción
+          Strategy Tracker — Under construction
         </h3>
         <p className="text-gray-500 max-w-md mx-auto">
-          Pronto podrás rastrear y analizar el desempeño de tus estrategias.
+          Track and analyse strategy performance — coming soon.
         </p>
       </div>
     </div>

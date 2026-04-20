@@ -17,7 +17,7 @@ export function RegisterModal() {
   const isOpen = activeModal === 'register';
 
   const handleSuccess = () => {
-    setSuccessMessage('¡Cuenta creada exitosamente! Ahora puedes iniciar sesión.');
+    setSuccessMessage('Account created successfully. You can now sign in.');
     closeModal();
   };
 
@@ -25,8 +25,8 @@ export function RegisterModal() {
     <Modal
       isOpen={isOpen}
       onClose={closeModal}
-      title="Crear cuenta"
-      description="Completa los campos para registrarte"
+      title="Create account"
+      description="Fill in the fields to register"
       size="md"
     >
       <RegisterForm onSuccess={handleSuccess} />

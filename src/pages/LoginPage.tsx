@@ -36,9 +36,9 @@ export function LoginPage() {
           </div>
 
           <div className="login-form">
-            <h2 className="login-title">Bienvenido de nuevo</h2>
+            <h2 className="login-title">Welcome back</h2>
             <div className="login-sub">
-              Ingresa tus credenciales para continuar a tus portafolios.
+              Sign in with your credentials to continue to your portfolios.
             </div>
 
             {successMessage && (
@@ -48,7 +48,7 @@ export function LoginPage() {
                 <button
                   type="button"
                   onClick={clearSuccessMessage}
-                  aria-label="Cerrar mensaje"
+                  aria-label="Dismiss message"
                   style={{
                     background: 'none',
                     border: 0,
@@ -70,10 +70,10 @@ export function LoginPage() {
             <div>© {new Date().getFullYear()} Portafolios</div>
             <div className="login-legal-links">
               <button type="button" className="login-link">
-                Privacidad
+                Privacy
               </button>
               <button type="button" className="login-link">
-                Términos
+                Terms
               </button>
             </div>
           </div>

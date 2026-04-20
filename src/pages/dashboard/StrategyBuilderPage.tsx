@@ -9,7 +9,7 @@ export function StrategyBuilderPage() {
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-900">Strategy Builder</h1>
         <p className="text-gray-600 mt-1">
-          Construye y prueba estrategias de trading personalizadas.
+          Build and test custom trading strategies.
         </p>
       </div>
 
@@ -18,10 +18,10 @@ export function StrategyBuilderPage() {
           <Blocks className="w-8 h-8 text-[#1e3a5f]" />
         </div>
         <h3 className="text-lg font-medium text-gray-900 mb-2">
-          Strategy Builder - En construcción
+          Strategy Builder — Under construction
         </h3>
         <p className="text-gray-500 max-w-md mx-auto">
-          Pronto podrás crear estrategias de trading con nuestro constructor visual.
+          A visual builder for trading strategies is coming soon.
         </p>
       </div>
     </div>

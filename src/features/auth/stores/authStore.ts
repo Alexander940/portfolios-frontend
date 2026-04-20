@@ -97,7 +97,7 @@ export const useAuthStore = create<AuthStore>()(
         } catch (error) {
           const message = isApiError(error)
             ? error.message
-            : 'Error al iniciar sesión';
+            : 'Sign-in failed';
 
           set({
             isLoading: false,
@@ -124,7 +124,7 @@ export const useAuthStore = create<AuthStore>()(
         } catch (error) {
           const message = isApiError(error)
             ? error.message
-            : 'Error al registrar usuario';
+            : 'Registration failed';
 
           set({
             isLoading: false,

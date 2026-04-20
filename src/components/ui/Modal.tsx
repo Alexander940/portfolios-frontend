@@ -184,7 +184,7 @@ export function Modal({
               focus:outline-none focus:ring-2 focus:ring-[#1e3a5f] focus:ring-offset-2
               transition-colors
             "
-            aria-label="Cerrar modal"
+            aria-label="Close modal"
           >
             <X className="w-5 h-5" />
           </button>

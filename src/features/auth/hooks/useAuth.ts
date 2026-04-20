@@ -64,7 +64,7 @@ export function useAuth() {
         await storeRegister(data);
         // Redirect to login page after successful registration
         navigate('/login', {
-          state: { message: 'Cuenta creada exitosamente. Por favor inicia sesión.' },
+          state: { message: 'Account created successfully. Please sign in.' },
         });
       } catch {
         // Error is already set in the store

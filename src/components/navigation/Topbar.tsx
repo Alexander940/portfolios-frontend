@@ -73,7 +73,7 @@ export function Topbar() {
         {menuOpen && (
           <div className="user-menu" role="menu">
             <div className="user-menu-header">
-              <strong>{user?.username ?? 'Usuario'}</strong>
+              <strong>{user?.username ?? 'User'}</strong>
               {user?.email && <span>{user.email}</span>}
             </div>
             <button
@@ -86,7 +86,7 @@ export function Topbar() {
               }}
             >
               <LogOut size={14} />
-              <span>Salir</span>
+              <span>Sign out</span>
             </button>
           </div>
         )}

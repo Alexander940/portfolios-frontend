@@ -8,23 +8,20 @@ import type { AxiosError } from 'axios';
  * for all API responses throughout the application.
  */
 
-/**
- * Error messages in Spanish for user-facing errors
- */
 const ERROR_MESSAGES: Record<string, string> = {
   // Network errors
-  NETWORK_ERROR: 'Error de conexión. Verifica tu conexión a internet.',
-  TIMEOUT: 'La solicitud tardó demasiado. Intenta de nuevo.',
+  NETWORK_ERROR: 'Connection error. Check your internet connection.',
+  TIMEOUT: 'The request took too long. Please try again.',
 
   // Auth errors
-  INVALID_CREDENTIALS: 'Correo electrónico o contraseña incorrectos.',
-  EMAIL_EXISTS: 'Este correo electrónico ya está registrado.',
-  USERNAME_EXISTS: 'Este nombre de usuario ya está en uso.',
-  UNAUTHORIZED: 'Tu sesión ha expirado. Por favor, inicia sesión nuevamente.',
+  INVALID_CREDENTIALS: 'Incorrect email or password.',
+  EMAIL_EXISTS: 'This email is already registered.',
+  USERNAME_EXISTS: 'This username is already taken.',
+  UNAUTHORIZED: 'Your session has expired. Please sign in again.',
 
   // Generic errors
-  SERVER_ERROR: 'Error del servidor. Intenta de nuevo más tarde.',
-  UNKNOWN_ERROR: 'Ocurrió un error inesperado.',
+  SERVER_ERROR: 'Server error. Please try again later.',
+  UNKNOWN_ERROR: 'An unexpected error occurred.',
 };
 
 /**
