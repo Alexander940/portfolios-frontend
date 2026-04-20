@@ -89,7 +89,16 @@ function RatingFilter({ value, onChange }: RatingFilterProps) {
   return (
     <div>
       <label
-        className="block text-sm font-medium text-gray-700 mb-1"
+        style={{
+          display: 'block',
+          fontSize: 11,
+          fontWeight: 600,
+          textTransform: 'uppercase',
+          letterSpacing: '0.06em',
+          color: 'var(--c-text-dim)',
+          marginBottom: 6,
+          fontFamily: 'var(--font-sans)',
+        }}
       >
         Rating
       </label>

@@ -51,15 +51,17 @@ export function AdditionalFiltersMenu() {
   return (
     <div>
       {/* Invisible spacer label that matches the MultiSelect's label box
-          (14px text + 4px margin) so this column lines up with Market /
+          (11px text + 6px margin) so this column lines up with Market /
           Sector / Rating in PrimaryFilters. */}
       <div
         aria-hidden="true"
         style={{
-          fontSize: 14,
-          lineHeight: '20px',
-          fontWeight: 500,
-          marginBottom: 4,
+          fontSize: 11,
+          lineHeight: '14px',
+          fontWeight: 600,
+          textTransform: 'uppercase',
+          letterSpacing: '0.06em',
+          marginBottom: 6,
           visibility: 'hidden',
           userSelect: 'none',
         }}

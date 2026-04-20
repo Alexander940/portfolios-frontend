@@ -170,34 +170,55 @@ export function MultiSelect({
   // Get display text for selected values
   const getDisplayContent = () => {
     if (value.length === 0) {
-      return <span className="text-gray-400">{placeholder}</span>;
+      return (
+        <span style={{ color: 'var(--c-text-dim)', fontSize: 13 }}>
+          {placeholder}
+        </span>
+      );
     }
 
     if (value.length > maxDisplayItems) {
       return (
-        <span className="text-gray-700">
+        <span style={{ color: 'var(--c-text)', fontSize: 13 }}>
           {value.length} selected
         </span>
       );
     }
 
     return (
-      <div className="flex flex-wrap gap-1">
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
         {value.map((v) => {
           const option = options.find((o) => o.value === v);
           return (
             <span
               key={v}
-              className="inline-flex items-center gap-1 px-2 py-0.5 bg-[#1e3a5f]/10 text-[#1e3a5f] text-sm rounded"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                padding: '1px 6px',
+                background: 'var(--c-accent-soft)',
+                color: 'var(--c-accent-text)',
+                fontSize: 12,
+                borderRadius: 4,
+                fontFamily: 'var(--font-sans)',
+              }}
             >
               {option?.label || v}
               <button
                 type="button"
                 onClick={(e) => removeValue(v, e)}
-                className="hover:text-[#1e3a5f]/70 focus:outline-none"
+                style={{
+                  background: 'none',
+                  border: 0,
+                  color: 'inherit',
+                  cursor: 'pointer',
+                  padding: 0,
+                  display: 'inline-flex',
+                }}
                 aria-label={`Remove ${option?.label || v}`}
               >
-                <X size={14} />
+                <X size={12} />
               </button>
             </span>
           );
@@ -207,11 +228,23 @@ export function MultiSelect({
   };
 
   return (
-    <div ref={containerRef} className="relative w-full">
+    <div
+      ref={containerRef}
+      style={{ position: 'relative', width: '100%', fontFamily: 'var(--font-sans)' }}
+    >
       {/* Label */}
       <label
         id={`${listboxId}-label`}
-        className="block text-sm font-medium text-gray-700 mb-1"
+        style={{
+          display: 'block',
+          fontSize: 11,
+          fontWeight: 600,
+          textTransform: 'uppercase',
+          letterSpacing: '0.06em',
+          color: 'var(--c-text-dim)',
+          marginBottom: 6,
+          fontFamily: 'var(--font-sans)',
+        }}
       >
         {label}
       </label>
@@ -222,38 +255,68 @@ export function MultiSelect({
         onClick={() => !disabled && setIsOpen(!isOpen)}
         onKeyDown={handleKeyDown}
         disabled={disabled}
-        className={`
-          w-full min-h-[42px] px-3 py-2
-          flex items-center justify-between gap-2
-          border rounded-lg bg-white text-left
-          transition-colors duration-200
-          focus:outline-none focus:ring-2 focus:ring-[#1e3a5f] focus:border-transparent
-          disabled:bg-gray-100 disabled:cursor-not-allowed
-          ${error ? 'border-red-500' : 'border-gray-300'}
-          ${isOpen ? 'ring-2 ring-[#1e3a5f] border-transparent' : ''}
-        `}
+        style={{
+          width: '100%',
+          minHeight: 42,
+          padding: '8px 12px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 8,
+          background: disabled ? 'var(--c-bg-soft)' : 'var(--c-bg)',
+          border: `1px solid ${
+            error
+              ? 'var(--c-neg)'
+              : isOpen
+              ? 'var(--c-accent)'
+              : 'var(--c-border)'
+          }`,
+          borderRadius: 'var(--radius-sm)',
+          color: 'var(--c-text)',
+          textAlign: 'left',
+          cursor: disabled ? 'not-allowed' : 'pointer',
+          fontFamily: 'var(--font-sans)',
+          fontSize: 13,
+          transition: 'border-color 0.12s, background 0.12s',
+        }}
         aria-haspopup="listbox"
         aria-expanded={isOpen}
         aria-labelledby={`${listboxId}-label`}
       >
-        <div className="flex-1 min-w-0">{getDisplayContent()}</div>
+        <div style={{ flex: 1, minWidth: 0 }}>{getDisplayContent()}</div>
 
-        <div className="flex items-center gap-1 flex-shrink-0">
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4,
+            flexShrink: 0,
+          }}
+        >
           {value.length > 0 && (
             <button
               type="button"
               onClick={clearAll}
-              className="p-1 text-gray-400 hover:text-gray-600 focus:outline-none"
+              style={{
+                padding: 4,
+                color: 'var(--c-text-dim)',
+                background: 'none',
+                border: 0,
+                cursor: 'pointer',
+                display: 'inline-flex',
+              }}
               aria-label="Clear all"
             >
-              <X size={16} />
+              <X size={14} />
             </button>
           )}
           <ChevronDown
-            size={20}
-            className={`text-gray-400 transition-transform duration-200 ${
-              isOpen ? 'rotate-180' : ''
-            }`}
+            size={16}
+            color="var(--c-text-dim)"
+            style={{
+              transition: 'transform 0.15s',
+              transform: isOpen ? 'rotate(180deg)' : 'none',
+            }}
           />
         </div>
       </button>
@@ -261,48 +324,89 @@ export function MultiSelect({
       {/* Dropdown */}
       {isOpen && (
         <div
-          className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg"
+          style={{
+            position: 'absolute',
+            zIndex: 50,
+            width: '100%',
+            top: 'calc(100% + 4px)',
+            background: 'var(--c-bg)',
+            border: '1px solid var(--c-border-strong)',
+            borderRadius: 'var(--radius)',
+            boxShadow: 'var(--shadow-lg)',
+            overflow: 'hidden',
+          }}
           role="presentation"
         >
-          {/* Search input */}
           {searchable && (
-            <div className="p-2 border-b border-gray-200">
-              <div className="relative">
-                <Search
-                  size={16}
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                />
-                <input
-                  ref={searchInputRef}
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  placeholder="Search..."
-                  className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-[#1e3a5f]"
-                />
-              </div>
+            <div
+              style={{
+                padding: 8,
+                borderBottom: '1px solid var(--c-border)',
+                position: 'relative',
+              }}
+            >
+              <Search
+                size={14}
+                color="var(--c-text-dim)"
+                style={{
+                  position: 'absolute',
+                  left: 18,
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  pointerEvents: 'none',
+                }}
+              />
+              <input
+                ref={searchInputRef}
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Search..."
+                style={{
+                  width: '100%',
+                  padding: '6px 10px 6px 30px',
+                  fontSize: 13,
+                  background: 'var(--c-bg-soft)',
+                  border: '1px solid var(--c-border)',
+                  borderRadius: 'var(--radius-sm)',
+                  outline: 0,
+                  color: 'var(--c-text)',
+                  fontFamily: 'var(--font-sans)',
+                }}
+              />
             </div>
           )}
 
-          {/* Options list */}
           <ul
             ref={listRef}
             id={listboxId}
             role="listbox"
             aria-multiselectable="true"
             aria-labelledby={`${listboxId}-label`}
-            className="max-h-60 overflow-auto py-1"
+            style={{
+              maxHeight: 240,
+              overflow: 'auto',
+              padding: 4,
+              margin: 0,
+              listStyle: 'none',
+            }}
           >
             {filteredOptions.length === 0 ? (
-              <li className="px-3 py-2 text-sm text-gray-500 text-center">
+              <li
+                style={{
+                  padding: '8px 12px',
+                  fontSize: 13,
+                  color: 'var(--c-text-dim)',
+                  textAlign: 'center',
+                }}
+              >
                 No options found
               </li>
             ) : (
               filteredOptions.map((option, index) => {
                 const isSelected = value.includes(option.value);
                 const isHighlighted = index === highlightedIndex;
-
                 return (
                   <li
                     key={option.value}
@@ -310,27 +414,44 @@ export function MultiSelect({
                     aria-selected={isSelected}
                     onClick={() => toggleOption(option.value)}
                     onMouseEnter={() => setHighlightedIndex(index)}
-                    className={`
-                      flex items-center gap-3 px-3 py-2 cursor-pointer
-                      transition-colors duration-100
-                      ${isHighlighted ? 'bg-gray-100' : ''}
-                      ${isSelected ? 'text-[#1e3a5f]' : 'text-gray-700'}
-                    `}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                      padding: '7px 10px',
+                      borderRadius: 'var(--radius-sm)',
+                      cursor: 'pointer',
+                      background: isHighlighted
+                        ? 'var(--c-bg-soft)'
+                        : 'transparent',
+                      color: isSelected
+                        ? 'var(--c-accent-text)'
+                        : 'var(--c-text-soft)',
+                      fontSize: 13,
+                      fontFamily: 'var(--font-sans)',
+                    }}
                   >
                     <div
-                      className={`
-                        w-4 h-4 flex items-center justify-center rounded border
-                        transition-colors duration-100
-                        ${
-                          isSelected
-                            ? 'bg-[#1e3a5f] border-[#1e3a5f]'
-                            : 'border-gray-300'
-                        }
-                      `}
+                      style={{
+                        width: 14,
+                        height: 14,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        borderRadius: 3,
+                        border: '1px solid',
+                        background: isSelected
+                          ? 'var(--c-accent)'
+                          : 'transparent',
+                        borderColor: isSelected
+                          ? 'var(--c-accent)'
+                          : 'var(--c-border-strong)',
+                        flexShrink: 0,
+                      }}
                     >
-                      {isSelected && <Check size={12} className="text-white" />}
+                      {isSelected && <Check size={10} color="#fff" />}
                     </div>
-                    <span className="text-sm">{option.label}</span>
+                    <span>{option.label}</span>
                   </li>
                 );
               })
@@ -339,9 +460,16 @@ export function MultiSelect({
         </div>
       )}
 
-      {/* Error message */}
       {error && (
-        <p className="mt-1 text-sm text-red-500">{error}</p>
+        <p
+          style={{
+            marginTop: 4,
+            fontSize: 12,
+            color: 'var(--c-neg)',
+          }}
+        >
+          {error}
+        </p>
       )}
     </div>
   );
