@@ -675,14 +675,22 @@ html {
 .num {
   text-align: right;
 }
-.pos {
+.pos,
+td.pos,
+.tbl td.pos {
   color: var(--c-pos);
 }
-.neg {
+.neg,
+td.neg,
+.tbl td.neg {
   color: var(--c-neg);
 }
 .zero,
-.dim {
+.dim,
+td.zero,
+td.dim,
+.tbl td.zero,
+.tbl td.dim {
   color: var(--c-text-dim);
 }
 
