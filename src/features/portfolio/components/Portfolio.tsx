@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import axios from 'axios';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import {
   listPortfolios,
@@ -11,6 +10,7 @@ import {
   type PositionSortField,
   type SortOrder,
 } from '@/services/portfolioService';
+import { isApiError } from '@/lib/apiErrors';
 import { PortfolioHeader } from './PortfolioHeader';
 import { PortfoliosTable } from './PortfoliosTable';
 import { PortfolioPositionsTable } from './PortfolioPositionsTable';
@@ -90,7 +90,7 @@ export function Portfolio() {
       })
       .catch((err) => {
         if (controller.signal.aborted) return;
-        if (axios.isAxiosError(err) && err.response?.status === 404) {
+        if (isApiError(err) && err.status === 404) {
           navigate('/dashboard/analysis', { replace: true });
           return;
         }
@@ -183,11 +183,10 @@ export function Portfolio() {
 }
 
 function resolveError(err: unknown): string {
-  if (axios.isAxiosError(err)) {
-    const detail = err.response?.data?.detail;
-    if (typeof detail === 'string') return detail;
-    if (err.response?.status === 404) return 'Portfolio not found.';
-    if (err.response?.status === 401) return 'Not authenticated.';
+  if (isApiError(err)) {
+    if (err.status === 404) return 'Portfolio not found.';
+    if (err.status === 401) return 'Your session has expired. Please sign in again.';
+    return err.message;
   }
   return 'Could not load data. Please try again.';
 }
