@@ -33,7 +33,7 @@ export function PrimaryFilters() {
   return (
     <div className="flex flex-col sm:flex-row gap-4">
       {/* Market Filter */}
-      <div className="flex-1 min-w-[180px]">
+      <div className="flex-1 min-w-[140px]">
         <MultiSelect
           label="Market"
           options={exchangeOptions}
@@ -46,7 +46,7 @@ export function PrimaryFilters() {
       </div>
 
       {/* Sector Filter */}
-      <div className="flex-1 min-w-[180px]">
+      <div className="flex-1 min-w-[140px]">
         <MultiSelect
           label="Sector"
           options={sectorOptions}
@@ -59,7 +59,7 @@ export function PrimaryFilters() {
       </div>
 
       {/* Rating Filter */}
-      <div className="w-full sm:w-[160px]">
+      <div className="w-full sm:w-auto sm:flex-none">
         <RatingFilter
           value={ratings}
           onChange={setRatings}
@@ -102,7 +102,7 @@ function RatingFilter({ value, onChange }: RatingFilterProps) {
       >
         Rating
       </label>
-      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: 4, flexWrap: 'nowrap' }}>
         {RATING_CONFIGS.map((config) => {
           const isSelected = value.includes(config.value);
           const label = formatRatingValue(config.value);
@@ -112,15 +112,17 @@ function RatingFilter({ value, onChange }: RatingFilterProps) {
               type="button"
               onClick={() => toggleRating(config.value)}
               style={{
-                minWidth: 38,
-                height: 38,
-                padding: '0 6px',
+                width: 36,
+                height: 36,
+                flexShrink: 0,
+                padding: 0,
                 borderRadius: 'var(--radius-sm)',
                 fontWeight: 700,
-                fontSize: 13,
+                fontSize: 12,
                 border: '1.5px solid',
                 cursor: 'pointer',
                 fontFamily: 'inherit',
+                fontVariantNumeric: 'tabular-nums',
                 transition: 'all 0.12s',
                 background: isSelected ? config.color : 'var(--c-bg)',
                 color: isSelected ? '#fff' : 'var(--c-text-dim)',
