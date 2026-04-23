@@ -40,12 +40,18 @@ const COLUMNS: Column[] = [
   { key: 'entry_date',       label: 'Entry',    align: 'left',   width: '120px', sortBy: 'entry_date',     sortable: true },
 ];
 
-const RATING_CONFIG: Record<number, { letter: string; color: string }> = {
-  3:    { letter: 'A', color: 'var(--c-pos)' },
-  2:    { letter: 'B', color: 'var(--c-pos)' },
-  1:    { letter: 'C', color: 'var(--c-warn)' },
-  [-1]: { letter: 'D', color: 'var(--c-neg)' },
+const RATING_CONFIG: Record<number, { color: string }> = {
+  3:    { color: 'var(--c-pos)' },
+  2:    { color: 'var(--c-pos)' },
+  1:    { color: 'var(--c-pos)' },
+  [-1]: { color: 'var(--c-neg)' },
+  [-2]: { color: 'var(--c-neg)' },
+  [-3]: { color: 'var(--c-neg)' },
 };
+
+function formatRatingLabel(rating: number): string {
+  return rating > 0 ? `+${rating}` : `${rating}`;
+}
 
 interface PortfolioPositionsTableProps {
   positions: PortfolioPositionDetail[];
@@ -358,16 +364,18 @@ function RatingBadge({ rating }: { rating: number | null | undefined }) {
         display: 'inline-flex',
         alignItems: 'center',
         justifyContent: 'center',
-        width: 22,
+        minWidth: 28,
         height: 22,
-        borderRadius: '50%',
+        padding: '0 6px',
+        borderRadius: 11,
         color: '#fff',
         fontSize: 11,
         fontWeight: 700,
         background: cfg.color,
+        fontVariantNumeric: 'tabular-nums',
       }}
     >
-      {cfg.letter}
+      {formatRatingLabel(rating)}
     </span>
   );
 }

@@ -1,59 +1,62 @@
-import type { FilterDefinition, RatingConfig, RatingLetter, TableColumn, Stock } from '../types';
+import type { FilterDefinition, RatingConfig, RatingValue, TableColumn, Stock } from '../types';
 
 // =============================================================================
 // Rating Configuration
 // =============================================================================
 
 /**
- * Rating letter to API value mapping
- * A = 3 (best), B = 2, C = 1, D = -1 (worst)
+ * Valid rating values in the MFH_ALEX domain.
+ * +3 = strongest bullish, -3 = strongest bearish. 0 is excluded.
  */
-export const RATING_MAP: Record<RatingLetter, number> = {
-  A: 3,
-  B: 2,
-  C: 1,
-  D: -1,
-} as const;
+export const RATING_VALUES: RatingValue[] = [3, 2, 1, -1, -2, -3];
 
 /**
- * API value to rating letter mapping
- */
-export const RATING_DISPLAY: Record<number, RatingLetter> = {
-  3: 'A',
-  2: 'B',
-  1: 'C',
-  '-1': 'D',
-};
-
-/**
- * Rating configurations with colors
+ * Rating configurations with colors.
+ * Ordered from strongest bullish (+3) to strongest bearish (-3).
  */
 export const RATING_CONFIGS: RatingConfig[] = [
-  { letter: 'A', value: 3, color: '#10b981' },   // green
-  { letter: 'B', value: 2, color: '#22c55e' },   // light green
-  { letter: 'C', value: 1, color: '#f59e0b' },   // yellow/amber
-  { letter: 'D', value: -1, color: '#ef4444' },  // red
+  { value: 3,  color: '#059669' }, // emerald-600
+  { value: 2,  color: '#10b981' }, // emerald-500
+  { value: 1,  color: '#34d399' }, // emerald-400
+  { value: -1, color: '#f87171' }, // red-400
+  { value: -2, color: '#ef4444' }, // red-500
+  { value: -3, color: '#b91c1c' }, // red-700
 ];
 
 /**
- * Convert selected rating letters to API range filter
+ * Convert selected rating values to API range filter.
+ * The backend accepts a {min, max} range; we derive it from the selected set.
+ * Non-contiguous selections (e.g. only +3 and -3) will match all ratings in
+ * between — a limitation of the current range-based API contract.
  */
-export function ratingsToApiFilter(ratings: RatingLetter[]): { min: number; max: number } | null {
+export function ratingsToApiFilter(ratings: RatingValue[]): { min: number; max: number } | null {
   if (ratings.length === 0) return null;
-
-  const values = ratings.map((r) => RATING_MAP[r]);
   return {
-    min: Math.min(...values),
-    max: Math.max(...values),
+    min: Math.min(...ratings),
+    max: Math.max(...ratings),
   };
 }
 
 /**
- * Get rating letter from numeric value
+ * Get the color config for a given numeric rating.
  */
-export function getRatingLetter(value: number | null): RatingLetter | null {
-  if (value === null) return null;
-  return RATING_DISPLAY[value] ?? null;
+export function getRatingConfig(value: number | null | undefined): RatingConfig | null {
+  if (value === null || value === undefined) return null;
+  return RATING_CONFIGS.find((c) => c.value === value) ?? null;
+}
+
+/**
+ * Check if a number is a valid rating value.
+ */
+export function isValidRating(n: number): n is RatingValue {
+  return n === -3 || n === -2 || n === -1 || n === 1 || n === 2 || n === 3;
+}
+
+/**
+ * Format a rating value for display: "+3", "+2", "+1", "-1", "-2", "-3".
+ */
+export function formatRatingValue(value: number): string {
+  return value > 0 ? `+${value}` : `${value}`;
 }
 
 // =============================================================================
@@ -326,7 +329,7 @@ export const OTHER_FILTERS: FilterDefinition[] = [
     category: 'others',
     type: 'multiselect',
     apiKey: 'rating',
-    description: 'Trend rating (A, B, C, D)',
+    description: 'Trend rating (-3 to +3, excluding 0)',
   },
 ];
 
@@ -390,12 +393,13 @@ function formatPercent(value: unknown): string {
 }
 
 /**
- * Format rating as letter
+ * Format rating as signed integer (e.g. "+3", "-2"). Returns "—" for invalid values.
  */
 function formatRating(value: unknown): string {
   if (value === null || value === undefined) return '—';
-  const letter = getRatingLetter(Number(value));
-  return letter ?? '—';
+  const n = Number(value);
+  if (isNaN(n) || !isValidRating(n)) return '—';
+  return formatRatingValue(n);
 }
 
 /**

@@ -1,8 +1,8 @@
 import { MultiSelect } from '@/components/ui';
 import { useScreenerStore } from '../stores';
 import { useScreenerOptions } from '../hooks';
-import { RATING_CONFIGS } from '../constants';
-import type { RatingLetter } from '../types';
+import { RATING_CONFIGS, formatRatingValue } from '../constants';
+import type { RatingValue } from '../types';
 
 /**
  * PrimaryFilters Component
@@ -10,7 +10,7 @@ import type { RatingLetter } from '../types';
  * Displays the three always-visible primary filters:
  * - Market (exchange)
  * - Sector
- * - Rating (A, B, C, D)
+ * - Rating (-3 to +3, excluding 0)
  */
 export function PrimaryFilters() {
   const { options, isLoading } = useScreenerOptions();
@@ -70,15 +70,15 @@ export function PrimaryFilters() {
 }
 
 /**
- * Rating Filter with colored badges
+ * Rating Filter with colored badges (numeric -3..+3).
  */
 interface RatingFilterProps {
-  value: RatingLetter[];
-  onChange: (ratings: RatingLetter[]) => void;
+  value: RatingValue[];
+  onChange: (ratings: RatingValue[]) => void;
 }
 
 function RatingFilter({ value, onChange }: RatingFilterProps) {
-  const toggleRating = (rating: RatingLetter) => {
+  const toggleRating = (rating: RatingValue) => {
     if (value.includes(rating)) {
       onChange(value.filter((r) => r !== rating));
     } else {
@@ -102,17 +102,19 @@ function RatingFilter({ value, onChange }: RatingFilterProps) {
       >
         Rating
       </label>
-      <div style={{ display: 'flex', gap: 6 }}>
+      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
         {RATING_CONFIGS.map((config) => {
-          const isSelected = value.includes(config.letter);
+          const isSelected = value.includes(config.value);
+          const label = formatRatingValue(config.value);
           return (
             <button
-              key={config.letter}
+              key={config.value}
               type="button"
-              onClick={() => toggleRating(config.letter)}
+              onClick={() => toggleRating(config.value)}
               style={{
-                width: 42,
-                height: 42,
+                minWidth: 38,
+                height: 38,
+                padding: '0 6px',
                 borderRadius: 'var(--radius-sm)',
                 fontWeight: 700,
                 fontSize: 13,
@@ -125,9 +127,9 @@ function RatingFilter({ value, onChange }: RatingFilterProps) {
                 borderColor: isSelected ? config.color : 'var(--c-border)',
               }}
               aria-pressed={isSelected}
-              aria-label={`Rating ${config.letter}`}
+              aria-label={`Rating ${label}`}
             >
-              {config.letter}
+              {label}
             </button>
           );
         })}

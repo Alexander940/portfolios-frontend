@@ -18,16 +18,19 @@ export type {
   FilterType,
   FilterDefinition,
   FilterCategory,
-  RatingLetter,
+  RatingValue,
+  RatingConfig,
   TableColumn,
   SortConfig,
 } from './types';
 
 // Constants
 export {
-  RATING_MAP,
-  RATING_DISPLAY,
+  RATING_VALUES,
   RATING_CONFIGS,
+  getRatingConfig,
+  isValidRating,
+  formatRatingValue,
   ADDITIONAL_FILTERS,
   FILTER_CATEGORIES,
   DEFAULT_TABLE_COLUMNS,

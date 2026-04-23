@@ -172,20 +172,19 @@ export interface ScreenerOptions {
 }
 
 // =============================================================================
-// Rating Mapping
+// Rating Domain
 // =============================================================================
 
 /**
- * Rating letter to API value mapping
+ * MFH_ALEX rating domain: {-3, -2, -1, 1, 2, 3} (no 0).
  */
-export type RatingLetter = 'A' | 'B' | 'C' | 'D';
+export type RatingValue = -3 | -2 | -1 | 1 | 2 | 3;
 
 /**
  * Rating configuration
  */
 export interface RatingConfig {
-  letter: RatingLetter;
-  value: number;
+  value: RatingValue;
   color: string;
 }
 

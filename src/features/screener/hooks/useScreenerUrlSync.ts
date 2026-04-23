@@ -1,7 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useScreenerStore } from '../stores';
-import type { RangeFilter, RatingLetter } from '../types';
+import type { RangeFilter, RatingValue } from '../types';
+import { isValidRating } from '../constants';
 
 type TimeoutId = ReturnType<typeof setTimeout>;
 
@@ -137,13 +138,14 @@ export function useScreenerUrlSync() {
 }
 
 /**
- * Parse rating letters from URL param
+ * Parse rating values from URL param (comma-separated signed integers).
  */
-export function parseRatingsFromUrl(param: string | null): RatingLetter[] {
+export function parseRatingsFromUrl(param: string | null): RatingValue[] {
   if (!param) return [];
   return param
     .split(',')
-    .filter((r): r is RatingLetter => ['A', 'B', 'C', 'D'].includes(r));
+    .map((s) => parseInt(s, 10))
+    .filter((n): n is RatingValue => !isNaN(n) && isValidRating(n));
 }
 
 /**

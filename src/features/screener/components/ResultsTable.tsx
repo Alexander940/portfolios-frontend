@@ -10,9 +10,10 @@ import {
 import { useScreenerStore } from '../stores';
 import {
   formatCellValue,
+  formatRatingValue,
   getColumnPreset,
-  getRatingLetter,
-  RATING_CONFIGS,
+  getRatingConfig,
+  isValidRating,
 } from '../constants';
 import type { Stock, TableColumn } from '../types';
 
@@ -309,28 +310,31 @@ function TableCell({
         : 'left',
   };
 
-  // Rating (letter badge)
+  // Rating (numeric badge)
   if (column.key === 'rating') {
-    const letter = getRatingLetter(stock.rating);
-    const config = letter ? RATING_CONFIGS.find((c) => c.letter === letter) : null;
+    const raw = stock.rating;
+    const valid = typeof raw === 'number' && isValidRating(raw);
+    const config = valid ? getRatingConfig(raw) : null;
     return (
       <td style={style}>
-        {letter && config ? (
+        {valid && config ? (
           <span
             style={{
               display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',
-              width: 24,
-              height: 24,
-              borderRadius: '50%',
+              minWidth: 32,
+              height: 22,
+              padding: '0 6px',
+              borderRadius: 11,
               color: '#fff',
               fontSize: 12,
               fontWeight: 700,
               backgroundColor: config.color,
+              fontVariantNumeric: 'tabular-nums',
             }}
           >
-            {letter}
+            {formatRatingValue(raw)}
           </span>
         ) : (
           <span style={{ color: 'var(--c-text-dim)' }}>—</span>

@@ -1,9 +1,10 @@
 import { create } from 'zustand';
-import type { RangeFilter, FilterValue, RatingLetter, ScreenerRequest } from '../types';
+import type { RangeFilter, FilterValue, RatingValue, ScreenerRequest } from '../types';
 import {
   DEFAULT_COLUMN_PRESET,
   DEFAULT_PAGE_SIZE,
   TABLE_COLUMN_PRESETS,
+  isValidRating,
   ratingsToApiFilter,
 } from '../constants';
 import type { ColumnPresetId } from '../constants';
@@ -35,7 +36,7 @@ interface ScreenerState {
   // Primary filters (always visible)
   exchanges: string[];
   sectors: string[];
-  ratings: RatingLetter[];
+  ratings: RatingValue[];
 
   // Additional filters (configurable via modal)
   additionalFilters: AdditionalFiltersState;
@@ -62,7 +63,7 @@ interface ScreenerActions {
   // Primary filter actions
   setExchanges: (exchanges: string[]) => void;
   setSectors: (sectors: string[]) => void;
-  setRatings: (ratings: RatingLetter[]) => void;
+  setRatings: (ratings: RatingValue[]) => void;
 
   // Additional filter actions
   setAdditionalFilter: (key: string, value: FilterValue) => void;
@@ -236,7 +237,8 @@ export const useScreenerStore = create<ScreenerState & ScreenerActions>((set, ge
     if (ratingParam) {
       newState.ratings = ratingParam
         .split(',')
-        .filter((r): r is RatingLetter => ['A', 'B', 'C', 'D'].includes(r));
+        .map((s) => parseInt(s, 10))
+        .filter((n): n is RatingValue => !isNaN(n) && isValidRating(n));
     }
 
     // Parse sort
