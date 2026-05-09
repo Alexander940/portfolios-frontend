@@ -36,6 +36,7 @@ interface ScreenerState {
   // Primary filters (always visible)
   exchanges: string[];
   sectors: string[];
+  countries: string[];
   ratings: RatingValue[];
 
   // Additional filters (configurable via modal)
@@ -63,6 +64,7 @@ interface ScreenerActions {
   // Primary filter actions
   setExchanges: (exchanges: string[]) => void;
   setSectors: (sectors: string[]) => void;
+  setCountries: (countries: string[]) => void;
   setRatings: (ratings: RatingValue[]) => void;
 
   // Additional filter actions
@@ -98,6 +100,7 @@ interface ScreenerActions {
 const initialState: ScreenerState = {
   exchanges: [],
   sectors: [],
+  countries: [],
   ratings: [],
   additionalFilters: {},
   sortBy: 'ticker',
@@ -119,6 +122,7 @@ export const useScreenerStore = create<ScreenerState & ScreenerActions>((set, ge
   // Primary filter actions
   setExchanges: (exchanges) => set({ exchanges, page: 1 }),
   setSectors: (sectors) => set({ sectors, page: 1 }),
+  setCountries: (countries) => set({ countries, page: 1 }),
   setRatings: (ratings) => set({ ratings, page: 1 }),
 
   // Additional filter actions
@@ -138,6 +142,7 @@ export const useScreenerStore = create<ScreenerState & ScreenerActions>((set, ge
     set({
       exchanges: [],
       sectors: [],
+      countries: [],
       ratings: [],
       additionalFilters: {},
       page: 1,
@@ -197,6 +202,9 @@ export const useScreenerStore = create<ScreenerState & ScreenerActions>((set, ge
     if (state.sectors.length > 0) {
       request.sector = state.sectors;
     }
+    if (state.countries.length > 0) {
+      request.country = state.countries;
+    }
     if (state.ratings.length > 0) {
       const ratingFilter = ratingsToApiFilter(state.ratings);
       if (ratingFilter) {
@@ -230,6 +238,12 @@ export const useScreenerStore = create<ScreenerState & ScreenerActions>((set, ge
     const sectorParam = params.get('sector');
     if (sectorParam) {
       newState.sectors = sectorParam.split(',').filter(Boolean);
+    }
+
+    // Parse countries
+    const countryParam = params.get('country');
+    if (countryParam) {
+      newState.countries = countryParam.split(',').filter(Boolean);
     }
 
     // Parse ratings
@@ -305,12 +319,6 @@ export const useScreenerStore = create<ScreenerState & ScreenerActions>((set, ge
       if (value === 'true') {
         additionalFilters[key] = true;
       }
-    }
-
-    // Multiselect filters
-    const countryParam = params.get('country');
-    if (countryParam) {
-      additionalFilters.country = countryParam.split(',').filter(Boolean);
     }
 
     if (Object.keys(additionalFilters).length > 0) {

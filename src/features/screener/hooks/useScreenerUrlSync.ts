@@ -22,6 +22,7 @@ export function useScreenerUrlSync() {
   // Get state from store
   const exchanges = useScreenerStore((state) => state.exchanges);
   const sectors = useScreenerStore((state) => state.sectors);
+  const countries = useScreenerStore((state) => state.countries);
   const ratings = useScreenerStore((state) => state.ratings);
   const additionalFilters = useScreenerStore((state) => state.additionalFilters);
   const sortBy = useScreenerStore((state) => state.sortBy);
@@ -63,6 +64,9 @@ export function useScreenerUrlSync() {
       }
       if (sectors.length > 0) {
         params.set('sector', sectors.join(','));
+      }
+      if (countries.length > 0) {
+        params.set('country', countries.join(','));
       }
       if (ratings.length > 0) {
         params.set('rating', ratings.join(','));
@@ -127,6 +131,7 @@ export function useScreenerUrlSync() {
   }, [
     exchanges,
     sectors,
+    countries,
     ratings,
     additionalFilters,
     sortBy,

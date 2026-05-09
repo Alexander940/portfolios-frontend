@@ -342,7 +342,7 @@ export const ADDITIONAL_FILTERS: FilterDefinition[] = [
   ...FUNDAMENTALS_FILTERS,
   ...PERFORMANCE_FILTERS,
   // Exclude primary filters from additional filters menu
-  ...OTHER_FILTERS.filter((f) => !['exchange', 'sector', 'rating'].includes(f.key)),
+  ...OTHER_FILTERS.filter((f) => !['exchange', 'sector', 'country', 'rating'].includes(f.key)),
 ];
 
 /**

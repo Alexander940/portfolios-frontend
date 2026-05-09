@@ -7,9 +7,10 @@ import type { RatingValue } from '../types';
 /**
  * PrimaryFilters Component
  *
- * Displays the three always-visible primary filters:
+ * Displays the always-visible primary filters:
  * - Market (exchange)
  * - Sector
+ * - Country
  * - Rating (-3 to +3, excluding 0)
  */
 export function PrimaryFilters() {
@@ -18,9 +19,11 @@ export function PrimaryFilters() {
   // Store state and actions
   const exchanges = useScreenerStore((state) => state.exchanges);
   const sectors = useScreenerStore((state) => state.sectors);
+  const countries = useScreenerStore((state) => state.countries);
   const ratings = useScreenerStore((state) => state.ratings);
   const setExchanges = useScreenerStore((state) => state.setExchanges);
   const setSectors = useScreenerStore((state) => state.setSectors);
+  const setCountries = useScreenerStore((state) => state.setCountries);
   const setRatings = useScreenerStore((state) => state.setRatings);
 
   // Convert API options to MultiSelect format
@@ -29,6 +32,9 @@ export function PrimaryFilters() {
 
   const sectorOptions =
     options?.sectors.map((s) => ({ value: s, label: s })) ?? [];
+
+  const countryOptions =
+    options?.countries.map((c) => ({ value: c, label: c })) ?? [];
 
   return (
     <div className="flex flex-col sm:flex-row gap-4">
@@ -55,6 +61,19 @@ export function PrimaryFilters() {
           placeholder={isLoading ? 'Loading...' : 'All sectors'}
           disabled={isLoading}
           searchable={sectorOptions.length > 10}
+        />
+      </div>
+
+      {/* Country Filter */}
+      <div className="flex-1 min-w-[140px]">
+        <MultiSelect
+          label="Country"
+          options={countryOptions}
+          value={countries}
+          onChange={setCountries}
+          placeholder={isLoading ? 'Loading...' : 'All countries'}
+          disabled={isLoading}
+          searchable={countryOptions.length > 10}
         />
       </div>
 
