@@ -346,6 +346,26 @@ export const ADDITIONAL_FILTERS: FilterDefinition[] = [
 ];
 
 /**
+ * Backend-response fields that arrive as rational numbers (0.02) but are
+ * displayed and filtered as percentages (2). The screener service converts
+ * these at the API boundary so the rest of the app works in percent units.
+ */
+export const PERCENTAGE_FIELDS = [
+  'retracement',
+  'dividend_yield',
+  'revenue_growth_3m',
+  'revenue_growth_12m',
+  'earnings_growth_3m',
+  'earnings_growth_12m',
+  'return_1w',
+  'return_1m',
+  'return_3m',
+  'return_6m',
+  'return_12m',
+  'return_ytd',
+] as const;
+
+/**
  * Filter categories with display labels
  */
 export const FILTER_CATEGORIES = [

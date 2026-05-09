@@ -7,6 +7,7 @@ import { Bookmark, Loader2 } from 'lucide-react';
 import axios from 'axios';
 import { Modal, Button, Input } from '@/components/ui';
 import { useScreenerStore } from '../stores';
+import { toApiPercentFilters } from '../services';
 import {
   createPortfolioFromScreener,
   type WeightingMethod,
@@ -76,7 +77,7 @@ export function SavePortfolioModal({
   async function onSubmit(values: FormValues) {
     setServerError(null);
     try {
-      const filters = getApiRequest();
+      const filters = toApiPercentFilters(getApiRequest());
       const response = await createPortfolioFromScreener({
         name: values.name,
         description: values.description || null,

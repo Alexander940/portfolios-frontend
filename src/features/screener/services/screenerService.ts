@@ -1,5 +1,14 @@
 import { apiClient } from '@/lib/axios';
-import type { ScreenerRequest, ScreenerResponse, ScreenerOptions } from '../types';
+import { PERCENTAGE_FIELDS } from '../constants';
+import type {
+  RangeFilter,
+  ScreenerOptions,
+  ScreenerRequest,
+  ScreenerResponse,
+  Stock,
+} from '../types';
+
+const PERCENT_FIELD_SET: ReadonlySet<string> = new Set(PERCENTAGE_FIELDS);
 
 /**
  * Screener API Service
@@ -29,8 +38,8 @@ export const screenerService = {
     filters: ScreenerRequest,
     signal?: AbortSignal
   ): Promise<ScreenerResponse> {
-    // Clean up empty/null filters before sending
-    const cleanedFilters = cleanFilters(filters);
+    // Convert percent → rational for the API, then strip empty filters.
+    const cleanedFilters = cleanFilters(toApiPercentFilters(filters));
 
     const response = await apiClient.post<ScreenerResponse>(
       '/screener/',
@@ -38,7 +47,7 @@ export const screenerService = {
       { signal }
     );
 
-    return response.data;
+    return fromApiPercentResponse(response.data);
   },
 
   /**
@@ -53,6 +62,52 @@ export const screenerService = {
     return response.data;
   },
 };
+
+/**
+ * Convert percentage range filters from UI units (2 = 2%) to backend units
+ * (0.02). Only fields listed in PERCENTAGE_FIELDS are transformed; everything
+ * else is forwarded as-is. Exported so non-screener callers (e.g. the
+ * Save-as-Portfolio flow) can reuse the same boundary conversion.
+ */
+export function toApiPercentFilters(filters: ScreenerRequest): ScreenerRequest {
+  const result: ScreenerRequest = { ...filters };
+  for (const field of PERCENT_FIELD_SET) {
+    const range = (result as Record<string, unknown>)[field];
+    if (
+      range &&
+      typeof range === 'object' &&
+      !Array.isArray(range)
+    ) {
+      const r = range as RangeFilter;
+      if (r.min === undefined && r.max === undefined) continue;
+      const newRange: RangeFilter = {};
+      if (r.min !== undefined) newRange.min = r.min / 100;
+      if (r.max !== undefined) newRange.max = r.max / 100;
+      (result as Record<string, unknown>)[field] = newRange;
+    }
+  }
+  return result;
+}
+
+/**
+ * Convert percentage stock fields from backend units (0.02) to UI units (2).
+ */
+function fromApiPercentResponse(response: ScreenerResponse): ScreenerResponse {
+  return {
+    ...response,
+    results: response.results.map((stock) => {
+      const transformed: Stock = { ...stock };
+      const indexable = transformed as unknown as Record<string, unknown>;
+      for (const field of PERCENT_FIELD_SET) {
+        const v = indexable[field];
+        if (typeof v === 'number') {
+          indexable[field] = v * 100;
+        }
+      }
+      return transformed;
+    }),
+  };
+}
 
 /**
  * Remove empty/null/undefined values from filters object

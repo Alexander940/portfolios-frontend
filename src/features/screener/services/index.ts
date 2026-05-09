@@ -1,1 +1,1 @@
-export { screenerService } from './screenerService';
+export { screenerService, toApiPercentFilters } from './screenerService';
