@@ -1,8 +1,12 @@
 import { MultiSelect } from '@/components/ui';
 import { useScreenerStore } from '../stores';
 import { useScreenerOptions } from '../hooks';
-import { RATING_CONFIGS, formatRatingValue } from '../constants';
-import type { RatingValue } from '../types';
+import {
+  MARKET_CAP_CATEGORY_OPTIONS,
+  RATING_CONFIGS,
+  formatRatingValue,
+} from '../constants';
+import type { MarketCapCategory, RatingValue } from '../types';
 
 /**
  * PrimaryFilters Component
@@ -11,6 +15,7 @@ import type { RatingValue } from '../types';
  * - Market (exchange)
  * - Sector
  * - Country
+ * - Company Size (market cap category)
  * - Rating (-3 to +3, excluding 0)
  */
 export function PrimaryFilters() {
@@ -21,10 +26,14 @@ export function PrimaryFilters() {
   const sectors = useScreenerStore((state) => state.sectors);
   const countries = useScreenerStore((state) => state.countries);
   const ratings = useScreenerStore((state) => state.ratings);
+  const marketCapCategories = useScreenerStore((state) => state.marketCapCategories);
   const setExchanges = useScreenerStore((state) => state.setExchanges);
   const setSectors = useScreenerStore((state) => state.setSectors);
   const setCountries = useScreenerStore((state) => state.setCountries);
   const setRatings = useScreenerStore((state) => state.setRatings);
+  const setMarketCapCategories = useScreenerStore(
+    (state) => state.setMarketCapCategories,
+  );
 
   // Convert API options to MultiSelect format
   const exchangeOptions =
@@ -35,6 +44,17 @@ export function PrimaryFilters() {
 
   const countryOptions =
     options?.countries.map((c) => ({ value: c, label: c })) ?? [];
+
+  // Static options for Company Size — labels include the threshold range
+  // so the user knows what each bucket means without leaving the filter.
+  const sizeOptions = MARKET_CAP_CATEGORY_OPTIONS.map((o) => ({
+    value: o.value,
+    label: `${o.label} (${o.range})`,
+  }));
+
+  const handleSizeChange = (values: string[]) => {
+    setMarketCapCategories(values as MarketCapCategory[]);
+  };
 
   return (
     <div className="flex flex-col sm:flex-row gap-4">
@@ -74,6 +94,18 @@ export function PrimaryFilters() {
           placeholder={isLoading ? 'Loading...' : 'All countries'}
           disabled={isLoading}
           searchable={countryOptions.length > 10}
+        />
+      </div>
+
+      {/* Company Size Filter (market cap category) */}
+      <div className="flex-1 min-w-[140px]">
+        <MultiSelect
+          label="Company Size"
+          options={sizeOptions}
+          value={marketCapCategories}
+          onChange={handleSizeChange}
+          placeholder="All sizes"
+          searchable={false}
         />
       </div>
 

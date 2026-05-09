@@ -1,4 +1,11 @@
-import type { FilterDefinition, RatingConfig, RatingValue, TableColumn, Stock } from '../types';
+import type {
+  FilterDefinition,
+  MarketCapCategory,
+  RatingConfig,
+  RatingValue,
+  Stock,
+  TableColumn,
+} from '../types';
 
 // =============================================================================
 // Rating Configuration
@@ -57,6 +64,39 @@ export function isValidRating(n: number): n is RatingValue {
  */
 export function formatRatingValue(value: number): string {
   return value > 0 ? `+${value}` : `${value}`;
+}
+
+// =============================================================================
+// Company Size (Market Cap Category)
+// =============================================================================
+
+/**
+ * Company size options for the primary filter.
+ * Order: largest to smallest. Labels match the industry-standard buckets
+ * used in the screener service `_market_cap_category_expr`.
+ */
+export const MARKET_CAP_CATEGORY_OPTIONS: ReadonlyArray<{
+  value: MarketCapCategory;
+  label: string;
+  range: string;
+}> = [
+  { value: 'mega', label: 'Mega Cap', range: '> $200B' },
+  { value: 'large', label: 'Large Cap', range: '$10B – $200B' },
+  { value: 'mid', label: 'Mid Cap', range: '$2B – $10B' },
+  { value: 'small', label: 'Small Cap', range: '$300M – $2B' },
+  { value: 'micro', label: 'Micro Cap', range: '$50M – $300M' },
+  { value: 'nano', label: 'Nano Cap', range: '< $50M' },
+];
+
+const MARKET_CAP_CATEGORY_VALUES: ReadonlySet<string> = new Set(
+  MARKET_CAP_CATEGORY_OPTIONS.map((o) => o.value),
+);
+
+/**
+ * Type guard for URL parsing.
+ */
+export function isMarketCapCategory(value: string): value is MarketCapCategory {
+  return MARKET_CAP_CATEGORY_VALUES.has(value);
 }
 
 // =============================================================================

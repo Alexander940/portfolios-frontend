@@ -75,6 +75,8 @@ export interface ScreenerRequest {
   new_low?: boolean;
 
   // Fundamentals filters
+  market_cap?: RangeFilter;
+  market_cap_category?: MarketCapCategory[];
   pe_ratio?: RangeFilter;
   ps_ratio?: RangeFilter;
   pb_ratio?: RangeFilter;
@@ -129,6 +131,8 @@ export interface Stock {
   days_since_rating: number | null;
 
   // Fundamentals data
+  market_cap: number | null;
+  market_cap_category: MarketCapCategory | null;
   pe_ratio: number | null;
   ps_ratio: number | null;
   pb_ratio: number | null;
@@ -170,6 +174,25 @@ export interface ScreenerOptions {
   exchanges: string[];
   sectors: string[];
 }
+
+// =============================================================================
+// Market Cap Categories (Company Size)
+// =============================================================================
+
+/**
+ * Company size buckets derived from market cap (USD).
+ * Mirrors the backend `MarketCapCategory` enum.
+ *
+ * Thresholds: mega > $200B, large $10B–$200B, mid $2B–$10B,
+ * small $300M–$2B, micro $50M–$300M, nano < $50M.
+ */
+export type MarketCapCategory =
+  | 'mega'
+  | 'large'
+  | 'mid'
+  | 'small'
+  | 'micro'
+  | 'nano';
 
 // =============================================================================
 // Rating Domain

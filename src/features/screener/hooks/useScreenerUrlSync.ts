@@ -24,6 +24,7 @@ export function useScreenerUrlSync() {
   const sectors = useScreenerStore((state) => state.sectors);
   const countries = useScreenerStore((state) => state.countries);
   const ratings = useScreenerStore((state) => state.ratings);
+  const marketCapCategories = useScreenerStore((state) => state.marketCapCategories);
   const additionalFilters = useScreenerStore((state) => state.additionalFilters);
   const sortBy = useScreenerStore((state) => state.sortBy);
   const sortOrder = useScreenerStore((state) => state.sortOrder);
@@ -70,6 +71,9 @@ export function useScreenerUrlSync() {
       }
       if (ratings.length > 0) {
         params.set('rating', ratings.join(','));
+      }
+      if (marketCapCategories.length > 0) {
+        params.set('market_cap_category', marketCapCategories.join(','));
       }
 
       // Sort
@@ -133,6 +137,7 @@ export function useScreenerUrlSync() {
     sectors,
     countries,
     ratings,
+    marketCapCategories,
     additionalFilters,
     sortBy,
     sortOrder,

@@ -1,9 +1,16 @@
 import { create } from 'zustand';
-import type { RangeFilter, FilterValue, RatingValue, ScreenerRequest } from '../types';
+import type {
+  FilterValue,
+  MarketCapCategory,
+  RangeFilter,
+  RatingValue,
+  ScreenerRequest,
+} from '../types';
 import {
   DEFAULT_COLUMN_PRESET,
   DEFAULT_PAGE_SIZE,
   TABLE_COLUMN_PRESETS,
+  isMarketCapCategory,
   isValidRating,
   ratingsToApiFilter,
 } from '../constants';
@@ -38,6 +45,7 @@ interface ScreenerState {
   sectors: string[];
   countries: string[];
   ratings: RatingValue[];
+  marketCapCategories: MarketCapCategory[];
 
   // Additional filters (configurable via modal)
   additionalFilters: AdditionalFiltersState;
@@ -66,6 +74,7 @@ interface ScreenerActions {
   setSectors: (sectors: string[]) => void;
   setCountries: (countries: string[]) => void;
   setRatings: (ratings: RatingValue[]) => void;
+  setMarketCapCategories: (categories: MarketCapCategory[]) => void;
 
   // Additional filter actions
   setAdditionalFilter: (key: string, value: FilterValue) => void;
@@ -102,6 +111,7 @@ const initialState: ScreenerState = {
   sectors: [],
   countries: [],
   ratings: [],
+  marketCapCategories: [],
   additionalFilters: {},
   sortBy: 'ticker',
   sortOrder: 'asc',
@@ -124,6 +134,8 @@ export const useScreenerStore = create<ScreenerState & ScreenerActions>((set, ge
   setSectors: (sectors) => set({ sectors, page: 1 }),
   setCountries: (countries) => set({ countries, page: 1 }),
   setRatings: (ratings) => set({ ratings, page: 1 }),
+  setMarketCapCategories: (marketCapCategories) =>
+    set({ marketCapCategories, page: 1 }),
 
   // Additional filter actions
   setAdditionalFilter: (key, value) =>
@@ -144,6 +156,7 @@ export const useScreenerStore = create<ScreenerState & ScreenerActions>((set, ge
       sectors: [],
       countries: [],
       ratings: [],
+      marketCapCategories: [],
       additionalFilters: {},
       page: 1,
     }),
@@ -211,6 +224,9 @@ export const useScreenerStore = create<ScreenerState & ScreenerActions>((set, ge
         request.rating = ratingFilter;
       }
     }
+    if (state.marketCapCategories.length > 0) {
+      request.market_cap_category = state.marketCapCategories;
+    }
 
     // Additional filters - merge into request
     for (const [key, value] of Object.entries(state.additionalFilters)) {
@@ -253,6 +269,14 @@ export const useScreenerStore = create<ScreenerState & ScreenerActions>((set, ge
         .split(',')
         .map((s) => parseInt(s, 10))
         .filter((n): n is RatingValue => !isNaN(n) && isValidRating(n));
+    }
+
+    // Parse market cap categories (Company Size primary filter)
+    const marketCapCategoryParam = params.get('market_cap_category');
+    if (marketCapCategoryParam) {
+      newState.marketCapCategories = marketCapCategoryParam
+        .split(',')
+        .filter((v): v is MarketCapCategory => isMarketCapCategory(v));
     }
 
     // Parse sort
