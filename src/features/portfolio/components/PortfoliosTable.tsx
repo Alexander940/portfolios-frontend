@@ -1,9 +1,11 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Briefcase, ChevronRight, Star } from 'lucide-react';
+import { Briefcase, ChevronRight, Loader2, Star, Trash2 } from 'lucide-react';
 import type { PortfolioResponse } from '@/services/portfolioService';
 
 interface PortfoliosTableProps {
   portfolios: PortfolioResponse[];
+  onDelete?: (portfolioId: string) => Promise<void>;
 }
 
 const WEIGHTING_LABELS: Record<string, string> = {
@@ -28,8 +30,31 @@ function fmtCurrency(amount: number, currency: string): string {
   })}`;
 }
 
-export function PortfoliosTable({ portfolios }: PortfoliosTableProps) {
+export function PortfoliosTable({ portfolios, onDelete }: PortfoliosTableProps) {
   const navigate = useNavigate();
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  async function handleDeleteClick(
+    e: React.MouseEvent,
+    portfolio: PortfolioResponse,
+  ) {
+    e.stopPropagation();
+    if (!onDelete || deletingId) return;
+    const confirmed = window.confirm(
+      `Delete portfolio "${portfolio.name}"? This cannot be undone.`,
+    );
+    if (!confirmed) return;
+    setDeletingId(portfolio.portfolio_id);
+    try {
+      await onDelete(portfolio.portfolio_id);
+    } catch (err) {
+      window.alert(
+        err instanceof Error ? err.message : 'Failed to delete portfolio.',
+      );
+    } finally {
+      setDeletingId(null);
+    }
+  }
 
   if (portfolios.length === 0) {
     return (
@@ -101,6 +126,7 @@ export function PortfoliosTable({ portfolios }: PortfoliosTableProps) {
               <th>Created</th>
               <th>Last Rebalance</th>
               <th style={{ width: 28 }}></th>
+              <th style={{ width: 28 }}></th>
             </tr>
           </thead>
           <tbody>
@@ -163,6 +189,45 @@ export function PortfoliosTable({ portfolios }: PortfoliosTableProps) {
                   <td className="dim">{fmtDate(p.created_at)}</td>
                   <td className="dim">
                     {p.last_rebalance_date ? fmtDate(p.last_rebalance_date) : '—'}
+                  </td>
+                  <td className="num">
+                    <button
+                      type="button"
+                      aria-label={`Delete portfolio ${p.name}`}
+                      title="Delete portfolio"
+                      onClick={(e) => handleDeleteClick(e, p)}
+                      disabled={deletingId === p.portfolio_id}
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        padding: 4,
+                        cursor:
+                          deletingId === p.portfolio_id
+                            ? 'wait'
+                            : 'pointer',
+                        color: 'var(--c-text-dim)',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        borderRadius: 4,
+                      }}
+                      onMouseEnter={(e) => {
+                        if (deletingId !== p.portfolio_id) {
+                          e.currentTarget.style.color = 'var(--c-danger, #d4574e)';
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.color = 'var(--c-text-dim)';
+                      }}
+                    >
+                      {deletingId === p.portfolio_id ? (
+                        <Loader2
+                          size={14}
+                          style={{ animation: 'spin 1s linear infinite' }}
+                        />
+                      ) : (
+                        <Trash2 size={14} />
+                      )}
+                    </button>
                   </td>
                   <td className="num">
                     <ChevronRight size={14} color="var(--c-text-dim)" />

@@ -100,6 +100,13 @@ export async function listPortfolios(
   return data;
 }
 
+export async function deletePortfolio(
+  portfolioId: string,
+  signal?: AbortSignal,
+): Promise<void> {
+  await apiClient.delete(`/portfolios/${portfolioId}`, { signal });
+}
+
 export async function getPortfolio(
   portfolioId: string,
   signal?: AbortSignal,

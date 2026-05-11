@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import {
+  deletePortfolio,
   listPortfolios,
   getPortfolio,
   listPortfolioPositions,
@@ -108,6 +109,11 @@ export function Portfolio() {
     setSortOrder(order);
   }
 
+  async function handleDeletePortfolio(id: string) {
+    await deletePortfolio(id);
+    setPortfolios((prev) => prev.filter((p) => p.portfolio_id !== id));
+  }
+
   function handleRetry() {
     if (!portfolioId) return;
     setPositionsLoading(true);
@@ -151,7 +157,12 @@ export function Portfolio() {
         </div>
       );
     }
-    return <PortfoliosTable portfolios={portfolios} />;
+    return (
+      <PortfoliosTable
+        portfolios={portfolios}
+        onDelete={handleDeletePortfolio}
+      />
+    );
   }
 
   // ===== Detail view =====
