@@ -520,7 +520,7 @@ export const DEFAULT_PAGE_SIZE = 50;
 // Table Column Presets
 // =============================================================================
 
-export type ColumnPresetId = 'overview' | 'trendrating' | 'performance' | 'fundamentals' | 'all';
+export type ColumnPresetId = 'overview' | 'trendrating' | 'ade' | 'performance' | 'fundamentals' | 'all';
 
 export interface ColumnPreset {
   id: ColumnPresetId;
@@ -547,6 +547,13 @@ const TRENDRATING_COLUMNS: TableColumn[] = [
   { key: 'retracement', label: 'Retracement', sortable: true, align: 'right', width: '120px', format: formatPercent },
   { key: 'new_high_low', label: 'New High/Low', sortable: true, align: 'center', width: '120px' },
   { key: 'days_since_rating', label: 'Days in Rating', sortable: true, align: 'right', width: '120px', format: (v) => formatNumber(v, 0) },
+];
+
+const ADE_COLUMNS: TableColumn[] = [
+  { key: 'sm_ratio', label: 'SM Ratio', sortable: true, align: 'right', width: '110px', format: (v) => formatNumber(v, 2) },
+  { key: 'sm_pct', label: 'SM %', sortable: true, align: 'right', width: '100px', format: formatPercent },
+  { key: 'sm_points', label: 'SM Points', sortable: true, align: 'right', width: '110px', format: (v) => formatNumber(v, 2) },
+  { key: 'sm_peak_ratio', label: 'SM Peak', sortable: true, align: 'right', width: '110px', format: (v) => formatNumber(v, 2) },
 ];
 
 const PERFORMANCE_COLUMNS: TableColumn[] = [
@@ -605,6 +612,12 @@ export const TABLE_COLUMN_PRESETS: ColumnPreset[] = [
     columns: [...PINNED_COLUMNS, ...TRENDRATING_COLUMNS],
   },
   {
+    id: 'ade',
+    label: 'ADE',
+    description: 'Smart Momentum ADE: ratio, %, points and cycle peak',
+    columns: [...PINNED_COLUMNS, ...ADE_COLUMNS],
+  },
+  {
     id: 'performance',
     label: 'Performance',
     description: 'Multi-horizon returns, Sharpe ratios and liquidity',
@@ -624,6 +637,7 @@ export const TABLE_COLUMN_PRESETS: ColumnPreset[] = [
       ...PINNED_COLUMNS,
       ...METADATA_COLUMNS,
       ...TRENDRATING_COLUMNS,
+      ...ADE_COLUMNS,
       ...PERFORMANCE_COLUMNS,
       ...FUNDAMENTALS_COLUMNS,
     ],

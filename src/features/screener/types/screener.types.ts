@@ -130,6 +130,12 @@ export interface Stock {
   new_high_low: 'high' | 'low' | null;
   days_since_rating: number | null;
 
+  // Smart Momentum (ADE variant)
+  sm_ratio: number | null;
+  sm_pct: number | null;
+  sm_points: number | null;
+  sm_peak_ratio: number | null;
+
   // Fundamentals data
   market_cap: number | null;
   market_cap_category: MarketCapCategory | null;
