@@ -205,7 +205,7 @@ function TableHeader({
             : column.align === 'center'
             ? 'center'
             : 'left',
-        position: pinned ? 'sticky' : undefined,
+        position: 'sticky',
         left: pinned ? pinnedLeft : undefined,
         top: 0,
         zIndex: pinned ? 12 : 10,
