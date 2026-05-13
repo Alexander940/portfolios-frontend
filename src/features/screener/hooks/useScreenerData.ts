@@ -28,7 +28,9 @@ export function useScreenerData() {
   // Create a stable reference to the current filter state
   const exchanges = useScreenerStore((state) => state.exchanges);
   const sectors = useScreenerStore((state) => state.sectors);
+  const countries = useScreenerStore((state) => state.countries);
   const ratings = useScreenerStore((state) => state.ratings);
+  const marketCapCategories = useScreenerStore((state) => state.marketCapCategories);
   const additionalFilters = useScreenerStore((state) => state.additionalFilters);
   const sortBy = useScreenerStore((state) => state.sortBy);
   const sortOrder = useScreenerStore((state) => state.sortOrder);
@@ -91,7 +93,9 @@ export function useScreenerData() {
   }, [
     exchanges,
     sectors,
+    countries,
     ratings,
+    marketCapCategories,
     additionalFilters,
     sortBy,
     sortOrder,
