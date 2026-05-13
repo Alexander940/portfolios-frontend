@@ -14,6 +14,12 @@ const WEIGHTING_LABELS: Record<string, string> = {
   market_cap: 'Market Cap',
 };
 
+const stickyHeaderStyle: React.CSSProperties = {
+  position: 'sticky',
+  top: 0,
+  zIndex: 10,
+};
+
 function fmtDate(iso: string | null): string {
   if (!iso) return '—';
   return new Date(iso).toLocaleDateString('en-US', {
@@ -114,19 +120,22 @@ export function PortfoliosTable({ portfolios, onDelete }: PortfoliosTableProps) 
         </div>
       </div>
 
-      <div style={{ overflow: 'auto' }}>
-        <table className="tbl">
+      <div style={{ overflow: 'auto', maxHeight: 'max(360px, calc(100vh - 280px))' }}>
+        <table
+          className="tbl"
+          style={{ borderCollapse: 'separate', borderSpacing: 0 }}
+        >
           <thead>
             <tr>
-              <th style={{ width: 28 }}></th>
-              <th>Name</th>
-              <th>Type</th>
-              <th>Weighting</th>
-              <th className="num">Initial Capital</th>
-              <th>Created</th>
-              <th>Last Rebalance</th>
-              <th style={{ width: 28 }}></th>
-              <th style={{ width: 28 }}></th>
+              <th style={{ ...stickyHeaderStyle, width: 28 }}></th>
+              <th style={stickyHeaderStyle}>Name</th>
+              <th style={stickyHeaderStyle}>Type</th>
+              <th style={stickyHeaderStyle}>Weighting</th>
+              <th className="num" style={stickyHeaderStyle}>Initial Capital</th>
+              <th style={stickyHeaderStyle}>Created</th>
+              <th style={stickyHeaderStyle}>Last Rebalance</th>
+              <th style={{ ...stickyHeaderStyle, width: 28 }}></th>
+              <th style={{ ...stickyHeaderStyle, width: 28 }}></th>
             </tr>
           </thead>
           <tbody>

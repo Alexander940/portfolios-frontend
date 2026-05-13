@@ -162,7 +162,7 @@ export function PortfolioPositionsTable({
 
   return (
     <div className="card">
-      <div style={{ overflow: 'auto' }}>
+      <div style={{ overflow: 'auto', maxHeight: 'max(360px, calc(100vh - 280px))' }}>
         <table className="tbl" style={{ borderCollapse: 'separate', borderSpacing: 0 }}>
           <thead>
             <tr>
@@ -183,7 +183,7 @@ export function PortfolioPositionsTable({
                           : col.align === 'center'
                           ? 'center'
                           : 'left',
-                      position: pinned ? 'sticky' : undefined,
+                      position: 'sticky',
                       left: pinned ? pinnedOffsets[idx] : undefined,
                       top: 0,
                       zIndex: pinned ? 12 : 10,
