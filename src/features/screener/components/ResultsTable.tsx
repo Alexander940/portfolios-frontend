@@ -113,7 +113,7 @@ export function ResultsTable({
 
   return (
     <div className="card">
-      <div style={{ overflow: 'auto' }}>
+      <div style={{ overflow: 'auto', maxHeight: 'max(360px, calc(100vh - 280px))' }}>
         <table
           className="tbl"
           style={{ borderCollapse: 'separate', borderSpacing: 0 }}
