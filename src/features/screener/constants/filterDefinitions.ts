@@ -251,6 +251,53 @@ export const FUNDAMENTALS_FILTERS: FilterDefinition[] = [
 ];
 
 /**
+ * ADE filter definitions (Smart Momentum + bull cycle detection).
+ * See backend `app/indicators/ade_mfh.py` and `docs/indicators/smart_momentum_ade.md`.
+ */
+export const ADE_FILTERS: FilterDefinition[] = [
+  {
+    key: 'in_bull_cycle',
+    label: 'In Bull Cycle',
+    category: 'ade',
+    type: 'boolean',
+    apiKey: 'in_bull_cycle',
+    description: 'Symbol is inside a confirmed bullish cycle',
+  },
+  {
+    key: 'bull_cycle_started',
+    label: 'Bull Cycle Just Started',
+    category: 'ade',
+    type: 'boolean',
+    apiKey: 'bull_cycle_started',
+    description: 'Latest bar is the cycle confirmation bar',
+  },
+  {
+    key: 'bull_cycle_origin_price',
+    label: 'Bull Cycle Origin Price',
+    category: 'ade',
+    type: 'range',
+    apiKey: 'bull_cycle_origin_price',
+    description: 'Locked low at the active cycle origin',
+  },
+  {
+    key: 'tracking_low',
+    label: 'Tracking Low',
+    category: 'ade',
+    type: 'range',
+    apiKey: 'tracking_low',
+    description: 'Candidate low while between cycles',
+  },
+  {
+    key: 'bull_cycle_origin_date',
+    label: 'Bull Cycle Origin Date',
+    category: 'ade',
+    type: 'daterange',
+    apiKey: 'bull_cycle_origin_date',
+    description: 'Date of the locked low',
+  },
+];
+
+/**
  * Performance filter definitions
  */
 export const PERFORMANCE_FILTERS: FilterDefinition[] = [
@@ -379,6 +426,7 @@ export const OTHER_FILTERS: FilterDefinition[] = [
  */
 export const ADDITIONAL_FILTERS: FilterDefinition[] = [
   ...TRENDRATING_FILTERS,
+  ...ADE_FILTERS,
   ...FUNDAMENTALS_FILTERS,
   ...PERFORMANCE_FILTERS,
   // Exclude primary filters from additional filters menu
@@ -410,6 +458,7 @@ export const PERCENTAGE_FIELDS = [
  */
 export const FILTER_CATEGORIES = [
   { key: 'trendrating', label: 'Trend' },
+  { key: 'ade', label: 'ADE' },
   { key: 'fundamentals', label: 'Fundamentals' },
   { key: 'performance', label: 'Performance' },
   { key: 'others', label: 'Others' },
@@ -421,6 +470,7 @@ export const FILTER_CATEGORIES = [
 export function getFilterDefinition(key: string): FilterDefinition | undefined {
   return [
     ...TRENDRATING_FILTERS,
+    ...ADE_FILTERS,
     ...FUNDAMENTALS_FILTERS,
     ...PERFORMANCE_FILTERS,
     ...OTHER_FILTERS,
@@ -460,6 +510,22 @@ function formatRating(value: unknown): string {
   const n = Number(value);
   if (isNaN(n) || !isValidRating(n)) return '—';
   return formatRatingValue(n);
+}
+
+/**
+ * Format an ISO date string (`YYYY-MM-DD`) for display.
+ */
+function formatDate(value: unknown): string {
+  if (value === null || value === undefined || value === '') return '—';
+  return String(value);
+}
+
+/**
+ * Format a boolean as "Yes"/"No"; null/undefined → "—".
+ */
+function formatBool(value: unknown): string {
+  if (value === null || value === undefined) return '—';
+  return value ? 'Yes' : 'No';
 }
 
 /**
@@ -554,6 +620,11 @@ const ADE_COLUMNS: TableColumn[] = [
   { key: 'sm_pct', label: 'SM %', sortable: true, align: 'right', width: '100px', format: formatPercent },
   { key: 'sm_points', label: 'SM Points', sortable: true, align: 'right', width: '110px', format: (v) => formatNumber(v, 2) },
   { key: 'sm_peak_ratio', label: 'SM Peak', sortable: true, align: 'right', width: '110px', format: (v) => formatNumber(v, 2) },
+  { key: 'in_bull_cycle', label: 'In Cycle', sortable: true, align: 'center', width: '90px', format: formatBool },
+  { key: 'bull_cycle_origin_price', label: 'Cycle Origin', sortable: true, align: 'right', width: '120px', format: (v) => formatNumber(v, 2) },
+  { key: 'bull_cycle_origin_date', label: 'Origin Date', sortable: true, align: 'center', width: '120px', format: formatDate },
+  { key: 'tracking_low', label: 'Tracking Low', sortable: true, align: 'right', width: '120px', format: (v) => formatNumber(v, 2) },
+  { key: 'bull_cycle_started', label: 'Cycle Started', sortable: true, align: 'center', width: '120px', format: formatBool },
 ];
 
 const PERFORMANCE_COLUMNS: TableColumn[] = [

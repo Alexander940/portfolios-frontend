@@ -3,7 +3,7 @@ import { Modal, Button, MultiSelect, type MultiSelectOption } from '@/components
 import { useScreenerStore } from '../stores';
 import { useScreenerOptions } from '../hooks';
 import { getFilterDefinition } from '../constants';
-import type { RangeFilter, FilterValue } from '../types';
+import type { DateRangeFilter, RangeFilter, FilterValue } from '../types';
 
 /**
  * FilterModal Component
@@ -40,6 +40,9 @@ export function FilterModal() {
           case 'range':
             setLocalValue({ min: undefined, max: undefined });
             break;
+          case 'daterange':
+            setLocalValue({ min: undefined, max: undefined });
+            break;
           case 'boolean':
             setLocalValue(false);
             break;
@@ -60,6 +63,13 @@ export function FilterModal() {
       const rangeValue = localValue as RangeFilter;
       if (rangeValue.min !== undefined || rangeValue.max !== undefined) {
         setAdditionalFilter(activeFilterKey, rangeValue);
+      } else {
+        removeAdditionalFilter(activeFilterKey);
+      }
+    } else if (filterDef.type === 'daterange') {
+      const dateValue = localValue as DateRangeFilter;
+      if (dateValue.min || dateValue.max) {
+        setAdditionalFilter(activeFilterKey, dateValue);
       } else {
         removeAdditionalFilter(activeFilterKey);
       }
@@ -111,6 +121,13 @@ export function FilterModal() {
             value={localValue as RangeFilter}
             onChange={setLocalValue}
             unit={filterDef.unit}
+          />
+        )}
+
+        {filterDef.type === 'daterange' && (
+          <DateRangeFilterInput
+            value={localValue as DateRangeFilter}
+            onChange={setLocalValue}
           />
         )}
 
@@ -221,6 +238,56 @@ function RangeFilterInput({ value, onChange, unit }: RangeFilterInputProps) {
             </span>
           )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Date Range Filter Input (min/max ISO dates)
+ */
+interface DateRangeFilterInputProps {
+  value: DateRangeFilter;
+  onChange: (value: DateRangeFilter) => void;
+}
+
+function DateRangeFilterInput({ value, onChange }: DateRangeFilterInputProps) {
+  const handleMinChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    onChange({ ...value, min: e.target.value || undefined });
+  };
+
+  const handleMaxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    onChange({ ...value, max: e.target.value || undefined });
+  };
+
+  return (
+    <div className="flex items-center gap-4">
+      <div className="flex-1">
+        <label htmlFor="filter-date-min" className="block text-sm font-medium text-gray-700 mb-1">
+          From
+        </label>
+        <input
+          id="filter-date-min"
+          type="date"
+          value={value.min ?? ''}
+          onChange={handleMinChange}
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a5f] focus:border-transparent"
+        />
+      </div>
+
+      <span className="text-gray-400 pt-6">—</span>
+
+      <div className="flex-1">
+        <label htmlFor="filter-date-max" className="block text-sm font-medium text-gray-700 mb-1">
+          To
+        </label>
+        <input
+          id="filter-date-max"
+          type="date"
+          value={value.max ?? ''}
+          onChange={handleMaxChange}
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a5f] focus:border-transparent"
+        />
       </div>
     </div>
   );

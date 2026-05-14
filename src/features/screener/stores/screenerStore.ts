@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type {
+  DateRangeFilter,
   FilterValue,
   MarketCapCategory,
   RangeFilter,
@@ -315,6 +316,7 @@ export const useScreenerStore = create<ScreenerState & ScreenerActions>((set, ge
       'return_1m', 'return_3m', 'return_6m', 'return_12m', 'return_ytd',
       'sharpe_6m', 'sharpe_12m', 'liquidity_usd_m', 'smart_momentum',
       'trend_strength', 'retracement', 'days_since_rating',
+      'bull_cycle_origin_price', 'tracking_low',
     ];
 
     for (const key of rangeFilterKeys) {
@@ -336,8 +338,25 @@ export const useScreenerStore = create<ScreenerState & ScreenerActions>((set, ge
       }
     }
 
+    // Date range filters (format: key=YYYY-MM-DD~YYYY-MM-DD, either side optional)
+    const dateRangeFilterKeys = ['bull_cycle_origin_date'];
+    for (const key of dateRangeFilterKeys) {
+      const value = params.get(key);
+      if (value) {
+        const [minStr, maxStr] = value.split('~');
+        const filter: DateRangeFilter = {};
+        if (minStr) filter.min = minStr;
+        if (maxStr) filter.max = maxStr;
+        if (filter.min || filter.max) {
+          additionalFilters[key] = filter;
+        }
+      }
+    }
+
     // Boolean filters
-    const booleanFilterKeys = ['new_high', 'new_low'];
+    const booleanFilterKeys = [
+      'new_high', 'new_low', 'in_bull_cycle', 'bull_cycle_started',
+    ];
     for (const key of booleanFilterKeys) {
       const value = params.get(key);
       if (value === 'true') {

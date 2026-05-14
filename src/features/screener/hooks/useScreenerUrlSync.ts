@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useScreenerStore } from '../stores';
-import type { RangeFilter, RatingValue } from '../types';
+import type { DateRangeFilter, RangeFilter, RatingValue } from '../types';
 import { isValidRating } from '../constants';
 
 type TimeoutId = ReturnType<typeof setTimeout>;
@@ -108,6 +108,22 @@ export function useScreenerUrlSync() {
         if (Array.isArray(value)) {
           if (value.length > 0) {
             params.set(key, value.join(','));
+          }
+          continue;
+        }
+
+        // Date range filters (DateRangeFilter has string min/max in ISO format)
+        if (
+          typeof value === 'object' &&
+          value !== null &&
+          (typeof (value as DateRangeFilter).min === 'string' ||
+            typeof (value as DateRangeFilter).max === 'string')
+        ) {
+          const range = value as DateRangeFilter;
+          const minStr = range.min ?? '';
+          const maxStr = range.max ?? '';
+          if (minStr || maxStr) {
+            params.set(key, `${minStr}~${maxStr}`);
           }
           continue;
         }

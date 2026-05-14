@@ -1,7 +1,7 @@
 import { X } from 'lucide-react';
 import { useScreenerStore } from '../stores';
 import { getFilterDefinition } from '../constants';
-import type { RangeFilter, FilterValue } from '../types';
+import type { DateRangeFilter, RangeFilter, FilterValue } from '../types';
 
 /**
  * ActiveFilters Component
@@ -142,7 +142,7 @@ function FilterChip({ label, value, onClick, onRemove }: FilterChipProps) {
  */
 function formatFilterValue(
   value: FilterValue,
-  type: 'range' | 'boolean' | 'multiselect',
+  type: 'range' | 'daterange' | 'boolean' | 'multiselect',
   unit?: string
 ): string {
   if (value === null || value === undefined) return '';
@@ -161,6 +161,14 @@ function formatFilterValue(
       if (range.max !== undefined) {
         return `≤ ${range.max}${unitSuffix}`;
       }
+      return '';
+    }
+
+    case 'daterange': {
+      const range = value as DateRangeFilter;
+      if (range.min && range.max) return `${range.min} – ${range.max}`;
+      if (range.min) return `≥ ${range.min}`;
+      if (range.max) return `≤ ${range.max}`;
       return '';
     }
 

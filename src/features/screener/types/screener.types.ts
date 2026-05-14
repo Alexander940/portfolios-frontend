@@ -18,14 +18,27 @@ export interface RangeFilter {
 }
 
 /**
+ * Range filter for date values (inclusive min/max in ISO format `YYYY-MM-DD`).
+ */
+export interface DateRangeFilter {
+  min?: string;
+  max?: string;
+}
+
+/**
  * Possible filter value types
  */
-export type FilterValue = RangeFilter | string[] | boolean | null;
+export type FilterValue =
+  | RangeFilter
+  | DateRangeFilter
+  | string[]
+  | boolean
+  | null;
 
 /**
  * Filter type categories
  */
-export type FilterType = 'range' | 'boolean' | 'multiselect';
+export type FilterType = 'range' | 'daterange' | 'boolean' | 'multiselect';
 
 /**
  * Filter definition metadata
@@ -52,6 +65,7 @@ export interface FilterDefinition {
  */
 export type FilterCategory =
   | 'trendrating'
+  | 'ade'
   | 'fundamentals'
   | 'performance'
   | 'others';
@@ -104,6 +118,13 @@ export interface ScreenerRequest {
   exchange?: string[];
   sector?: string[];
 
+  // Bull cycle filters (ADE)
+  in_bull_cycle?: boolean;
+  bull_cycle_started?: boolean;
+  bull_cycle_origin_price?: RangeFilter;
+  tracking_low?: RangeFilter;
+  bull_cycle_origin_date?: DateRangeFilter;
+
   // Pagination & Sorting
   sort_by?: string;
   sort_order?: 'asc' | 'desc';
@@ -135,6 +156,14 @@ export interface Stock {
   sm_pct: number | null;
   sm_points: number | null;
   sm_peak_ratio: number | null;
+
+  // Bull cycle detection (ADE)
+  in_bull_cycle: boolean | null;
+  bull_cycle_origin_price: number | null;
+  /** ISO date string `YYYY-MM-DD` or null. */
+  bull_cycle_origin_date: string | null;
+  tracking_low: number | null;
+  bull_cycle_started: boolean | null;
 
   // Fundamentals data
   market_cap: number | null;
