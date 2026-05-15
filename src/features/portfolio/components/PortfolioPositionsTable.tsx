@@ -7,6 +7,10 @@ import {
   TrendingUp,
   TrendingDown,
   Minus,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
 } from 'lucide-react';
 import type {
   PortfolioPositionDetail,
@@ -61,11 +65,20 @@ interface PortfolioPositionsTableProps {
   sortBy: PositionSortField;
   sortOrder: SortOrder;
   onSortChange: (sortBy: PositionSortField, sortOrder: SortOrder) => void;
+  page: number;
+  pageSize: number;
+  total: number;
+  onPageChange: (page: number) => void;
+  onPageSizeChange: (size: number) => void;
 }
 
-function fmtNumber(n: number | null | undefined, decimals = 2): string {
+const PAGE_SIZE_OPTIONS = [10, 25, 50, 100, 200] as const;
+
+function fmtNumber(n: number | string | null | undefined, decimals = 2): string {
   if (n === null || n === undefined) return '—';
-  return n.toLocaleString(undefined, {
+  const num = typeof n === 'number' ? n : Number(n);
+  if (!Number.isFinite(num)) return '—';
+  return num.toLocaleString(undefined, {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
   });
@@ -93,6 +106,11 @@ export function PortfolioPositionsTable({
   sortBy,
   sortOrder,
   onSortChange,
+  page,
+  pageSize,
+  total,
+  onPageChange,
+  onPageSizeChange,
 }: PortfolioPositionsTableProps) {
   if (error) {
     return (
@@ -226,7 +244,7 @@ export function PortfolioPositionsTable({
 
           <tbody>
             {isLoading
-              ? Array.from({ length: 10 }).map((_, i) => (
+              ? Array.from({ length: Math.min(pageSize, 10) }).map((_, i) => (
                   <PositionSkeletonRow key={i} pinnedOffsets={pinnedOffsets} />
                 ))
               : positions.map((pos) => (
@@ -239,7 +257,171 @@ export function PortfolioPositionsTable({
           </tbody>
         </table>
       </div>
+
+      <PositionsPagination
+        page={page}
+        pageSize={pageSize}
+        total={total}
+        onPageChange={onPageChange}
+        onPageSizeChange={onPageSizeChange}
+      />
     </div>
+  );
+}
+
+function PositionsPagination({
+  page,
+  pageSize,
+  total,
+  onPageChange,
+  onPageSizeChange,
+}: {
+  page: number;
+  pageSize: number;
+  total: number;
+  onPageChange: (page: number) => void;
+  onPageSizeChange: (size: number) => void;
+}) {
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const safePage = Math.min(Math.max(1, page), totalPages);
+  const startItem = total === 0 ? 0 : (safePage - 1) * pageSize + 1;
+  const endItem = Math.min(safePage * pageSize, total);
+
+  const canGoPrev = safePage > 1;
+  const canGoNext = safePage < totalPages;
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 12,
+        padding: '12px 16px',
+        borderTop: '1px solid var(--c-border)',
+        flexWrap: 'wrap',
+        fontSize: 12,
+        color: 'var(--c-text-soft)',
+      }}
+    >
+      <div>
+        {total > 0 ? (
+          <>
+            Showing{' '}
+            <span style={{ fontWeight: 600, color: 'var(--c-text)' }}>
+              {startItem}
+            </span>
+            {' – '}
+            <span style={{ fontWeight: 600, color: 'var(--c-text)' }}>
+              {endItem}
+            </span>{' '}
+            of{' '}
+            <span style={{ fontWeight: 600, color: 'var(--c-text)' }}>
+              {total.toLocaleString()}
+            </span>
+          </>
+        ) : (
+          'No positions'
+        )}
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <span>Per page</span>
+          <select
+            value={pageSize}
+            onChange={(e) => onPageSizeChange(Number(e.target.value))}
+            style={{
+              padding: '4px 6px',
+              border: '1px solid var(--c-border)',
+              borderRadius: 4,
+              background: 'var(--c-bg)',
+              color: 'var(--c-text)',
+              fontSize: 12,
+            }}
+          >
+            {PAGE_SIZE_OPTIONS.map((size) => (
+              <option key={size} value={size}>
+                {size}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 2 }}>
+          <PaginationButton
+            onClick={() => onPageChange(1)}
+            disabled={!canGoPrev}
+            aria-label="First page"
+          >
+            <ChevronsLeft size={14} />
+          </PaginationButton>
+          <PaginationButton
+            onClick={() => onPageChange(safePage - 1)}
+            disabled={!canGoPrev}
+            aria-label="Previous page"
+          >
+            <ChevronLeft size={14} />
+          </PaginationButton>
+          <span style={{ padding: '0 8px', fontVariantNumeric: 'tabular-nums' }}>
+            Page{' '}
+            <span style={{ fontWeight: 600, color: 'var(--c-text)' }}>
+              {safePage}
+            </span>{' '}
+            of {totalPages}
+          </span>
+          <PaginationButton
+            onClick={() => onPageChange(safePage + 1)}
+            disabled={!canGoNext}
+            aria-label="Next page"
+          >
+            <ChevronRight size={14} />
+          </PaginationButton>
+          <PaginationButton
+            onClick={() => onPageChange(totalPages)}
+            disabled={!canGoNext}
+            aria-label="Last page"
+          >
+            <ChevronsRight size={14} />
+          </PaginationButton>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PaginationButton({
+  onClick,
+  disabled,
+  children,
+  'aria-label': ariaLabel,
+}: {
+  onClick: () => void;
+  disabled: boolean;
+  children: React.ReactNode;
+  'aria-label': string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={ariaLabel}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 4,
+        border: '1px solid var(--c-border)',
+        borderRadius: 4,
+        background: 'var(--c-bg)',
+        color: disabled ? 'var(--c-text-dim)' : 'var(--c-text)',
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        opacity: disabled ? 0.5 : 1,
+      }}
+    >
+      {children}
+    </button>
   );
 }
 
@@ -301,7 +483,7 @@ function PositionRow({
       <td style={cellStyle(3)}>
         {pos.weight_pct !== null ? `${fmtNumber(pos.weight_pct, 2)}%` : '—'}
       </td>
-      <td style={cellStyle(4)}>{fmtNumber(pos.quantity, 4)}</td>
+      <td style={cellStyle(4)}>{fmtNumber(pos.quantity, 2)}</td>
       <td style={cellStyle(5)}>${fmtNumber(pos.average_cost, 2)}</td>
       <td style={cellStyle(6)}>
         {pos.current_price !== null ? `$${fmtNumber(pos.current_price, 2)}` : '—'}

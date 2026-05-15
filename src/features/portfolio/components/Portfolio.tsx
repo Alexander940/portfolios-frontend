@@ -32,11 +32,14 @@ export function Portfolio() {
 
   const [portfolio, setPortfolio] = useState<PortfolioResponse | null>(null);
   const [positions, setPositions] = useState<PortfolioPositionDetail[]>([]);
+  const [positionsTotal, setPositionsTotal] = useState(0);
   const [positionsLoading, setPositionsLoading] = useState(false);
   const [positionsError, setPositionsError] = useState<string | null>(null);
 
   const [sortBy, setSortBy] = useState<PositionSortField>('weight');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
 
   const positionsAbortRef = useRef<AbortController | null>(null);
 
@@ -67,6 +70,7 @@ export function Portfolio() {
     if (!portfolioId) {
       setPortfolio(null);
       setPositions([]);
+      setPositionsTotal(0);
       return;
     }
 
@@ -81,13 +85,19 @@ export function Portfolio() {
       getPortfolio(portfolioId, controller.signal),
       listPortfolioPositions(
         portfolioId,
-        { sort_by: sortBy, sort_order: sortOrder, limit: 500 },
+        {
+          sort_by: sortBy,
+          sort_order: sortOrder,
+          limit: pageSize,
+          offset: (page - 1) * pageSize,
+        },
         controller.signal,
       ),
     ])
       .then(([p, posList]) => {
         setPortfolio(p);
         setPositions(posList.items);
+        setPositionsTotal(posList.total);
       })
       .catch((err) => {
         if (controller.signal.aborted) return;
@@ -102,11 +112,17 @@ export function Portfolio() {
       });
 
     return () => controller.abort();
-  }, [portfolioId, sortBy, sortOrder, navigate]);
+  }, [portfolioId, sortBy, sortOrder, page, pageSize, navigate]);
 
   function handleSortChange(field: PositionSortField, order: SortOrder) {
     setSortBy(field);
     setSortOrder(order);
+    setPage(1);
+  }
+
+  function handlePageSizeChange(size: number) {
+    setPageSize(size);
+    setPage(1);
   }
 
   async function handleDeletePortfolio(id: string) {
@@ -121,9 +137,13 @@ export function Portfolio() {
     listPortfolioPositions(portfolioId, {
       sort_by: sortBy,
       sort_order: sortOrder,
-      limit: 500,
+      limit: pageSize,
+      offset: (page - 1) * pageSize,
     })
-      .then((res) => setPositions(res.items))
+      .then((res) => {
+        setPositions(res.items);
+        setPositionsTotal(res.total);
+      })
       .catch((err) => setPositionsError(resolveError(err)))
       .finally(() => setPositionsLoading(false));
   }
@@ -188,6 +208,11 @@ export function Portfolio() {
         sortBy={sortBy}
         sortOrder={sortOrder}
         onSortChange={handleSortChange}
+        page={page}
+        pageSize={pageSize}
+        total={positionsTotal}
+        onPageChange={setPage}
+        onPageSizeChange={handlePageSizeChange}
       />
     </div>
   );
