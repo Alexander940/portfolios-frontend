@@ -101,6 +101,11 @@ export interface ScreenerRequest {
   revenue_growth_12m?: RangeFilter;
   earnings_growth_3m?: RangeFilter;
   earnings_growth_12m?: RangeFilter;
+  gross_margin?: RangeFilter;
+  operating_margin?: RangeFilter;
+  roe?: RangeFilter;
+  eps_trailing?: RangeFilter;
+  free_cash_flow_per_share?: RangeFilter;
 
   // Performance filters
   return_1w?: RangeFilter;
@@ -181,6 +186,11 @@ export interface Stock {
   revenue_growth_12m: number | null;
   earnings_growth_3m: number | null;
   earnings_growth_12m: number | null;
+  gross_margin: number | null;
+  operating_margin: number | null;
+  roe: number | null;
+  eps_trailing: number | null;
+  free_cash_flow_per_share: number | null;
 
   // Performance data
   return_1w: number | null;
