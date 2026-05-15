@@ -124,6 +124,7 @@ export interface ScreenerRequest {
   bull_cycle_origin_price?: RangeFilter;
   tracking_low?: RangeFilter;
   bull_cycle_origin_date?: DateRangeFilter;
+  days_in_cycle?: RangeFilter;
 
   // Pagination & Sorting
   sort_by?: string;
@@ -164,6 +165,8 @@ export interface Stock {
   bull_cycle_origin_date: string | null;
   tracking_low: number | null;
   bull_cycle_started: boolean | null;
+  /** Trading bars elapsed since bull_cycle_origin_date (origin = 0). NULL when out of cycle. */
+  days_in_cycle: number | null;
 
   // Fundamentals data
   market_cap: number | null;

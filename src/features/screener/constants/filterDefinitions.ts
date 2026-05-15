@@ -295,6 +295,15 @@ export const ADE_FILTERS: FilterDefinition[] = [
     apiKey: 'bull_cycle_origin_date',
     description: 'Date of the locked low',
   },
+  {
+    key: 'days_in_cycle',
+    label: 'Days in Cycle',
+    category: 'ade',
+    type: 'range',
+    apiKey: 'days_in_cycle',
+    unit: 'bars',
+    description: 'Trading bars elapsed since the cycle origin (origin = 0)',
+  },
 ];
 
 /**
@@ -625,6 +634,7 @@ const ADE_COLUMNS: TableColumn[] = [
   { key: 'bull_cycle_origin_date', label: 'Origin Date', sortable: true, align: 'center', width: '120px', format: formatDate },
   { key: 'tracking_low', label: 'Tracking Low', sortable: true, align: 'right', width: '120px', format: (v) => formatNumber(v, 2) },
   { key: 'bull_cycle_started', label: 'Cycle Started', sortable: true, align: 'center', width: '120px', format: formatBool },
+  { key: 'days_in_cycle', label: 'Days in Cycle', sortable: true, align: 'right', width: '120px', format: (v) => formatNumber(v, 0) },
 ];
 
 const PERFORMANCE_COLUMNS: TableColumn[] = [
