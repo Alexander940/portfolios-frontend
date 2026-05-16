@@ -61,7 +61,54 @@ export const screenerService = {
     const response = await apiClient.get<ScreenerOptions>('/screener/options');
     return response.data;
   },
+
+  /**
+   * Export every match for the supplied filters as an Excel workbook.
+   *
+   * POST /screener/export
+   *
+   * The backend ignores pagination on this route — the file contains the
+   * full filtered set, not just the current page. The caller must trigger
+   * the download (e.g. via a temporary anchor pointing at a Blob URL).
+   *
+   * @param filters - Same filter shape as `screenStocks`. Percent fields are
+   *   converted at the API boundary just like the regular screener call.
+   * @returns The xlsx bytes and the server-suggested filename.
+   */
+  async exportToExcel(
+    filters: ScreenerRequest,
+  ): Promise<{ blob: Blob; filename: string }> {
+    const cleanedFilters = cleanFilters(toApiPercentFilters(filters));
+
+    const response = await apiClient.post<Blob>(
+      '/screener/export',
+      cleanedFilters,
+      { responseType: 'blob' },
+    );
+
+    return {
+      blob: response.data,
+      filename: extractFilename(
+        response.headers['content-disposition'] as string | undefined,
+      ),
+    };
+  },
 };
+
+/**
+ * Parse the filename out of a `Content-Disposition` header like
+ * `attachment; filename="screener_2026-05-16.xlsx"`. Falls back to a sensible
+ * default if the header is missing or malformed.
+ */
+function extractFilename(disposition: string | undefined): string {
+  if (!disposition) return 'screener.xlsx';
+  // Match RFC 6266 quoted-string form first, then unquoted token form.
+  const quoted = /filename="([^"]+)"/i.exec(disposition);
+  if (quoted) return quoted[1];
+  const unquoted = /filename=([^;]+)/i.exec(disposition);
+  if (unquoted) return unquoted[1].trim();
+  return 'screener.xlsx';
+}
 
 /**
  * Convert percentage range filters from UI units (2 = 2%) to backend units
