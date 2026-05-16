@@ -8,6 +8,7 @@ import { FilterModal } from './FilterModal';
 import { ResultsTable } from './ResultsTable';
 import { TablePagination } from './TablePagination';
 import { ColumnPresetTabs } from './ColumnPresetTabs';
+import { SavedScreensBar } from './SavedScreensBar';
 import { SavePortfolioModal } from './SavePortfolioModal';
 import { useScreenerData, useScreenerUrlSync } from '../hooks';
 
@@ -32,6 +33,8 @@ export function Screener() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <SavedScreensBar />
+
       <div className="card" style={{ padding: 20, overflow: 'visible' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div

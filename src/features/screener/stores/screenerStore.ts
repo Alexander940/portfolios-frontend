@@ -3,6 +3,7 @@ import type {
   DateRangeFilter,
   FilterValue,
   MarketCapCategory,
+  PresetCriteria,
   RangeFilter,
   RatingValue,
   ScreenerRequest,
@@ -102,6 +103,12 @@ interface ScreenerActions {
 
   // Hydrate state from URL
   hydrateFromUrl: (params: URLSearchParams) => void;
+
+  // Preset interop
+  /** Snapshot the current filter + view state to persist as a preset. */
+  getCriteriaForSave: () => PresetCriteria;
+  /** Replace all filter + view state from a saved preset and reset to page 1. */
+  applyPreset: (criteria: PresetCriteria) => void;
 }
 
 /**
@@ -371,6 +378,49 @@ export const useScreenerStore = create<ScreenerState & ScreenerActions>((set, ge
     if (Object.keys(newState).length > 0) {
       set(newState);
     }
+  },
+
+  // Preset interop
+  getCriteriaForSave: () => {
+    const state = get();
+    return {
+      exchanges: state.exchanges,
+      sectors: state.sectors,
+      countries: state.countries,
+      ratings: state.ratings,
+      marketCapCategories: state.marketCapCategories,
+      additionalFilters: state.additionalFilters,
+      sortBy: state.sortBy,
+      sortOrder: state.sortOrder,
+      columnPreset: state.columnPreset,
+    };
+  },
+
+  applyPreset: (criteria) => {
+    // Persist the chosen column preset to localStorage too, so a refresh
+    // doesn't snap back to the previous one.
+    if (typeof window !== 'undefined' && criteria.columnPreset) {
+      try {
+        window.localStorage.setItem(
+          COLUMN_PRESET_STORAGE_KEY,
+          criteria.columnPreset,
+        );
+      } catch {
+        // ignore
+      }
+    }
+    set({
+      exchanges: criteria.exchanges ?? [],
+      sectors: criteria.sectors ?? [],
+      countries: criteria.countries ?? [],
+      ratings: criteria.ratings ?? [],
+      marketCapCategories: criteria.marketCapCategories ?? [],
+      additionalFilters: criteria.additionalFilters ?? {},
+      sortBy: criteria.sortBy ?? 'ticker',
+      sortOrder: criteria.sortOrder ?? 'asc',
+      columnPreset: criteria.columnPreset ?? DEFAULT_COLUMN_PRESET,
+      page: 1,
+    });
   },
 }));
 

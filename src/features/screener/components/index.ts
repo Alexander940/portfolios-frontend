@@ -6,3 +6,5 @@ export { ActiveFilters } from './ActiveFilters';
 export { ResultsTable } from './ResultsTable';
 export { TablePagination } from './TablePagination';
 export { ColumnPresetTabs } from './ColumnPresetTabs';
+export { SavedScreensBar } from './SavedScreensBar';
+export { SaveScreenModal } from './SaveScreenModal';
