@@ -106,6 +106,10 @@ export interface ScreenerRequest {
   roe?: RangeFilter;
   eps_trailing?: RangeFilter;
   free_cash_flow_per_share?: RangeFilter;
+  /** Absolute TTM free cash flow in USD. */
+  free_cash_flow_ttm?: RangeFilter;
+  /** FCF / Market Cap (TTM). UI sends as %, service converts to rational at the API boundary. */
+  free_cash_flow_yield_ttm?: RangeFilter;
 
   // Performance filters
   return_1w?: RangeFilter;
@@ -191,6 +195,10 @@ export interface Stock {
   roe: number | null;
   eps_trailing: number | null;
   free_cash_flow_per_share: number | null;
+  /** Absolute TTM free cash flow in USD. */
+  free_cash_flow_ttm: number | null;
+  /** FCF / Market Cap (TTM). Stored in percent units in the UI (e.g. `2.93`). */
+  free_cash_flow_yield_ttm: number | null;
 
   // Performance data
   return_1w: number | null;

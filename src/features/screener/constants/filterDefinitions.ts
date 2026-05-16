@@ -291,6 +291,24 @@ export const FUNDAMENTALS_FILTERS: FilterDefinition[] = [
     apiKey: 'free_cash_flow_per_share',
     description: 'Free cash flow per share',
   },
+  {
+    key: 'free_cash_flow_ttm',
+    label: 'FCF (TTM)',
+    category: 'fundamentals',
+    type: 'range',
+    apiKey: 'free_cash_flow_ttm',
+    unit: 'USD',
+    description: 'Absolute free cash flow over the trailing twelve months',
+  },
+  {
+    key: 'free_cash_flow_yield_ttm',
+    label: 'FCF Yield (TTM)',
+    category: 'fundamentals',
+    type: 'range',
+    apiKey: 'free_cash_flow_yield_ttm',
+    unit: '%',
+    description: 'TTM free cash flow divided by current market cap',
+  },
 ];
 
 /**
@@ -500,6 +518,7 @@ export const PERCENTAGE_FIELDS = [
   'gross_margin',
   'operating_margin',
   'roe',
+  'free_cash_flow_yield_ttm',
   'return_1w',
   'return_1m',
   'return_3m',
@@ -592,6 +611,23 @@ function formatLiquidity(value: unknown): string {
   if (isNaN(num)) return '—';
   if (num >= 1000) return `${(num / 1000).toFixed(1)}B`;
   return `${num.toFixed(1)}M`;
+}
+
+/**
+ * Format an absolute USD amount using T/B/M/K suffixes. Negative values keep
+ * the sign. Sub-1K amounts collapse to whole dollars.
+ */
+function formatAbsoluteUsd(value: unknown): string {
+  if (value === null || value === undefined) return '—';
+  const num = Number(value);
+  if (isNaN(num)) return '—';
+  const sign = num < 0 ? '-' : '';
+  const abs = Math.abs(num);
+  if (abs >= 1e12) return `${sign}$${(abs / 1e12).toFixed(2)}T`;
+  if (abs >= 1e9) return `${sign}$${(abs / 1e9).toFixed(2)}B`;
+  if (abs >= 1e6) return `${sign}$${(abs / 1e6).toFixed(2)}M`;
+  if (abs >= 1e3) return `${sign}$${(abs / 1e3).toFixed(2)}K`;
+  return `${sign}$${abs.toFixed(0)}`;
 }
 
 /**
@@ -707,6 +743,8 @@ const FUNDAMENTALS_COLUMNS: TableColumn[] = [
   { key: 'roe', label: 'ROE', sortable: true, align: 'right', width: '90px', format: formatPercent },
   { key: 'eps_trailing', label: 'EPS', sortable: true, align: 'right', width: '90px', format: (v) => formatNumber(v, 2) },
   { key: 'free_cash_flow_per_share', label: 'FCF / Share', sortable: true, align: 'right', width: '110px', format: (v) => formatNumber(v, 2) },
+  { key: 'free_cash_flow_ttm', label: 'FCF (TTM)', sortable: true, align: 'right', width: '120px', format: formatAbsoluteUsd },
+  { key: 'free_cash_flow_yield_ttm', label: 'FCF Yield', sortable: true, align: 'right', width: '110px', format: formatPercent },
   { key: 'revenue_growth_3m', label: 'Rev. Growth 3M', sortable: true, align: 'right', width: '140px', format: formatPercent },
   { key: 'revenue_growth_12m', label: 'Rev. Growth 12M', sortable: true, align: 'right', width: '150px', format: formatPercent },
   { key: 'earnings_growth_3m', label: 'EPS Growth 3M', sortable: true, align: 'right', width: '140px', format: formatPercent },
