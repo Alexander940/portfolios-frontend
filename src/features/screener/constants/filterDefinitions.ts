@@ -368,6 +368,144 @@ export const ADE_FILTERS: FilterDefinition[] = [
 ];
 
 /**
+ * Latest market bar filter definitions (sourced from `price_data_latest`).
+ */
+export const PRICES_FILTERS: FilterDefinition[] = [
+  {
+    key: 'open',
+    label: 'Open',
+    category: 'prices',
+    type: 'range',
+    apiKey: 'open',
+    unit: 'USD',
+    description: 'Latest session opening price',
+  },
+  {
+    key: 'high',
+    label: 'High',
+    category: 'prices',
+    type: 'range',
+    apiKey: 'high',
+    unit: 'USD',
+    description: 'Latest session high price',
+  },
+  {
+    key: 'low',
+    label: 'Low',
+    category: 'prices',
+    type: 'range',
+    apiKey: 'low',
+    unit: 'USD',
+    description: 'Latest session low price',
+  },
+  {
+    key: 'close',
+    label: 'Close',
+    category: 'prices',
+    type: 'range',
+    apiKey: 'close',
+    unit: 'USD',
+    description: 'Latest session close price',
+  },
+  {
+    key: 'volume',
+    label: 'Volume',
+    category: 'prices',
+    type: 'range',
+    apiKey: 'volume',
+    description: 'Latest session traded shares',
+  },
+];
+
+/**
+ * Technical indicator filter definitions (sourced from
+ * `technical_indicators_latest` on the backend). `klinger_oscillator` is
+ * excluded — the backend pipeline does not populate it.
+ */
+export const INDICATORS_FILTERS: FilterDefinition[] = [
+  {
+    key: 'adx',
+    label: 'ADX',
+    category: 'indicators',
+    type: 'range',
+    apiKey: 'adx',
+    description: 'Average Directional Index — trend strength (0–100)',
+  },
+  {
+    key: 'adxr',
+    label: 'ADXR',
+    category: 'indicators',
+    type: 'range',
+    apiKey: 'adxr',
+    description: 'ADX Rating — smoothed ADX',
+  },
+  {
+    key: 'mfi_14',
+    label: 'MFI (14)',
+    category: 'indicators',
+    type: 'range',
+    apiKey: 'mfi_14',
+    description: 'Money Flow Index over 14 periods (0–100)',
+  },
+  {
+    key: 'rvi',
+    label: 'RVI',
+    category: 'indicators',
+    type: 'range',
+    apiKey: 'rvi',
+    description: 'Relative Vigor Index',
+  },
+  {
+    key: 'aroon_oscillator',
+    label: 'Aroon Oscillator',
+    category: 'indicators',
+    type: 'range',
+    apiKey: 'aroon_oscillator',
+    description: 'Aroon Up − Aroon Down (−100 to +100)',
+  },
+  {
+    key: 'atr',
+    label: 'ATR',
+    category: 'indicators',
+    type: 'range',
+    apiKey: 'atr',
+    description: 'Average True Range — volatility',
+  },
+  {
+    key: 'vmc_z_score',
+    label: 'VMC Z-Score',
+    category: 'indicators',
+    type: 'range',
+    apiKey: 'vmc_z_score',
+    description: 'Volatility / Momentum Composite Z-Score',
+  },
+  {
+    key: 'tema_30',
+    label: 'TEMA (30)',
+    category: 'indicators',
+    type: 'range',
+    apiKey: 'tema_30',
+    description: 'Triple Exponential Moving Average (30)',
+  },
+  {
+    key: 'maa',
+    label: 'MAA',
+    category: 'indicators',
+    type: 'range',
+    apiKey: 'maa',
+    description: 'Moving Average Adaptive',
+  },
+  {
+    key: 'kama_er',
+    label: 'KAMA ER',
+    category: 'indicators',
+    type: 'range',
+    apiKey: 'kama_er',
+    description: 'Kaufman Adaptive Moving Average — Efficiency Ratio',
+  },
+];
+
+/**
  * Performance filter definitions
  */
 export const PERFORMANCE_FILTERS: FilterDefinition[] = [
@@ -499,6 +637,8 @@ export const ADDITIONAL_FILTERS: FilterDefinition[] = [
   ...ADE_FILTERS,
   ...FUNDAMENTALS_FILTERS,
   ...PERFORMANCE_FILTERS,
+  ...INDICATORS_FILTERS,
+  ...PRICES_FILTERS,
   // Exclude primary filters from additional filters menu
   ...OTHER_FILTERS.filter((f) => !['exchange', 'sector', 'country', 'rating'].includes(f.key)),
 ];
@@ -535,6 +675,8 @@ export const FILTER_CATEGORIES = [
   { key: 'ade', label: 'ADE' },
   { key: 'fundamentals', label: 'Fundamentals' },
   { key: 'performance', label: 'Performance' },
+  { key: 'indicators', label: 'Indicators' },
+  { key: 'prices', label: 'Prices' },
   { key: 'others', label: 'Others' },
 ] as const;
 
@@ -547,6 +689,8 @@ export function getFilterDefinition(key: string): FilterDefinition | undefined {
     ...ADE_FILTERS,
     ...FUNDAMENTALS_FILTERS,
     ...PERFORMANCE_FILTERS,
+    ...INDICATORS_FILTERS,
+    ...PRICES_FILTERS,
     ...OTHER_FILTERS,
   ].find((f) => f.key === key);
 }
@@ -600,6 +744,19 @@ function formatDate(value: unknown): string {
 function formatBool(value: unknown): string {
   if (value === null || value === undefined) return '—';
   return value ? 'Yes' : 'No';
+}
+
+/**
+ * Format a raw share count (volume) with K/M/B suffixes.
+ */
+function formatVolume(value: unknown): string {
+  if (value === null || value === undefined) return '—';
+  const num = Number(value);
+  if (isNaN(num)) return '—';
+  if (num >= 1e9) return `${(num / 1e9).toFixed(2)}B`;
+  if (num >= 1e6) return `${(num / 1e6).toFixed(2)}M`;
+  if (num >= 1e3) return `${(num / 1e3).toFixed(1)}K`;
+  return `${num}`;
 }
 
 /**
@@ -677,7 +834,7 @@ export const DEFAULT_PAGE_SIZE = 50;
 // Table Column Presets
 // =============================================================================
 
-export type ColumnPresetId = 'overview' | 'trendrating' | 'ade' | 'performance' | 'fundamentals' | 'all';
+export type ColumnPresetId = 'overview' | 'trendrating' | 'ade' | 'performance' | 'fundamentals' | 'indicators' | 'prices' | 'all';
 
 export interface ColumnPreset {
   id: ColumnPresetId;
@@ -729,6 +886,27 @@ const PERFORMANCE_COLUMNS: TableColumn[] = [
   { key: 'sharpe_6m', label: 'Sharpe 6M', sortable: true, align: 'right', width: '110px', format: (v) => formatNumber(v, 2) },
   { key: 'sharpe_12m', label: 'Sharpe 12M', sortable: true, align: 'right', width: '110px', format: (v) => formatNumber(v, 2) },
   { key: 'liquidity_usd_m', label: 'Liquidity', sortable: true, align: 'right', width: '110px', format: formatLiquidity },
+];
+
+const PRICES_COLUMNS: TableColumn[] = [
+  { key: 'open', label: 'Open', sortable: true, align: 'right', width: '100px', format: (v) => formatNumber(v, 2) },
+  { key: 'high', label: 'High', sortable: true, align: 'right', width: '100px', format: (v) => formatNumber(v, 2) },
+  { key: 'low', label: 'Low', sortable: true, align: 'right', width: '100px', format: (v) => formatNumber(v, 2) },
+  { key: 'close', label: 'Close', sortable: true, align: 'right', width: '100px', format: (v) => formatNumber(v, 2) },
+  { key: 'volume', label: 'Volume', sortable: true, align: 'right', width: '110px', format: formatVolume },
+];
+
+const INDICATORS_COLUMNS: TableColumn[] = [
+  { key: 'adx', label: 'ADX', sortable: true, align: 'right', width: '90px', format: (v) => formatNumber(v, 2) },
+  { key: 'adxr', label: 'ADXR', sortable: true, align: 'right', width: '90px', format: (v) => formatNumber(v, 2) },
+  { key: 'mfi_14', label: 'MFI (14)', sortable: true, align: 'right', width: '100px', format: (v) => formatNumber(v, 2) },
+  { key: 'rvi', label: 'RVI', sortable: true, align: 'right', width: '90px', format: (v) => formatNumber(v, 2) },
+  { key: 'aroon_oscillator', label: 'Aroon Osc.', sortable: true, align: 'right', width: '110px', format: (v) => formatNumber(v, 2) },
+  { key: 'atr', label: 'ATR', sortable: true, align: 'right', width: '90px', format: (v) => formatNumber(v, 2) },
+  { key: 'vmc_z_score', label: 'VMC Z', sortable: true, align: 'right', width: '100px', format: (v) => formatNumber(v, 2) },
+  { key: 'tema_30', label: 'TEMA (30)', sortable: true, align: 'right', width: '110px', format: (v) => formatNumber(v, 2) },
+  { key: 'maa', label: 'MAA', sortable: true, align: 'right', width: '100px', format: (v) => formatNumber(v, 2) },
+  { key: 'kama_er', label: 'KAMA ER', sortable: true, align: 'right', width: '100px', format: (v) => formatNumber(v, 2) },
 ];
 
 const FUNDAMENTALS_COLUMNS: TableColumn[] = [
@@ -800,6 +978,18 @@ export const TABLE_COLUMN_PRESETS: ColumnPreset[] = [
     columns: [...PINNED_COLUMNS, ...FUNDAMENTALS_COLUMNS],
   },
   {
+    id: 'indicators',
+    label: 'Indicators',
+    description: 'Technical indicators: ADX, MFI, ATR, TEMA, KAMA and more',
+    columns: [...PINNED_COLUMNS, ...INDICATORS_COLUMNS],
+  },
+  {
+    id: 'prices',
+    label: 'Prices',
+    description: 'Latest market bar: open, high, low, close and volume',
+    columns: [...PINNED_COLUMNS, ...PRICES_COLUMNS],
+  },
+  {
     id: 'all',
     label: 'All',
     description: 'Every available metric (scroll horizontal)',
@@ -810,6 +1000,8 @@ export const TABLE_COLUMN_PRESETS: ColumnPreset[] = [
       ...ADE_COLUMNS,
       ...PERFORMANCE_COLUMNS,
       ...FUNDAMENTALS_COLUMNS,
+      ...INDICATORS_COLUMNS,
+      ...PRICES_COLUMNS,
     ],
   },
 ];

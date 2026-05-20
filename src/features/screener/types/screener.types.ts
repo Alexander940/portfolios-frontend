@@ -68,6 +68,8 @@ export type FilterCategory =
   | 'ade'
   | 'fundamentals'
   | 'performance'
+  | 'indicators'
+  | 'prices'
   | 'others';
 
 // =============================================================================
@@ -134,6 +136,26 @@ export interface ScreenerRequest {
   tracking_low?: RangeFilter;
   bull_cycle_origin_date?: DateRangeFilter;
   days_in_cycle?: RangeFilter;
+
+  // Latest market bar filters (from `price_data_latest`).
+  open?: RangeFilter;
+  high?: RangeFilter;
+  low?: RangeFilter;
+  close?: RangeFilter;
+  volume?: RangeFilter;
+
+  // Technical indicator filters (from `technical_indicators_latest`).
+  // klinger_oscillator is intentionally excluded — backend pipeline does not populate it.
+  adx?: RangeFilter;
+  adxr?: RangeFilter;
+  mfi_14?: RangeFilter;
+  rvi?: RangeFilter;
+  aroon_oscillator?: RangeFilter;
+  atr?: RangeFilter;
+  vmc_z_score?: RangeFilter;
+  tema_30?: RangeFilter;
+  maa?: RangeFilter;
+  kama_er?: RangeFilter;
 
   // Pagination & Sorting
   sort_by?: string;
@@ -210,6 +232,25 @@ export interface Stock {
   sharpe_6m: number | null;
   sharpe_12m: number | null;
   liquidity_usd_m: number | null;
+
+  // Latest market bar (from `price_data_latest`).
+  open: number | null;
+  high: number | null;
+  low: number | null;
+  close: number | null;
+  volume: number | null;
+
+  // Technical indicators (from `technical_indicators_latest`).
+  adx: number | null;
+  adxr: number | null;
+  mfi_14: number | null;
+  rvi: number | null;
+  aroon_oscillator: number | null;
+  atr: number | null;
+  vmc_z_score: number | null;
+  tema_30: number | null;
+  maa: number | null;
+  kama_er: number | null;
 }
 
 /**
