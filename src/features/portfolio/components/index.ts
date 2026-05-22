@@ -4,3 +4,4 @@ export { PortfoliosTable } from './PortfoliosTable';
 export { PortfolioPositionsTable } from './PortfolioPositionsTable';
 export { PortfolioStatCards } from './PortfolioStatCards';
 export { RelevantEventsRail } from './RelevantEventsRail';
+export { ImportPortfolioFromExcelModal } from './ImportPortfolioFromExcelModal';

@@ -1,11 +1,19 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Briefcase, ChevronRight, Loader2, Star, Trash2 } from 'lucide-react';
+import {
+  Briefcase,
+  ChevronRight,
+  FileSpreadsheet,
+  Loader2,
+  Star,
+  Trash2,
+} from 'lucide-react';
 import type { PortfolioResponse } from '@/services/portfolioService';
 
 interface PortfoliosTableProps {
   portfolios: PortfolioResponse[];
   onDelete?: (portfolioId: string) => Promise<void>;
+  onImportClick?: () => void;
 }
 
 const WEIGHTING_LABELS: Record<string, string> = {
@@ -36,7 +44,11 @@ function fmtCurrency(amount: number, currency: string): string {
   })}`;
 }
 
-export function PortfoliosTable({ portfolios, onDelete }: PortfoliosTableProps) {
+export function PortfoliosTable({
+  portfolios,
+  onDelete,
+  onImportClick,
+}: PortfoliosTableProps) {
   const navigate = useNavigate();
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
@@ -96,15 +108,35 @@ export function PortfoliosTable({ portfolios, onDelete }: PortfoliosTableProps) 
             fontSize: 13,
           }}
         >
-          Create a portfolio from the Screener to see it here.
+          Create a portfolio from the Screener or import one from an Excel file.
         </p>
-        <button
-          type="button"
-          className="topbar-btn primary"
-          onClick={() => navigate('/dashboard/screening')}
+        <div
+          style={{
+            display: 'flex',
+            gap: 8,
+            justifyContent: 'center',
+            flexWrap: 'wrap',
+          }}
         >
-          Go to Screener
-        </button>
+          <button
+            type="button"
+            className="topbar-btn primary"
+            onClick={() => navigate('/dashboard/screening')}
+          >
+            Go to Screener
+          </button>
+          {onImportClick && (
+            <button
+              type="button"
+              className="topbar-btn"
+              onClick={onImportClick}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+            >
+              <FileSpreadsheet size={14} />
+              Import from Excel
+            </button>
+          )}
+        </div>
       </div>
     );
   }
@@ -118,6 +150,17 @@ export function PortfoliosTable({ portfolios, onDelete }: PortfoliosTableProps) 
             {portfolios.length} {portfolios.length === 1 ? 'portfolio' : 'portfolios'}
           </div>
         </div>
+        {onImportClick && (
+          <button
+            type="button"
+            className="topbar-btn"
+            onClick={onImportClick}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+          >
+            <FileSpreadsheet size={14} />
+            Import from Excel
+          </button>
+        )}
       </div>
 
       <div style={{ overflow: 'auto', maxHeight: 'max(360px, calc(100vh - 280px))' }}>

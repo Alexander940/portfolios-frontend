@@ -15,6 +15,7 @@ import { isApiError } from '@/lib/apiErrors';
 import { PortfolioHeader } from './PortfolioHeader';
 import { PortfoliosTable } from './PortfoliosTable';
 import { PortfolioPositionsTable } from './PortfolioPositionsTable';
+import { ImportPortfolioFromExcelModal } from './ImportPortfolioFromExcelModal';
 
 /**
  * Portfolio feature root — renders the Portfolio Analysis page.
@@ -40,6 +41,8 @@ export function Portfolio() {
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
+
+  const [importModalOpen, setImportModalOpen] = useState(false);
 
   const positionsAbortRef = useRef<AbortController | null>(null);
 
@@ -178,10 +181,24 @@ export function Portfolio() {
       );
     }
     return (
-      <PortfoliosTable
-        portfolios={portfolios}
-        onDelete={handleDeletePortfolio}
-      />
+      <>
+        <PortfoliosTable
+          portfolios={portfolios}
+          onDelete={handleDeletePortfolio}
+          onImportClick={() => setImportModalOpen(true)}
+        />
+        <ImportPortfolioFromExcelModal
+          isOpen={importModalOpen}
+          onClose={() => setImportModalOpen(false)}
+          onCreated={(p) =>
+            setPortfolios((prev) =>
+              prev.some((x) => x.portfolio_id === p.portfolio_id)
+                ? prev
+                : [p, ...prev],
+            )
+          }
+        />
+      </>
     );
   }
 

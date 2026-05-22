@@ -45,6 +45,32 @@ export async function createPortfolioFromScreener(
   return data;
 }
 
+export interface PortfolioFromTickersCreate {
+  name: string;
+  description?: string | null;
+  initial_cash?: number;
+  weighting_method?: WeightingMethod;
+  tickers: string[];
+}
+
+export interface PortfolioFromTickersResponse {
+  portfolio: PortfolioResponse;
+  positions_count: number;
+  skipped_tickers: string[];
+}
+
+export async function createPortfolioFromTickers(
+  payload: PortfolioFromTickersCreate,
+  signal?: AbortSignal,
+): Promise<PortfolioFromTickersResponse> {
+  const { data } = await apiClient.post<PortfolioFromTickersResponse>(
+    '/portfolios/from-tickers',
+    payload,
+    { signal },
+  );
+  return data;
+}
+
 export interface PortfolioList {
   items: PortfolioResponse[];
   total: number;
