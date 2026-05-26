@@ -129,6 +129,12 @@ export interface ScreenerRequest {
   exchange?: string[];
   sector?: string[];
 
+  // Smart Momentum (ADE) per-side filters
+  /** Close − Bull_Origin_Low while the bull origin is active (≥ 0). */
+  sm_long_points?: RangeFilter;
+  /** Close − Bear_Origin_High while the bear origin is active (≤ 0). */
+  sm_short_points?: RangeFilter;
+
   // Bull cycle filters (ADE)
   in_bull_cycle?: boolean;
   bull_cycle_started?: boolean;
@@ -184,8 +190,13 @@ export interface Stock {
   days_since_rating: number | null;
 
   // Smart Momentum (ADE variant)
+  /** Close − Bull_Origin_Low while the bull origin is active (≥ 0). */
+  sm_long_points: number | null;
+  /** Close − Bear_Origin_High while the bear origin is active (≤ 0). */
+  sm_short_points: number | null;
   sm_ratio: number | null;
   sm_pct: number | null;
+  /** Legacy signed-by-active-cycle SM points; prefer sm_long_points / sm_short_points. */
   sm_points: number | null;
   sm_peak_ratio: number | null;
 

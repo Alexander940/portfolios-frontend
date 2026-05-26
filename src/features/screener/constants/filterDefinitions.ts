@@ -317,6 +317,22 @@ export const FUNDAMENTALS_FILTERS: FilterDefinition[] = [
  */
 export const ADE_FILTERS: FilterDefinition[] = [
   {
+    key: 'sm_long_points',
+    label: 'SM Long Points',
+    category: 'ade',
+    type: 'range',
+    apiKey: 'sm_long_points',
+    description: 'Close − Bull_Origin_Low while the bull origin is active (≥ 0)',
+  },
+  {
+    key: 'sm_short_points',
+    label: 'SM Short Points',
+    category: 'ade',
+    type: 'range',
+    apiKey: 'sm_short_points',
+    description: 'Close − Bear_Origin_High while the bear origin is active (≤ 0)',
+  },
+  {
     key: 'in_bull_cycle',
     label: 'In Bull Cycle',
     category: 'ade',
@@ -864,6 +880,8 @@ const TRENDRATING_COLUMNS: TableColumn[] = [
 ];
 
 const ADE_COLUMNS: TableColumn[] = [
+  { key: 'sm_long_points', label: 'SM Long Pts', sortable: true, align: 'right', width: '120px', format: (v) => formatNumber(v, 2) },
+  { key: 'sm_short_points', label: 'SM Short Pts', sortable: true, align: 'right', width: '120px', format: (v) => formatNumber(v, 2) },
   { key: 'sm_ratio', label: 'SM Ratio', sortable: true, align: 'right', width: '110px', format: (v) => formatNumber(v, 2) },
   { key: 'sm_pct', label: 'SM %', sortable: true, align: 'right', width: '100px', format: formatPercent },
   { key: 'sm_points', label: 'SM Points', sortable: true, align: 'right', width: '110px', format: (v) => formatNumber(v, 2) },
@@ -962,7 +980,7 @@ export const TABLE_COLUMN_PRESETS: ColumnPreset[] = [
   {
     id: 'ade',
     label: 'ADE',
-    description: 'Smart Momentum ADE: ratio, %, points and cycle peak',
+    description: 'Smart Momentum ADE: long/short points, ratio, %, and cycle peak',
     columns: [...PINNED_COLUMNS, ...ADE_COLUMNS],
   },
   {
