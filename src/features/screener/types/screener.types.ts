@@ -142,6 +142,10 @@ export interface ScreenerRequest {
   sm_long_ratio?: RangeFilter;
   /** sm_short_points / ATR_Calm while the bear origin is active (≤ 0). */
   sm_short_ratio?: RangeFilter;
+  /** Monotonic peak of sm_long_ratio within the bull cycle (reset on each fresh activation). */
+  sm_long_peak_ratio?: RangeFilter;
+  /** Monotonic trough of sm_short_ratio within the bear cycle (reset on each fresh activation). */
+  sm_short_peak_ratio?: RangeFilter;
 
   // Bull cycle filters (ADE)
   in_bull_cycle?: boolean;
@@ -210,6 +214,10 @@ export interface Stock {
   sm_long_ratio: number | null;
   /** sm_short_points / ATR_Calm while the bear origin is active (≤ 0). */
   sm_short_ratio: number | null;
+  /** Monotonic peak of sm_long_ratio within the bull cycle (reset on each fresh activation). */
+  sm_long_peak_ratio: number | null;
+  /** Monotonic trough of sm_short_ratio within the bear cycle (reset on each fresh activation). */
+  sm_short_peak_ratio: number | null;
   sm_ratio: number | null;
   sm_pct: number | null;
   /** Legacy signed-by-active-cycle SM points; prefer sm_long_points / sm_short_points. */
