@@ -333,6 +333,24 @@ export const ADE_FILTERS: FilterDefinition[] = [
     description: 'Close − Bear_Origin_High while the bear origin is active (≤ 0)',
   },
   {
+    key: 'sm_long_pct',
+    label: 'SM Long %',
+    category: 'ade',
+    type: 'range',
+    apiKey: 'sm_long_pct',
+    unit: '%',
+    description: '(Close / Bull_Origin_Low − 1) × 100 while bull origin active (≥ 0)',
+  },
+  {
+    key: 'sm_short_pct',
+    label: 'SM Short %',
+    category: 'ade',
+    type: 'range',
+    apiKey: 'sm_short_pct',
+    unit: '%',
+    description: '(Close / Bear_Origin_High − 1) × 100 while bear origin active (≤ 0)',
+  },
+  {
     key: 'in_bull_cycle',
     label: 'In Bull Cycle',
     category: 'ade',
@@ -882,6 +900,8 @@ const TRENDRATING_COLUMNS: TableColumn[] = [
 const ADE_COLUMNS: TableColumn[] = [
   { key: 'sm_long_points', label: 'SM Long Pts', sortable: true, align: 'right', width: '120px', format: (v) => formatNumber(v, 2) },
   { key: 'sm_short_points', label: 'SM Short Pts', sortable: true, align: 'right', width: '120px', format: (v) => formatNumber(v, 2) },
+  { key: 'sm_long_pct', label: 'SM Long %', sortable: true, align: 'right', width: '110px', format: formatPercent },
+  { key: 'sm_short_pct', label: 'SM Short %', sortable: true, align: 'right', width: '115px', format: formatPercent },
   { key: 'sm_ratio', label: 'SM Ratio', sortable: true, align: 'right', width: '110px', format: (v) => formatNumber(v, 2) },
   { key: 'sm_pct', label: 'SM %', sortable: true, align: 'right', width: '100px', format: formatPercent },
   { key: 'sm_points', label: 'SM Points', sortable: true, align: 'right', width: '110px', format: (v) => formatNumber(v, 2) },

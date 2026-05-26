@@ -134,6 +134,10 @@ export interface ScreenerRequest {
   sm_long_points?: RangeFilter;
   /** Close − Bear_Origin_High while the bear origin is active (≤ 0). */
   sm_short_points?: RangeFilter;
+  /** (Close / Bull_Origin_Low − 1) × 100 while the bull origin is active (≥ 0). */
+  sm_long_pct?: RangeFilter;
+  /** (Close / Bear_Origin_High − 1) × 100 while the bear origin is active (≤ 0). */
+  sm_short_pct?: RangeFilter;
 
   // Bull cycle filters (ADE)
   in_bull_cycle?: boolean;
@@ -194,6 +198,10 @@ export interface Stock {
   sm_long_points: number | null;
   /** Close − Bear_Origin_High while the bear origin is active (≤ 0). */
   sm_short_points: number | null;
+  /** (Close / Bull_Origin_Low − 1) × 100 while the bull origin is active (≥ 0). */
+  sm_long_pct: number | null;
+  /** (Close / Bear_Origin_High − 1) × 100 while the bear origin is active (≤ 0). */
+  sm_short_pct: number | null;
   sm_ratio: number | null;
   sm_pct: number | null;
   /** Legacy signed-by-active-cycle SM points; prefer sm_long_points / sm_short_points. */
