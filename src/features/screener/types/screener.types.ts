@@ -155,6 +155,20 @@ export interface ScreenerRequest {
   bull_cycle_origin_date?: DateRangeFilter;
   days_in_cycle?: RangeFilter;
 
+  // ADE trade machine — see docs/ADE.md + app/indicators/ade_mfh.py:add_trade_state
+  /** Forever-latch turned on when Rating crosses +→− (independent of in_bull_cycle). */
+  bull_origin_active?: boolean;
+  /** Forever-latch turned on when Rating crosses −→+. */
+  bear_origin_active?: boolean;
+  /** ATR_Current > ATR_Calm × 2 — volatility expansion gate. */
+  atr_spike?: boolean;
+  /** True while a position is open (any side). */
+  in_trade?: boolean;
+  /** EL Plot7 export: +2 Long, -2 Short, 0 flat. */
+  trade?: RangeFilter;
+  /** TradeDir: -1 Short, 0 flat, +1 Long. */
+  trade_dir?: RangeFilter;
+
   // Latest market bar filters (from `price_data_latest`).
   open?: RangeFilter;
   high?: RangeFilter;
@@ -170,6 +184,7 @@ export interface ScreenerRequest {
   rvi?: RangeFilter;
   aroon_oscillator?: RangeFilter;
   atr?: RangeFilter;
+  atr_calm?: RangeFilter;
   vmc_z_score?: RangeFilter;
   tema_30?: RangeFilter;
   maa?: RangeFilter;
@@ -234,6 +249,36 @@ export interface Stock {
   /** Trading bars elapsed since bull_cycle_origin_date (origin = 0). NULL when out of cycle. */
   days_in_cycle: number | null;
 
+  // ADE trade machine — see docs/ADE.md + app/indicators/ade_mfh.py:add_trade_state
+  /** Forever-latch from EasyLanguage `Bull_Origin_Active` (Rating cross +→−). */
+  bull_origin_active: boolean | null;
+  /** Forever-latch from EasyLanguage `Bear_Origin_Active` (Rating cross −→+). */
+  bear_origin_active: boolean | null;
+  /** ATR_Current > ATR_Calm × 2. */
+  atr_spike: boolean | null;
+  /** True while a position is open (any side). */
+  in_trade: boolean | null;
+  /** TradeDir: -1 Short, 0 flat, +1 Long. */
+  trade_dir: number | null;
+  /** EL Plot7 export: +2 Long, -2 Short, 0 flat. */
+  trade: number | null;
+  /** Close at entry bar; null when flat. */
+  entry_price: number | null;
+  /** ISO date of entry bar; null when flat. */
+  entry_date: string | null;
+  /** Rating at entry bar; null when flat. */
+  entry_rating: number | null;
+  /** Running best rating (most positive for Long / most negative for Short) since entry. */
+  best_rating_in_trade: number | null;
+  /** Running high since entry (Long); null when flat or Short. */
+  trail_high: number | null;
+  /** Running low since entry (Short); null when flat or Long. */
+  trail_low: number | null;
+  /** Capa-1 Sell/Cover Signal latched (alert only — does not close the trade). */
+  sell_signal_fired: boolean | null;
+  /** Capa-2 Sell/Cover Emergency latched (alert only — does not close the trade). */
+  emergency_fired: boolean | null;
+
   // Fundamentals data
   market_cap: number | null;
   market_cap_category: MarketCapCategory | null;
@@ -282,6 +327,8 @@ export interface Stock {
   rvi: number | null;
   aroon_oscillator: number | null;
   atr: number | null;
+  /** SMA(ATR(14), 30) — the same `ATR_Calm` used by ADE for trade gates. */
+  atr_calm: number | null;
   vmc_z_score: number | null;
   tema_30: number | null;
   maa: number | null;

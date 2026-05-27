@@ -431,6 +431,55 @@ export const ADE_FILTERS: FilterDefinition[] = [
     unit: 'bars',
     description: 'Trading bars elapsed since the cycle origin (origin = 0)',
   },
+  // ---- Trade machine (docs/ADE.md + add_trade_state) ----
+  {
+    key: 'in_trade',
+    label: 'In Trade',
+    category: 'ade',
+    type: 'boolean',
+    apiKey: 'in_trade',
+    description: 'Symbol currently has an open position (Long or Short)',
+  },
+  {
+    key: 'trade',
+    label: 'Trade (+2 Long / -2 Short)',
+    category: 'ade',
+    type: 'range',
+    apiKey: 'trade',
+    description: 'EasyLanguage Plot7: +2 Long, -2 Short, 0 flat',
+  },
+  {
+    key: 'trade_dir',
+    label: 'Trade Direction',
+    category: 'ade',
+    type: 'range',
+    apiKey: 'trade_dir',
+    description: 'TradeDir: +1 Long, -1 Short, 0 flat',
+  },
+  {
+    key: 'bull_origin_active',
+    label: 'Bull Origin Active',
+    category: 'ade',
+    type: 'boolean',
+    apiKey: 'bull_origin_active',
+    description: 'Bull origin latch is on (Rating crossed +→− at some point)',
+  },
+  {
+    key: 'bear_origin_active',
+    label: 'Bear Origin Active',
+    category: 'ade',
+    type: 'boolean',
+    apiKey: 'bear_origin_active',
+    description: 'Bear origin latch is on (Rating crossed −→+ at some point)',
+  },
+  {
+    key: 'atr_spike',
+    label: 'ATR Spike',
+    category: 'ade',
+    type: 'boolean',
+    apiKey: 'atr_spike',
+    description: 'ATR_Current > ATR_Calm × 2 — volatility expansion',
+  },
 ];
 
 /**
@@ -536,6 +585,14 @@ export const INDICATORS_FILTERS: FilterDefinition[] = [
     type: 'range',
     apiKey: 'atr',
     description: 'Average True Range — volatility',
+  },
+  {
+    key: 'atr_calm',
+    label: 'ATR Calm',
+    category: 'indicators',
+    type: 'range',
+    apiKey: 'atr_calm',
+    description: 'SMA(ATR(14), 30) — baseline ATR used by the ADE trade gates',
   },
   {
     key: 'vmc_z_score',
@@ -813,6 +870,32 @@ function formatBool(value: unknown): string {
 }
 
 /**
+ * Format the ADE `trade` field (EL Plot7): +2 Long, −2 Short, 0 flat.
+ */
+function formatTrade(value: unknown): string {
+  if (value === null || value === undefined) return '—';
+  const n = Number(value);
+  if (isNaN(n)) return '—';
+  if (n === 2) return 'Long';
+  if (n === -2) return 'Short';
+  if (n === 0) return 'Flat';
+  return formatRatingValue(n);
+}
+
+/**
+ * Format trade_dir: +1 Long, −1 Short, 0 flat.
+ */
+function formatTradeDir(value: unknown): string {
+  if (value === null || value === undefined) return '—';
+  const n = Number(value);
+  if (isNaN(n)) return '—';
+  if (n === 1) return 'Long';
+  if (n === -1) return 'Short';
+  if (n === 0) return 'Flat';
+  return String(n);
+}
+
+/**
  * Format a raw share count (volume) with K/M/B suffixes.
  */
 function formatVolume(value: unknown): string {
@@ -948,6 +1031,21 @@ const ADE_COLUMNS: TableColumn[] = [
   { key: 'tracking_low', label: 'Tracking Low', sortable: true, align: 'right', width: '120px', format: (v) => formatNumber(v, 2) },
   { key: 'bull_cycle_started', label: 'Cycle Started', sortable: true, align: 'center', width: '120px', format: formatBool },
   { key: 'days_in_cycle', label: 'Days in Cycle', sortable: true, align: 'right', width: '120px', format: (v) => formatNumber(v, 0) },
+  // Trade machine (docs/ADE.md + add_trade_state)
+  { key: 'in_trade', label: 'In Trade', sortable: true, align: 'center', width: '90px', format: formatBool },
+  { key: 'trade', label: 'Trade', sortable: true, align: 'center', width: '90px', format: formatTrade },
+  { key: 'trade_dir', label: 'Trade Dir', sortable: true, align: 'center', width: '100px', format: formatTradeDir },
+  { key: 'entry_price', label: 'Entry Price', sortable: true, align: 'right', width: '110px', format: (v) => formatNumber(v, 2) },
+  { key: 'entry_date', label: 'Entry Date', sortable: true, align: 'center', width: '120px', format: formatDate },
+  { key: 'entry_rating', label: 'Entry Rating', sortable: true, align: 'center', width: '110px', format: formatRating },
+  { key: 'best_rating_in_trade', label: 'Best Rating', sortable: true, align: 'center', width: '110px', format: formatRating },
+  { key: 'trail_high', label: 'Trail High', sortable: true, align: 'right', width: '110px', format: (v) => formatNumber(v, 2) },
+  { key: 'trail_low', label: 'Trail Low', sortable: true, align: 'right', width: '110px', format: (v) => formatNumber(v, 2) },
+  { key: 'bull_origin_active', label: 'Bull Origin', sortable: true, align: 'center', width: '110px', format: formatBool },
+  { key: 'bear_origin_active', label: 'Bear Origin', sortable: true, align: 'center', width: '110px', format: formatBool },
+  { key: 'atr_spike', label: 'ATR Spike', sortable: true, align: 'center', width: '100px', format: formatBool },
+  { key: 'sell_signal_fired', label: 'Sell Signal', sortable: true, align: 'center', width: '110px', format: formatBool },
+  { key: 'emergency_fired', label: 'Emergency', sortable: true, align: 'center', width: '110px', format: formatBool },
 ];
 
 const PERFORMANCE_COLUMNS: TableColumn[] = [
@@ -977,6 +1075,7 @@ const INDICATORS_COLUMNS: TableColumn[] = [
   { key: 'rvi', label: 'RVI', sortable: true, align: 'right', width: '90px', format: (v) => formatNumber(v, 2) },
   { key: 'aroon_oscillator', label: 'Aroon Osc.', sortable: true, align: 'right', width: '110px', format: (v) => formatNumber(v, 2) },
   { key: 'atr', label: 'ATR', sortable: true, align: 'right', width: '90px', format: (v) => formatNumber(v, 2) },
+  { key: 'atr_calm', label: 'ATR Calm', sortable: true, align: 'right', width: '100px', format: (v) => formatNumber(v, 2) },
   { key: 'vmc_z_score', label: 'VMC Z', sortable: true, align: 'right', width: '100px', format: (v) => formatNumber(v, 2) },
   { key: 'tema_30', label: 'TEMA (30)', sortable: true, align: 'right', width: '110px', format: (v) => formatNumber(v, 2) },
   { key: 'maa', label: 'MAA', sortable: true, align: 'right', width: '100px', format: (v) => formatNumber(v, 2) },
