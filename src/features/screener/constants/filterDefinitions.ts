@@ -480,6 +480,71 @@ export const ADE_FILTERS: FilterDefinition[] = [
     apiKey: 'atr_spike',
     description: 'ATR_Current > ATR_Calm × 2 — volatility expansion',
   },
+  // ---- Profit Factor (Capa 2 — see Calculo_Profit_Factor_Capa2.md) ----
+  {
+    key: 'pf_weighted',
+    label: 'PF Pond',
+    category: 'ade',
+    type: 'range',
+    apiKey: 'pf_weighted',
+    description: 'Weighted Profit Factor (40/35/25). ≥ 4 → approved, 2–4 → conditional, < 2 → rejected',
+  },
+  {
+    key: 'pf_hist',
+    label: 'PF Histórico',
+    category: 'ade',
+    type: 'range',
+    apiKey: 'pf_hist',
+    description: 'PF over all closed Long trades for the symbol',
+  },
+  {
+    key: 'pf_last_5',
+    label: 'PF Últimos 5',
+    category: 'ade',
+    type: 'range',
+    apiKey: 'pf_last_5',
+    description: 'PF over the 5 most recent closed Long trades',
+  },
+  {
+    key: 'pf_last_3',
+    label: 'PF Últimos 3',
+    category: 'ade',
+    type: 'range',
+    apiKey: 'pf_last_3',
+    description: 'PF over the 3 most recent closed Long trades',
+  },
+  {
+    key: 'pf_verdict',
+    label: 'PF Verdict',
+    category: 'ade',
+    type: 'multiselect',
+    apiKey: 'pf_verdict',
+    description: 'Capa 2 verdict: approved / promoted / degraded / conditional / rejected / no_trades',
+  },
+  {
+    key: 'n_trades',
+    label: 'N Trades',
+    category: 'ade',
+    type: 'range',
+    apiKey: 'n_trades',
+    description: 'Number of closed Long trades the PF is computed over',
+  },
+  {
+    key: 'pf_low_confidence',
+    label: 'PF Baja Confianza',
+    category: 'ade',
+    type: 'boolean',
+    apiKey: 'pf_low_confidence',
+    description: 'n_trades < 10 — PF may be noisy (spec §6)',
+  },
+  {
+    key: 'pf_has_open_trade',
+    label: 'PF Trade Abierto',
+    category: 'ade',
+    type: 'boolean',
+    apiKey: 'pf_has_open_trade',
+    description: 'Symbol currently has an open Long trade (excluded from PF)',
+  },
 ];
 
 /**
@@ -1046,6 +1111,15 @@ const ADE_COLUMNS: TableColumn[] = [
   { key: 'atr_spike', label: 'ATR Spike', sortable: true, align: 'center', width: '100px', format: formatBool },
   { key: 'sell_signal_fired', label: 'Sell Signal', sortable: true, align: 'center', width: '110px', format: formatBool },
   { key: 'emergency_fired', label: 'Emergency', sortable: true, align: 'center', width: '110px', format: formatBool },
+  // Profit Factor (Capa 2) — Calculo_Profit_Factor_Capa2.md
+  { key: 'pf_verdict', label: 'PF Verdict', sortable: true, align: 'center', width: '120px' },
+  { key: 'pf_weighted', label: 'PF Pond', sortable: true, align: 'right', width: '100px', format: (v) => formatNumber(v, 2) },
+  { key: 'pf_hist', label: 'PF Hist', sortable: true, align: 'right', width: '100px', format: (v) => formatNumber(v, 2) },
+  { key: 'pf_last_5', label: 'PF Last 5', sortable: true, align: 'right', width: '100px', format: (v) => formatNumber(v, 2) },
+  { key: 'pf_last_3', label: 'PF Last 3', sortable: true, align: 'right', width: '100px', format: (v) => formatNumber(v, 2) },
+  { key: 'n_trades', label: 'N Trades', sortable: true, align: 'right', width: '100px', format: (v) => formatNumber(v, 0) },
+  { key: 'pf_low_confidence', label: 'Low Conf.', sortable: true, align: 'center', width: '110px', format: formatBool },
+  { key: 'pf_has_open_trade', label: 'Open Trade', sortable: true, align: 'center', width: '120px', format: formatBool },
 ];
 
 const PERFORMANCE_COLUMNS: TableColumn[] = [

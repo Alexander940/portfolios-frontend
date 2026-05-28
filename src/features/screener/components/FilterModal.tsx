@@ -347,6 +347,18 @@ interface MultiselectFilterInputProps {
   } | null;
 }
 
+// Static options for multiselect filters whose values are a known
+// finite set (don't need to hit /screener/options). Mirrors the
+// strings the backend emits in `symbol_pf_stats.verdict`.
+const PF_VERDICT_OPTIONS: MultiSelectOption[] = [
+  { value: 'approved', label: 'Approved' },
+  { value: 'promoted', label: 'Promoted' },
+  { value: 'degraded', label: 'Degraded' },
+  { value: 'conditional', label: 'Conditional' },
+  { value: 'rejected', label: 'Rejected' },
+  { value: 'no_trades', label: 'No Trades' },
+];
+
 function MultiselectFilterInput({
   value,
   onChange,
@@ -355,6 +367,9 @@ function MultiselectFilterInput({
 }: MultiselectFilterInputProps) {
   // Get available options based on filter key
   const getOptions = (): MultiSelectOption[] => {
+    // Static-options filters first — they don't depend on the API.
+    if (filterKey === 'pf_verdict') return PF_VERDICT_OPTIONS;
+
     if (!options) return [];
 
     switch (filterKey) {

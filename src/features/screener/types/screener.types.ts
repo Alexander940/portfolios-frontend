@@ -169,6 +169,24 @@ export interface ScreenerRequest {
   /** TradeDir: -1 Short, 0 flat, +1 Long. */
   trade_dir?: RangeFilter;
 
+  // Profit Factor (Capa 2) — see Calculo_Profit_Factor_Capa2.md
+  /** Count of closed Long trades. */
+  n_trades?: RangeFilter;
+  /** PF over all closed Long trades. */
+  pf_hist?: RangeFilter;
+  /** PF over the most recent 5 closed Long trades. */
+  pf_last_5?: RangeFilter;
+  /** PF over the most recent 3 closed Long trades. */
+  pf_last_3?: RangeFilter;
+  /** PF_Pond = pf_hist*0.4 + pf_last_5*0.35 + pf_last_3*0.25 — verdict driver. */
+  pf_weighted?: RangeFilter;
+  /** Multiselect of: approved | promoted | degraded | conditional | rejected | no_trades. */
+  pf_verdict?: string[];
+  /** True when n_trades < 10. */
+  pf_low_confidence?: boolean;
+  /** True when the latest ade row is mid-Long (current cycle excluded from PF). */
+  pf_has_open_trade?: boolean;
+
   // Latest market bar filters (from `price_data_latest`).
   open?: RangeFilter;
   high?: RangeFilter;
@@ -278,6 +296,21 @@ export interface Stock {
   sell_signal_fired: boolean | null;
   /** Capa-2 Sell/Cover Emergency latched (alert only — does not close the trade). */
   emergency_fired: boolean | null;
+
+  // Profit Factor (Capa 2) — see Calculo_Profit_Factor_Capa2.md
+  /** Count of closed Long trades the symbol has accumulated. */
+  n_trades: number | null;
+  pf_hist: number | null;
+  pf_last_5: number | null;
+  pf_last_3: number | null;
+  /** PF_Pond — the weighted PF that drives the verdict. */
+  pf_weighted: number | null;
+  /** approved | promoted | degraded | conditional | rejected | no_trades. */
+  pf_verdict: string | null;
+  /** n_trades < 10 — spec §6. */
+  pf_low_confidence: boolean | null;
+  /** Latest ade row has in_trade=True with trade_dir=+1. */
+  pf_has_open_trade: boolean | null;
 
   // Fundamentals data
   market_cap: number | null;
