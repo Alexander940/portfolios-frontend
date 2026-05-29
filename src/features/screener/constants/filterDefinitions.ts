@@ -545,6 +545,59 @@ export const ADE_FILTERS: FilterDefinition[] = [
     apiKey: 'pf_has_open_trade',
     description: 'Symbol currently has an open Long trade (excluded from PF)',
   },
+  // ---- Capa 1 — Clasificación de Ciclo (Reglas Maestras v3.1 §2) ----
+  {
+    key: 'cycle_class',
+    label: 'Clase de Ciclo',
+    category: 'ade',
+    type: 'multiselect',
+    apiKey: 'cycle_class',
+    description: 'Persistent class: long (≤30%) / mixed (30–50%) / short (≥50%) / no_trades',
+  },
+  {
+    key: 'effective_cycle_class',
+    label: 'Clase Efectiva',
+    category: 'ade',
+    type: 'multiselect',
+    apiKey: 'effective_cycle_class',
+    description: 'Post-upgrade class — open Long trade at day 45/90 with ret ≥ +15% is promoted to long',
+  },
+  {
+    key: 'cycle_class_score',
+    label: 'Score Clase de Ciclo',
+    category: 'ade',
+    type: 'range',
+    apiKey: 'cycle_class_score',
+    unit: '%',
+    description: 'Weighted %short (40/35/25). ≤30 → long, 30–50 → mixed, ≥50 → short',
+  },
+  {
+    key: 'pct_short_hist',
+    label: '% Ciclos Cortos Hist',
+    category: 'ade',
+    type: 'range',
+    apiKey: 'pct_short_hist',
+    unit: '%',
+    description: '% Long cycles with duration ≤ 45 trading days, full history',
+  },
+  {
+    key: 'pct_short_last_5',
+    label: '% Cortos Últimos 5',
+    category: 'ade',
+    type: 'range',
+    apiKey: 'pct_short_last_5',
+    unit: '%',
+    description: '% short over the 5 most recent Long cycles',
+  },
+  {
+    key: 'pct_short_last_3',
+    label: '% Cortos Últimos 3',
+    category: 'ade',
+    type: 'range',
+    apiKey: 'pct_short_last_3',
+    unit: '%',
+    description: '% short over the 3 most recent Long cycles',
+  },
 ];
 
 /**
@@ -1120,6 +1173,13 @@ const ADE_COLUMNS: TableColumn[] = [
   { key: 'n_trades', label: 'N Trades', sortable: true, align: 'right', width: '100px', format: (v) => formatNumber(v, 0) },
   { key: 'pf_low_confidence', label: 'Low Conf.', sortable: true, align: 'center', width: '110px', format: formatBool },
   { key: 'pf_has_open_trade', label: 'Open Trade', sortable: true, align: 'center', width: '120px', format: formatBool },
+  // Capa 1 — Clasificación de Ciclo (Reglas Maestras v3.1 §2)
+  { key: 'effective_cycle_class', label: 'Clase Efect.', sortable: true, align: 'center', width: '120px' },
+  { key: 'cycle_class', label: 'Clase', sortable: true, align: 'center', width: '100px' },
+  { key: 'cycle_class_score', label: 'Score Clase', sortable: true, align: 'right', width: '110px', format: (v) => formatNumber(v, 2) },
+  { key: 'pct_short_hist', label: '% Cortos Hist', sortable: true, align: 'right', width: '130px', format: (v) => formatNumber(v, 2) },
+  { key: 'pct_short_last_5', label: '% Cortos U5', sortable: true, align: 'right', width: '120px', format: (v) => formatNumber(v, 2) },
+  { key: 'pct_short_last_3', label: '% Cortos U3', sortable: true, align: 'right', width: '120px', format: (v) => formatNumber(v, 2) },
 ];
 
 const PERFORMANCE_COLUMNS: TableColumn[] = [

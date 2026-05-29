@@ -359,6 +359,16 @@ const PF_VERDICT_OPTIONS: MultiSelectOption[] = [
   { value: 'no_trades', label: 'No Trades' },
 ];
 
+// Capa 1 — Clasificación de Ciclo (Reglas Maestras v3.1 §2). Same
+// 4 values for both the persistent `cycle_class` and the runtime-
+// upgraded `effective_cycle_class`.
+const CYCLE_CLASS_OPTIONS: MultiSelectOption[] = [
+  { value: 'long', label: 'Long (≤30%)' },
+  { value: 'mixed', label: 'Mixed (30–50%)' },
+  { value: 'short', label: 'Short (≥50%)' },
+  { value: 'no_trades', label: 'No Trades' },
+];
+
 function MultiselectFilterInput({
   value,
   onChange,
@@ -369,6 +379,9 @@ function MultiselectFilterInput({
   const getOptions = (): MultiSelectOption[] => {
     // Static-options filters first — they don't depend on the API.
     if (filterKey === 'pf_verdict') return PF_VERDICT_OPTIONS;
+    if (filterKey === 'cycle_class' || filterKey === 'effective_cycle_class') {
+      return CYCLE_CLASS_OPTIONS;
+    }
 
     if (!options) return [];
 

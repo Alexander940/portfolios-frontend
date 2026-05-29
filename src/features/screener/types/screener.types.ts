@@ -187,6 +187,20 @@ export interface ScreenerRequest {
   /** True when the latest ade row is mid-Long (current cycle excluded from PF). */
   pf_has_open_trade?: boolean;
 
+  // Capa 1 — Clasificación de Ciclo (Reglas Maestras v3.1 §2)
+  /** % of Long cycles with duration_bars ≤ 45 in the full history. 0–100. */
+  pct_short_hist?: RangeFilter;
+  /** Same percent over the last 5 Long cycles. */
+  pct_short_last_5?: RangeFilter;
+  /** Same percent over the last 3 Long cycles. */
+  pct_short_last_3?: RangeFilter;
+  /** Weighted score (40/35/25). ≤30 → long, 30–50 → mixed, ≥50 → short. */
+  cycle_class_score?: RangeFilter;
+  /** Persistent class: 'long' | 'mixed' | 'short' | 'no_trades'. */
+  cycle_class?: string[];
+  /** Same set, post-upgrade by the open Long trade (day 45/90 + ret ≥ 15%). */
+  effective_cycle_class?: string[];
+
   // Latest market bar filters (from `price_data_latest`).
   open?: RangeFilter;
   high?: RangeFilter;
@@ -311,6 +325,17 @@ export interface Stock {
   pf_low_confidence: boolean | null;
   /** Latest ade row has in_trade=True with trade_dir=+1. */
   pf_has_open_trade: boolean | null;
+
+  // Capa 1 — Clasificación de Ciclo (Reglas Maestras v3.1 §2)
+  pct_short_hist: number | null;
+  pct_short_last_5: number | null;
+  pct_short_last_3: number | null;
+  /** Weighted %short (40/35/25). */
+  cycle_class_score: number | null;
+  /** 'long' | 'mixed' | 'short' | 'no_trades'. */
+  cycle_class: string | null;
+  /** Same set, after the open-Long-trade runtime upgrade. */
+  effective_cycle_class: string | null;
 
   // Fundamentals data
   market_cap: number | null;
