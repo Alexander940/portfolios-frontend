@@ -12,15 +12,22 @@ import { RelevantEventsRail } from '@/features/portfolio';
 export function DashboardLayout() {
   const { pathname } = useLocation();
   const showRail = pathname === '/dashboard/analysis';
+  // Full-bleed pages manage their own height/scroll (no padded content
+  // wrapper) — the assistant fills the shell with its own scroll + composer.
+  const fullBleed = pathname === '/dashboard/assistant';
 
   return (
     <div className="app-shell">
       <Sidebar />
       <Topbar />
       <div className={`app-main ${showRail ? 'has-rail' : ''}`}>
-        <div className="app-main-content">
+        {fullBleed ? (
           <Outlet />
-        </div>
+        ) : (
+          <div className="app-main-content">
+            <Outlet />
+          </div>
+        )}
         {showRail && (
           <aside className="app-main-rail" aria-label="Relevant events">
             <RelevantEventsRail />

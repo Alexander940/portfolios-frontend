@@ -6,6 +6,7 @@ import {
   PieChart,
   Award,
   Blocks,
+  Sparkles,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -25,6 +26,7 @@ export const NAV_SECTIONS: NavSection[] = [
     label: 'Workspace',
     items: [
       { path: '/dashboard/analysis', label: 'Portfolios', icon: PieChart },
+      { path: '/dashboard/assistant', label: 'Assistant', icon: Sparkles },
       { path: '/dashboard/strategy', label: 'Strategy Tracker', icon: Target },
       { path: '/dashboard/alerts', label: 'Alerts', icon: Bell },
     ],
