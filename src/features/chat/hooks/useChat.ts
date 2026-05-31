@@ -1,11 +1,12 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { streamMessage } from '../services/chatService';
+import type { ChatMessageRecord, ChatSessionDetail } from '../services/chatService';
 import type { ChatMessage, ChatModelId, ToolActivity, ToolStatus } from '../types';
 
 /**
- * useChat — owns the conversation state and drives the streaming agentic
- * turn. One assistant message is appended per turn and patched in place as
- * token / tool / thinking / usage / done / error events arrive.
+ * useChat — owns the active conversation and drives the streaming agentic
+ * turn. Supports continuing/loading a persisted session, starting a fresh
+ * one, and notifying the caller when a turn completes (to refresh history).
  */
 
 function uid(): string {
@@ -16,17 +17,85 @@ function nowLabel(): string {
   return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
-export function useChat() {
+function timeLabel(iso: string): string {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime())
+    ? ''
+    : d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+/** Map a persisted tool_calls audit array into display chips. */
+function mapToolCalls(
+  toolCalls: Array<Record<string, unknown>> | null,
+): ToolActivity[] | undefined {
+  if (!toolCalls || toolCalls.length === 0) return undefined;
+  return toolCalls.map((t) => ({
+    name: String(t.name ?? ''),
+    status: (t.error ? 'error' : 'done') as ToolStatus,
+    rowCount: typeof t.row_count === 'number' ? (t.row_count as number) : undefined,
+    ticker: typeof t.ticker === 'string' ? (t.ticker as string) : undefined,
+  }));
+}
+
+function mapRecord(r: ChatMessageRecord): ChatMessage {
+  return {
+    id: r.message_id,
+    role: r.role,
+    content: r.content,
+    time: timeLabel(r.created_at),
+    tools: r.role === 'assistant' ? mapToolCalls(r.tool_calls) : undefined,
+    streaming: false,
+  };
+}
+
+interface UseChatOptions {
+  /** Called after each turn finishes (done or error) — refresh history. */
+  onTurnComplete?: () => void;
+}
+
+export function useChat(options?: UseChatOptions) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+
   const sessionIdRef = useRef<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const onTurnCompleteRef = useRef<(() => void) | undefined>(undefined);
+  useEffect(() => {
+    onTurnCompleteRef.current = options?.onTurnComplete;
+  }, [options?.onTurnComplete]);
+
+  const setSession = useCallback((id: string | null) => {
+    sessionIdRef.current = id;
+    setSessionId(id);
+  }, []);
 
   const patch = useCallback(
     (id: string, fn: (m: ChatMessage) => ChatMessage) => {
       setMessages((prev) => prev.map((m) => (m.id === id ? fn(m) : m)));
     },
     [],
+  );
+
+  /** Start a brand-new conversation (next message creates a session). */
+  const newChat = useCallback(() => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setSession(null);
+    setMessages([]);
+    setIsStreaming(false);
+  }, [setSession]);
+
+  /** Load a persisted session and continue it. */
+  const loadSession = useCallback(
+    (detail: ChatSessionDetail) => {
+      abortRef.current?.abort();
+      abortRef.current = null;
+      setSession(detail.session_id);
+      setMessages(detail.messages.map(mapRecord));
+      setIsStreaming(false);
+    },
+    [setSession],
   );
 
   const send = useCallback(
@@ -65,7 +134,7 @@ export function useChat() {
             const data = evt.data as Record<string, unknown>;
             switch (evt.event) {
               case 'session':
-                if (data.session_id) sessionIdRef.current = String(data.session_id);
+                if (data.session_id) setSession(String(data.session_id));
                 break;
 
               case 'thinking':
@@ -95,7 +164,6 @@ export function useChat() {
                   if (status === 'running') {
                     tools.push(entry);
                   } else {
-                    // Resolve the last still-running call with this name.
                     const i = tools.map((t) => t.name).lastIndexOf(name);
                     if (i !== -1) tools[i] = entry;
                     else tools.push(entry);
@@ -131,23 +199,15 @@ export function useChat() {
         },
       );
 
-      // Stream ended — clear flags even if no terminal event arrived.
       patch(assistantId, (m) =>
         m.streaming ? { ...m, streaming: false, thinking: false } : m,
       );
       setIsStreaming(false);
       abortRef.current = null;
+      onTurnCompleteRef.current?.();
     },
-    [isStreaming, patch],
+    [isStreaming, patch, setSession],
   );
 
-  const reset = useCallback(() => {
-    abortRef.current?.abort();
-    abortRef.current = null;
-    sessionIdRef.current = null;
-    setMessages([]);
-    setIsStreaming(false);
-  }, []);
-
-  return { messages, isStreaming, send, reset };
+  return { messages, isStreaming, sessionId, send, newChat, loadSession };
 }

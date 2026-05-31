@@ -1,2 +1,13 @@
-export { streamMessage } from './chatService';
-export type { SendMessageBody, StreamHandlers } from './chatService';
+export {
+  streamMessage,
+  listSessions,
+  getSession,
+  deleteSession,
+} from './chatService';
+export type {
+  SendMessageBody,
+  StreamHandlers,
+  ChatSessionSummary,
+  ChatSessionDetail,
+  ChatMessageRecord,
+} from './chatService';

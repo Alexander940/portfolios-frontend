@@ -1,3 +1,4 @@
+import { apiClient } from '@/lib/axios';
 import { useAuthStore } from '@/features/auth';
 import type { ChatModelId, ChatStreamEvent } from '../types';
 
@@ -132,4 +133,60 @@ function parseFrame(frame: string): ChatStreamEvent | null {
   } catch {
     return null;
   }
+}
+
+// ---------------------------------------------------------------------------
+// Session history (persisted server-side; uses the axios client + JWT)
+// ---------------------------------------------------------------------------
+
+export interface ChatSessionSummary {
+  session_id: string;
+  title: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ChatMessageRecord {
+  message_id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  tool_calls: Array<Record<string, unknown>> | null;
+  created_at: string;
+}
+
+export interface ChatSessionDetail extends ChatSessionSummary {
+  messages: ChatMessageRecord[];
+}
+
+interface ChatSessionListResponse {
+  items: ChatSessionSummary[];
+  total: number;
+}
+
+/** List the current user's chat sessions, most-recently-updated first. */
+export async function listSessions(
+  signal?: AbortSignal,
+): Promise<ChatSessionSummary[]> {
+  const { data } = await apiClient.get<ChatSessionListResponse>('/chat/sessions', {
+    params: { limit: 100 },
+    signal,
+  });
+  return data.items;
+}
+
+/** Fetch one session with its full message history. */
+export async function getSession(
+  sessionId: string,
+  signal?: AbortSignal,
+): Promise<ChatSessionDetail> {
+  const { data } = await apiClient.get<ChatSessionDetail>(
+    `/chat/sessions/${sessionId}`,
+    { signal },
+  );
+  return data;
+}
+
+/** Delete a session and all its messages. */
+export async function deleteSession(sessionId: string): Promise<void> {
+  await apiClient.delete(`/chat/sessions/${sessionId}`);
 }

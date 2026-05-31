@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Briefcase } from 'lucide-react';
 import { listPortfolios, type PortfolioResponse } from '@/services/portfolioService';
+import { ConversationList } from './ConversationList';
+import type { ChatSessionSummary } from '../services/chatService';
 
 /** Static list of data domains the assistant can read (matches the tools). */
 const CONNECTED_DATA = [
@@ -15,13 +17,25 @@ const CONNECTED_DATA = [
 interface ContextRailProps {
   /** Called when the user clicks one of their portfolios to analyze it. */
   onAskPortfolio: (name: string) => void;
+  sessions: ChatSessionSummary[];
+  activeSessionId: string | null;
+  onSelectSession: (sessionId: string) => void;
+  onNewChat: () => void;
+  onDeleteSession: (sessionId: string) => void;
 }
 
 /**
  * Right-hand context rail: what the assistant is connected to, plus the
  * user's real portfolios as one-click analysis shortcuts.
  */
-export function ContextRail({ onAskPortfolio }: ContextRailProps) {
+export function ContextRail({
+  onAskPortfolio,
+  sessions,
+  activeSessionId,
+  onSelectSession,
+  onNewChat,
+  onDeleteSession,
+}: ContextRailProps) {
   const [portfolios, setPortfolios] = useState<PortfolioResponse[]>([]);
 
   useEffect(() => {
@@ -42,6 +56,14 @@ export function ContextRail({ onAskPortfolio }: ContextRailProps) {
 
   return (
     <aside className="context-rail" aria-label="Contexto del asistente">
+      <ConversationList
+        sessions={sessions}
+        activeSessionId={activeSessionId}
+        onSelect={onSelectSession}
+        onNewChat={onNewChat}
+        onDelete={onDeleteSession}
+      />
+
       <div>
         <div className="ctx-section-label">Datos conectados</div>
         <div className="ctx-source">
