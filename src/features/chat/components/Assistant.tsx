@@ -1,5 +1,6 @@
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useChat } from '../hooks/useChat';
+import type { ChatModelId } from '../types';
 import { ChatMessageItem } from './ChatMessageItem';
 import { Composer } from './Composer';
 import { ContextRail } from './ContextRail';
@@ -13,7 +14,15 @@ import '../styles/chat.css';
  */
 export function Assistant() {
   const { messages, isStreaming, send } = useChat();
+  const [model, setModel] = useState<ChatModelId>('opus');
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Send with the currently-selected model (shared by composer, suggestions
+  // and the context rail). Model can change between messages.
+  const sendWithModel = useCallback(
+    (text: string) => send(text, model),
+    [send, model],
+  );
 
   // Keep the thread pinned to the latest content as it streams in.
   useEffect(() => {
@@ -28,7 +37,7 @@ export function Assistant() {
       <div className="chat-col">
         <div className="chat-scroll" ref={scrollRef}>
           {isEmpty ? (
-            <EmptyState onPick={send} />
+            <EmptyState onPick={sendWithModel} />
           ) : (
             <div className="chat-thread">
               {messages.map((m) => (
@@ -37,12 +46,19 @@ export function Assistant() {
             </div>
           )}
         </div>
-        <Composer onSend={send} disabled={isStreaming} />
+        <Composer
+          onSend={sendWithModel}
+          disabled={isStreaming}
+          model={model}
+          onModelChange={setModel}
+        />
       </div>
 
       <ContextRail
         onAskPortfolio={(name) =>
-          send(`Analiza mi portafolio "${name}": posiciones, ratings actuales y P&L.`)
+          sendWithModel(
+            `Analiza mi portafolio "${name}": posiciones, ratings actuales y P&L.`,
+          )
         }
       />
     </div>

@@ -234,7 +234,15 @@
   color: var(--c-accent-text); font-weight: 500;
 }
 .composer-spacer { flex: 1; }
-.composer-model { font-size: 11px; color: var(--c-text-dim); font-family: var(--font-mono); }
+.composer-model-select {
+  font-size: 11px; color: var(--c-text-dim); font-family: var(--font-mono);
+  background: none; border: 1px solid transparent; border-radius: var(--radius-sm);
+  padding: 3px 6px; cursor: pointer; outline: none; appearance: auto;
+  transition: background 0.1s, color 0.1s, border-color 0.1s;
+}
+.composer-model-select:hover { background: var(--c-bg-soft); color: var(--c-text-soft); border-color: var(--c-border); }
+.composer-model-select:focus-visible { border-color: var(--c-accent); }
+.composer-model-select:disabled { cursor: not-allowed; opacity: 0.6; }
 .send-btn {
   width: 32px; height: 32px; border-radius: 9px; flex-shrink: 0;
   background: var(--c-text); color: var(--c-bg);

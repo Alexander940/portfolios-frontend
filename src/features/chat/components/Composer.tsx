@@ -1,13 +1,16 @@
 import { useRef, useState, type ChangeEvent, type KeyboardEvent } from 'react';
 import { AtSign, Send } from 'lucide-react';
+import type { ChatModelId } from '../types';
 
 interface ComposerProps {
   onSend: (text: string) => void;
   disabled: boolean;
+  model: ChatModelId;
+  onModelChange: (model: ChatModelId) => void;
 }
 
 /** Auto-growing chat input with Enter-to-send (Shift+Enter for newline). */
-export function Composer({ onSend, disabled }: ComposerProps) {
+export function Composer({ onSend, disabled, model, onModelChange }: ComposerProps) {
   const [value, setValue] = useState('');
   const ref = useRef<HTMLTextAreaElement>(null);
 
@@ -50,7 +53,17 @@ export function Composer({ onSend, disabled }: ComposerProps) {
             <AtSign size={12} /> Mercado + mis carteras
           </span>
           <div className="composer-spacer" />
-          <span className="composer-model">Opus 4.8</span>
+          <select
+            className="composer-model-select"
+            value={model}
+            onChange={(e) => onModelChange(e.target.value as ChatModelId)}
+            aria-label="Modelo de IA"
+            title="Modelo de IA"
+          >
+            <option value="opus">Opus 4.8</option>
+            <option value="sonnet">Sonnet 4.6</option>
+            <option value="haiku">Haiku 4.5</option>
+          </select>
           <button
             className="send-btn"
             disabled={!value.trim() || disabled}

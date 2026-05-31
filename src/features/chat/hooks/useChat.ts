@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from 'react';
 import { streamMessage } from '../services/chatService';
-import type { ChatMessage, ToolActivity, ToolStatus } from '../types';
+import type { ChatMessage, ChatModelId, ToolActivity, ToolStatus } from '../types';
 
 /**
  * useChat — owns the conversation state and drives the streaming agentic
@@ -30,7 +30,7 @@ export function useChat() {
   );
 
   const send = useCallback(
-    async (text: string) => {
+    async (text: string, model?: ChatModelId) => {
       const content = text.trim();
       if (!content || isStreaming) return;
 
@@ -58,7 +58,7 @@ export function useChat() {
       abortRef.current = controller;
 
       await streamMessage(
-        { message: content, session_id: sessionIdRef.current },
+        { message: content, session_id: sessionIdRef.current, model },
         {
           signal: controller.signal,
           onEvent: (evt) => {
