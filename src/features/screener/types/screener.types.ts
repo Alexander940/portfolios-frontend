@@ -147,6 +147,12 @@ export interface ScreenerRequest {
   /** Monotonic trough of sm_short_ratio within the bear cycle (reset on each fresh activation). */
   sm_short_peak_ratio?: RangeFilter;
 
+  // Trend slopes (90-session) — see docs/indicators/slopes_90d.md
+  /** Annualized exp-regression slope of ln(price) × R² over 90 sessions (trend strength). */
+  slope_clenow_90d?: RangeFilter;
+  /** 1-bar % velocity of TEMA(20) — fast/reactive. */
+  slope_tema_90d?: RangeFilter;
+
   // Bull cycle filters (ADE)
   in_bull_cycle?: boolean;
   bull_cycle_started?: boolean;
@@ -270,6 +276,12 @@ export interface Stock {
   /** Legacy signed-by-active-cycle SM points; prefer sm_long_points / sm_short_points. */
   sm_points: number | null;
   sm_peak_ratio: number | null;
+
+  // Trend slopes (90-session) — see docs/indicators/slopes_90d.md
+  /** Annualized exp-regression slope × R² over 90 sessions (trend strength). */
+  slope_clenow_90d: number | null;
+  /** 1-bar % velocity of TEMA(20) — fast/reactive. */
+  slope_tema_90d: number | null;
 
   // Bull cycle detection (ADE)
   in_bull_cycle: boolean | null;

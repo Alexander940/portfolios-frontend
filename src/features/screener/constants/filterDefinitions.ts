@@ -316,6 +316,23 @@ export const FUNDAMENTALS_FILTERS: FilterDefinition[] = [
  * See backend `app/indicators/ade_mfh.py` and `docs/indicators/smart_momentum_ade.md`.
  */
 export const ADE_FILTERS: FilterDefinition[] = [
+  // Trend slopes (90-session) — see docs/indicators/slopes_90d.md
+  {
+    key: 'slope_clenow_90d',
+    label: 'Slope Clenow (90d)',
+    category: 'ade',
+    type: 'range',
+    apiKey: 'slope_clenow_90d',
+    description: 'Pendiente exp-regresión anualizada × R² sobre 90 sesiones (fuerza de tendencia). Fracción anual: 0.20 ≈ +20%/año',
+  },
+  {
+    key: 'slope_tema_90d',
+    label: 'Slope TEMA (90d)',
+    category: 'ade',
+    type: 'range',
+    apiKey: 'slope_tema_90d',
+    description: 'Velocidad % de 1 barra del TEMA(20) — rápido/reactivo. Fracción por sesión: 0.005 ≈ +0.5%/día',
+  },
   {
     key: 'sm_long_points',
     label: 'SM Long Points',
@@ -1143,6 +1160,9 @@ const ADE_COLUMNS: TableColumn[] = [
   { key: 'sm_pct', label: 'SM %', sortable: true, align: 'right', width: '100px', format: formatPercent },
   { key: 'sm_points', label: 'SM Points', sortable: true, align: 'right', width: '110px', format: (v) => formatNumber(v, 2) },
   { key: 'sm_peak_ratio', label: 'SM Peak', sortable: true, align: 'right', width: '110px', format: (v) => formatNumber(v, 2) },
+  // Trend slopes (90-session) — see docs/indicators/slopes_90d.md
+  { key: 'slope_clenow_90d', label: 'Slope Clenow', sortable: true, align: 'right', width: '120px', format: (v) => formatNumber(v, 4) },
+  { key: 'slope_tema_90d', label: 'Slope TEMA', sortable: true, align: 'right', width: '115px', format: (v) => formatNumber(v, 4) },
   { key: 'in_bull_cycle', label: 'In Cycle', sortable: true, align: 'center', width: '90px', format: formatBool },
   { key: 'bull_cycle_origin_price', label: 'Cycle Origin', sortable: true, align: 'right', width: '120px', format: (v) => formatNumber(v, 2) },
   { key: 'bull_cycle_origin_date', label: 'Origin Date', sortable: true, align: 'center', width: '120px', format: formatDate },
