@@ -467,6 +467,23 @@ export const ADE_FILTERS: FilterDefinition[] = [
     unit: '%',
     description: '% pullback from the trailing 52-week high (≤ 0; 0 at a new 52-week high)',
   },
+  // ---- Trend (= ADE cycle) high/low (add_cycle_retracement) ----
+  {
+    key: 'trend_high',
+    label: 'Trend High',
+    category: 'ade',
+    type: 'range',
+    apiKey: 'trend_high',
+    description: 'Highest Close since the trend (cycle) started; price level, only while in cycle',
+  },
+  {
+    key: 'trend_low',
+    label: 'Trend Low',
+    category: 'ade',
+    type: 'range',
+    apiKey: 'trend_low',
+    description: 'Lowest Close since the trend (cycle) started; price level, only while in cycle',
+  },
   // ---- Trade machine (docs/ADE.md + add_trade_state) ----
   {
     key: 'in_trade',
@@ -1191,6 +1208,9 @@ const ADE_COLUMNS: TableColumn[] = [
   // Retracement from peak (add_cycle_retracement / add_off_high_52w)
   { key: 'cycle_retracement_pct', label: 'Cycle Retr %', sortable: true, align: 'right', width: '120px', format: formatPercent },
   { key: 'off_high_52w_pct', label: 'Off 52w High %', sortable: true, align: 'right', width: '130px', format: formatPercent },
+  // Trend (= ADE cycle) high/low — máx/mín Close desde la confirmación
+  { key: 'trend_high', label: 'Trend High', sortable: true, align: 'right', width: '120px', format: (v) => formatNumber(v, 2) },
+  { key: 'trend_low', label: 'Trend Low', sortable: true, align: 'right', width: '120px', format: (v) => formatNumber(v, 2) },
   // Trade machine (docs/ADE.md + add_trade_state)
   { key: 'in_trade', label: 'In Trade', sortable: true, align: 'center', width: '90px', format: formatBool },
   { key: 'trade', label: 'Trade', sortable: true, align: 'center', width: '90px', format: formatTrade },
