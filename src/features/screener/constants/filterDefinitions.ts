@@ -448,6 +448,25 @@ export const ADE_FILTERS: FilterDefinition[] = [
     unit: 'bars',
     description: 'Trading bars elapsed since the cycle origin (origin = 0)',
   },
+  // ---- Retracement from peak (add_cycle_retracement / add_off_high_52w) ----
+  {
+    key: 'cycle_retracement_pct',
+    label: 'Cycle Retracement %',
+    category: 'ade',
+    type: 'range',
+    apiKey: 'cycle_retracement_pct',
+    unit: '%',
+    description: '% pullback from the confirmed bull-cycle high (≤ 0; 0 at a fresh cycle high)',
+  },
+  {
+    key: 'off_high_52w_pct',
+    label: 'Off 52w High %',
+    category: 'ade',
+    type: 'range',
+    apiKey: 'off_high_52w_pct',
+    unit: '%',
+    description: '% pullback from the trailing 52-week high (≤ 0; 0 at a new 52-week high)',
+  },
   // ---- Trade machine (docs/ADE.md + add_trade_state) ----
   {
     key: 'in_trade',
@@ -1169,6 +1188,9 @@ const ADE_COLUMNS: TableColumn[] = [
   { key: 'tracking_low', label: 'Tracking Low', sortable: true, align: 'right', width: '120px', format: (v) => formatNumber(v, 2) },
   { key: 'bull_cycle_started', label: 'Cycle Started', sortable: true, align: 'center', width: '120px', format: formatBool },
   { key: 'days_in_cycle', label: 'Days in Cycle', sortable: true, align: 'right', width: '120px', format: (v) => formatNumber(v, 0) },
+  // Retracement from peak (add_cycle_retracement / add_off_high_52w)
+  { key: 'cycle_retracement_pct', label: 'Cycle Retr %', sortable: true, align: 'right', width: '120px', format: formatPercent },
+  { key: 'off_high_52w_pct', label: 'Off 52w High %', sortable: true, align: 'right', width: '130px', format: formatPercent },
   // Trade machine (docs/ADE.md + add_trade_state)
   { key: 'in_trade', label: 'In Trade', sortable: true, align: 'center', width: '90px', format: formatBool },
   { key: 'trade', label: 'Trade', sortable: true, align: 'center', width: '90px', format: formatTrade },

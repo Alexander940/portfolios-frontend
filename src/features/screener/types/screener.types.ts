@@ -161,6 +161,12 @@ export interface ScreenerRequest {
   bull_cycle_origin_date?: DateRangeFilter;
   days_in_cycle?: RangeFilter;
 
+  // Retracement from peak (%, ≤ 0) — see add_cycle_retracement / add_off_high_52w
+  /** % pullback from the confirmed bull-cycle high (0 at a fresh cycle high). */
+  cycle_retracement_pct?: RangeFilter;
+  /** % pullback from the trailing 52-week high (0 at a new 52-week high). */
+  off_high_52w_pct?: RangeFilter;
+
   // ADE trade machine — see docs/ADE.md + app/indicators/ade_mfh.py:add_trade_state
   /** Forever-latch turned on when Rating crosses +→− (independent of in_bull_cycle). */
   bull_origin_active?: boolean;
@@ -292,6 +298,12 @@ export interface Stock {
   bull_cycle_started: boolean | null;
   /** Trading bars elapsed since bull_cycle_origin_date (origin = 0). NULL when out of cycle. */
   days_in_cycle: number | null;
+
+  // Retracement from peak (%, ≤ 0) — see add_cycle_retracement / add_off_high_52w
+  /** % pullback from the confirmed bull-cycle high (0 at a fresh cycle high). NULL out of cycle. */
+  cycle_retracement_pct: number | null;
+  /** % pullback from the trailing 52-week high (0 at a new 52-week high). */
+  off_high_52w_pct: number | null;
 
   // ADE trade machine — see docs/ADE.md + app/indicators/ade_mfh.py:add_trade_state
   /** Forever-latch from EasyLanguage `Bull_Origin_Active` (Rating cross +→−). */
