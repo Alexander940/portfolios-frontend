@@ -148,9 +148,9 @@ export interface ScreenerRequest {
   sm_short_peak_ratio?: RangeFilter;
 
   // Trend slopes (90-session) — see docs/indicators/slopes_90d.md
-  /** Annualized exp-regression slope of ln(price) × R² over 90 sessions (trend strength). */
+  /** Annualized exp-regression slope of ln(price) × R² over 90 sessions (trend strength). Raw decimal score (NOT a percentage). */
   slope_clenow_90d?: RangeFilter;
-  /** 1-bar % velocity of TEMA(20) — fast/reactive. */
+  /** 1-bar velocity of TEMA(20) — fast/reactive. Raw per-session fraction (NOT scaled to percent). */
   slope_tema_90d?: RangeFilter;
 
   // Bull cycle filters (ADE)
@@ -294,9 +294,9 @@ export interface Stock {
   sm_peak_ratio: number | null;
 
   // Trend slopes (90-session) — see docs/indicators/slopes_90d.md
-  /** Annualized exp-regression slope × R² over 90 sessions (trend strength). */
+  /** Annualized exp-regression slope × R² over 90 sessions (trend strength). Raw decimal score (NOT a percentage). */
   slope_clenow_90d: number | null;
-  /** 1-bar % velocity of TEMA(20) — fast/reactive. */
+  /** 1-bar velocity of TEMA(20) — fast/reactive. Raw per-session fraction (NOT scaled to percent). */
   slope_tema_90d: number | null;
 
   // Bull cycle detection (ADE)

@@ -137,7 +137,11 @@ export function toApiPercentFilters(filters: ScreenerRequest): ScreenerRequest {
 }
 
 /**
- * Convert percentage stock fields from backend units (0.02) to UI units (2).
+ * Convert fractional stock fields from backend units (0.02) to UI percent
+ * units (2). The backend serializes Numeric/Decimal columns as JSON strings
+ * (Pydantic v2 default), so we must coerce strings — not just numbers — or the
+ * ×100 conversion is silently skipped and e.g. a 0.0054 dividend yield renders
+ * as "0.01%" instead of "0.54%".
  */
 function fromApiPercentResponse(response: ScreenerResponse): ScreenerResponse {
   return {
@@ -147,8 +151,10 @@ function fromApiPercentResponse(response: ScreenerResponse): ScreenerResponse {
       const indexable = transformed as unknown as Record<string, unknown>;
       for (const field of PERCENT_FIELD_SET) {
         const v = indexable[field];
-        if (typeof v === 'number') {
-          indexable[field] = v * 100;
+        if (v === null || v === undefined || v === '') continue;
+        const num = typeof v === 'number' ? v : Number(v);
+        if (!Number.isNaN(num)) {
+          indexable[field] = num * 100;
         }
       }
       return transformed;

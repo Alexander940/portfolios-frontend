@@ -323,7 +323,7 @@ export const ADE_FILTERS: FilterDefinition[] = [
     category: 'ade',
     type: 'range',
     apiKey: 'slope_clenow_90d',
-    description: 'Pendiente exp-regresión anualizada × R² sobre 90 sesiones (fuerza de tendencia). Fracción anual: 0.20 ≈ +20%/año',
+    description: 'Pendiente exp-regresión anualizada × R² sobre 90 sesiones (fuerza de tendencia). Score crudo (no es %): 0.20 ≈ +20%/año, pero crece exponencialmente',
   },
   {
     key: 'slope_tema_90d',
@@ -331,7 +331,7 @@ export const ADE_FILTERS: FilterDefinition[] = [
     category: 'ade',
     type: 'range',
     apiKey: 'slope_tema_90d',
-    description: 'Velocidad % de 1 barra del TEMA(20) — rápido/reactivo. Fracción por sesión: 0.005 ≈ +0.5%/día',
+    description: 'Velocidad de 1 barra del TEMA(20) — rápido/reactivo. Fracción cruda por sesión (no es %): 0.005 ≈ +0.5%/día',
   },
   {
     key: 'sm_long_points',
@@ -948,8 +948,13 @@ export const ADDITIONAL_FILTERS: FilterDefinition[] = [
 
 /**
  * Backend-response fields that arrive as rational numbers (0.02) but are
- * displayed and filtered as percentages (2). The screener service converts
- * these at the API boundary so the rest of the app works in percent units.
+ * displayed and filtered as percentages (2). The screener service multiplies
+ * these by 100 on the response and divides filter inputs by 100 at the API
+ * boundary so the rest of the app works in percent units.
+ *
+ * IMPORTANT: only list fields the backend stores as FRACTIONS. The `return_*`
+ * fields are deliberately excluded — the backend already scales them to percent
+ * (`(price/past − 1) × 100`), so they must NOT be multiplied again.
  */
 export const PERCENTAGE_FIELDS = [
   'retracement',
@@ -962,12 +967,6 @@ export const PERCENTAGE_FIELDS = [
   'operating_margin',
   'roe',
   'free_cash_flow_yield_ttm',
-  'return_1w',
-  'return_1m',
-  'return_3m',
-  'return_6m',
-  'return_12m',
-  'return_ytd',
 ] as const;
 
 /**
@@ -1250,9 +1249,10 @@ const ADE_COLUMNS: TableColumn[] = [
   { key: 'effective_cycle_class', label: 'Clase Efect.', sortable: true, align: 'center', width: '120px' },
   { key: 'cycle_class', label: 'Clase', sortable: true, align: 'center', width: '100px' },
   { key: 'cycle_class_score', label: 'Score Clase', sortable: true, align: 'right', width: '110px', format: (v) => formatNumber(v, 2) },
-  { key: 'pct_short_hist', label: '% Cortos Hist', sortable: true, align: 'right', width: '130px', format: (v) => formatNumber(v, 2) },
-  { key: 'pct_short_last_5', label: '% Cortos U5', sortable: true, align: 'right', width: '120px', format: (v) => formatNumber(v, 2) },
-  { key: 'pct_short_last_3', label: '% Cortos U3', sortable: true, align: 'right', width: '120px', format: (v) => formatNumber(v, 2) },
+  // % de ciclos clasificados como cortos — ya viene 0-100 del backend; formatPercent solo añade '%'.
+  { key: 'pct_short_hist', label: '% Cortos Hist', sortable: true, align: 'right', width: '130px', format: formatPercent },
+  { key: 'pct_short_last_5', label: '% Cortos U5', sortable: true, align: 'right', width: '120px', format: formatPercent },
+  { key: 'pct_short_last_3', label: '% Cortos U3', sortable: true, align: 'right', width: '120px', format: formatPercent },
 ];
 
 const PERFORMANCE_COLUMNS: TableColumn[] = [
