@@ -173,6 +173,10 @@ export interface ScreenerRequest {
   /** Lowest Close since the trend (cycle) started; price level, null out of cycle. */
   trend_low?: RangeFilter;
 
+  // FSS_v2 (Fortaleza Sub-Score) ∈ [0,100] — structural cycle memory + VMC momentum
+  /** Fortaleza Sub-Score [0,100]: 50% Smart-Money cycle memory + 50% VMC momentum. */
+  fss?: RangeFilter;
+
   // ADE trade machine — see docs/ADE.md + app/indicators/ade_mfh.py:add_trade_state
   /** Forever-latch turned on when Rating crosses +→− (independent of in_bull_cycle). */
   bull_origin_active?: boolean;
@@ -316,6 +320,10 @@ export interface Stock {
   trend_high: number | null;
   /** Lowest Close since the trend (cycle) started; price level, NULL out of cycle. */
   trend_low: number | null;
+
+  // FSS_v2 (Fortaleza Sub-Score) ∈ [0,100]
+  /** Fortaleza Sub-Score [0,100]: 50% Smart-Money cycle memory + 50% VMC momentum. */
+  fss: number | null;
 
   // ADE trade machine — see docs/ADE.md + app/indicators/ade_mfh.py:add_trade_state
   /** Forever-latch from EasyLanguage `Bull_Origin_Active` (Rating cross +→−). */

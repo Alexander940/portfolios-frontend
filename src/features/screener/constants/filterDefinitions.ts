@@ -484,6 +484,15 @@ export const ADE_FILTERS: FilterDefinition[] = [
     apiKey: 'trend_low',
     description: 'Lowest Close since the trend (cycle) started; price level, only while in cycle',
   },
+  // ---- FSS_v2 (Fortaleza Sub-Score) ----
+  {
+    key: 'fss',
+    label: 'FSS',
+    category: 'ade',
+    type: 'range',
+    apiKey: 'fss',
+    description: 'Fortaleza Sub-Score [0–100]: 50% Smart-Money cycle memory + 50% VMC momentum',
+  },
   // ---- Trade machine (docs/ADE.md + add_trade_state) ----
   {
     key: 'in_trade',
@@ -1211,6 +1220,8 @@ const ADE_COLUMNS: TableColumn[] = [
   // Trend (= ADE cycle) high/low — máx/mín Close desde la confirmación
   { key: 'trend_high', label: 'Trend High', sortable: true, align: 'right', width: '120px', format: (v) => formatNumber(v, 2) },
   { key: 'trend_low', label: 'Trend Low', sortable: true, align: 'right', width: '120px', format: (v) => formatNumber(v, 2) },
+  // FSS_v2 (Fortaleza Sub-Score) — add_fss
+  { key: 'fss', label: 'FSS', sortable: true, align: 'right', width: '100px', format: (v) => formatNumber(v, 2) },
   // Trade machine (docs/ADE.md + add_trade_state)
   { key: 'in_trade', label: 'In Trade', sortable: true, align: 'center', width: '90px', format: formatBool },
   { key: 'trade', label: 'Trade', sortable: true, align: 'center', width: '90px', format: formatTrade },
