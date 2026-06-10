@@ -343,12 +343,14 @@ function TableCell({
     );
   }
 
-  // New High / Low badge
+  // New High / Low: precio extremo de la racha del rating. El lado lo da el
+  // signo del rating (≥ +1 → es un high de la racha alcista; ≤ −1 → un low).
   if (column.key === 'new_high_low') {
-    const val = stock.new_high_low;
+    const price = stock.new_high_low !== null ? Number(stock.new_high_low) : null;
+    const isBull = (stock.rating ?? 0) > 0;
     return (
       <td style={style}>
-        {val === 'high' ? (
+        {price !== null && Number.isFinite(price) ? (
           <span
             style={{
               display: 'inline-flex',
@@ -356,29 +358,14 @@ function TableCell({
               gap: 4,
               padding: '1px 8px',
               borderRadius: 100,
-              background: 'color-mix(in oklch, var(--c-pos) 14%, transparent)',
-              color: 'var(--c-pos)',
+              background: `color-mix(in oklch, var(${isBull ? '--c-pos' : '--c-neg'}) 14%, transparent)`,
+              color: `var(${isBull ? '--c-pos' : '--c-neg'})`,
               fontSize: 11,
               fontWeight: 600,
             }}
           >
-            <TrendingUp size={11} /> High
-          </span>
-        ) : val === 'low' ? (
-          <span
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 4,
-              padding: '1px 8px',
-              borderRadius: 100,
-              background: 'color-mix(in oklch, var(--c-neg) 14%, transparent)',
-              color: 'var(--c-neg)',
-              fontSize: 11,
-              fontWeight: 600,
-            }}
-          >
-            <TrendingDown size={11} /> Low
+            {isBull ? <TrendingUp size={11} /> : <TrendingDown size={11} />}
+            {price.toFixed(2)}
           </span>
         ) : (
           <span style={{ color: 'var(--c-text-dim)' }}>—</span>

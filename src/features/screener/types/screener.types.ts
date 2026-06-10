@@ -267,7 +267,9 @@ export interface Stock {
   smart_momentum: number | null;
   trend_strength: number | null;
   retracement: number | null;
-  new_high_low: 'high' | 'low' | null;
+  /** Precio extremo de la racha actual del rating: max(high) si rating ≥ +1,
+   *  min(low) si rating ≤ −1 (resetea al cambiar de lado). */
+  new_high_low: number | null;
   days_since_rating: number | null;
 
   // Smart Momentum (ADE variant)
