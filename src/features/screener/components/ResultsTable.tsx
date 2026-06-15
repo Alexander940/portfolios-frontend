@@ -310,7 +310,7 @@ function TableCell({
         : 'left',
   };
 
-  // Rating (numeric badge)
+  // Rating (numeric badge) — del motor ADE (precios ajustados por split).
   if (column.key === 'rating') {
     const raw = stock.rating;
     const valid = typeof raw === 'number' && isValidRating(raw);

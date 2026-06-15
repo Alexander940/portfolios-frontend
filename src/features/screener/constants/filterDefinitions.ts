@@ -1192,6 +1192,8 @@ const TRENDRATING_COLUMNS: TableColumn[] = [
 ];
 
 const ADE_COLUMNS: TableColumn[] = [
+  // Rating del motor ADE (precios ajustados por split) — único rating
+  { key: 'rating', label: 'Rating', sortable: true, align: 'center', width: '90px', format: formatRating },
   { key: 'sm_long_points', label: 'SM Long Pts', sortable: true, align: 'right', width: '120px', format: (v) => formatNumber(v, 2) },
   { key: 'sm_short_points', label: 'SM Short Pts', sortable: true, align: 'right', width: '120px', format: (v) => formatNumber(v, 2) },
   { key: 'sm_long_pct', label: 'SM Long %', sortable: true, align: 'right', width: '110px', format: formatPercent },
