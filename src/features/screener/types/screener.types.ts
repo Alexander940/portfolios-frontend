@@ -262,8 +262,11 @@ export interface Stock {
   exchange: string;
   sector: string;
 
-  // TrendRating data
+  /** Rating del motor ADE (precios ajustados por split). Único rating;
+   *  `trend.rating` (precio crudo) fue retirado del screener. */
   rating: number | null;
+
+  // TrendRating data
   smart_momentum: number | null;
   trend_strength: number | null;
   retracement: number | null;
