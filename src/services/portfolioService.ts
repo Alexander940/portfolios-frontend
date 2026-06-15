@@ -168,3 +168,60 @@ export async function listPortfolioPositions(
   );
   return data;
 }
+
+// =============================================================================
+// Performance curve (portfolio vs benchmark, total return)
+// =============================================================================
+
+export type CurveBaseMode = 'index_100' | 'initial_cash';
+
+export interface PerformanceCurvePoint {
+  date: string;
+  portfolio_value: number;
+  portfolio_return_pct: number;
+  benchmark_value: number | null;
+  benchmark_return_pct: number | null;
+  relative_return_pct: number | null;
+}
+
+export interface PerformanceCurveResponse {
+  portfolio_id: string;
+  benchmark: string;
+  return_basis: string;
+  base_mode: CurveBaseMode;
+  base: number;
+  benchmark_available: boolean;
+  start_date: string | null;
+  end_date: string | null;
+  points: PerformanceCurvePoint[];
+}
+
+/**
+ * Rebased portfolio-vs-benchmark (total-return) equity curve for charting.
+ * Both series start at the same base — 100 (`index_100`, read % directly) or
+ * the portfolio's initial cash (`initial_cash`, "growth of the same dollars").
+ */
+export async function getPerformanceCurve(
+  portfolioId: string,
+  params: {
+    benchmark?: string;
+    base_mode?: CurveBaseMode;
+    start?: string;
+    end?: string;
+  } = {},
+  signal?: AbortSignal,
+): Promise<PerformanceCurveResponse> {
+  const { data } = await apiClient.get<PerformanceCurveResponse>(
+    `/portfolios/${portfolioId}/performance/curve`,
+    {
+      params: {
+        benchmark: params.benchmark ?? 'SPY',
+        base_mode: params.base_mode ?? 'index_100',
+        ...(params.start ? { start: params.start } : {}),
+        ...(params.end ? { end: params.end } : {}),
+      },
+      signal,
+    },
+  );
+  return data;
+}
