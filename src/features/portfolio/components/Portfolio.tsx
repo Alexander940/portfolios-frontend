@@ -15,6 +15,7 @@ import { isApiError } from '@/lib/apiErrors';
 import { PortfolioHeader } from './PortfolioHeader';
 import { PortfoliosTable } from './PortfoliosTable';
 import { PortfolioPositionsTable } from './PortfolioPositionsTable';
+import { PortfolioPerformanceChart } from './PortfolioPerformanceChart';
 import { ImportPortfolioFromExcelModal } from './ImportPortfolioFromExcelModal';
 
 /**
@@ -216,6 +217,8 @@ export function Portfolio() {
       </button>
 
       {portfolio && <PortfolioHeader portfolio={portfolio} />}
+
+      <PortfolioPerformanceChart portfolioId={portfolioId} />
 
       <PortfolioPositionsTable
         positions={positions}
