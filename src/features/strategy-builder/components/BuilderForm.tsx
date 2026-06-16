@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
 
 import { Icon } from '../icons';
-import { MARKET_CAP_BUCKETS, PERFORMANCE_METRICS, SORT_FIELDS } from '../mapping';
-import type { BuilderConfig, WeightMethod } from '../types';
+import { FUNDAMENTAL_FILTERS, MARKET_CAP_BUCKETS, PERFORMANCE_METRICS } from '../mapping';
+import type { BuilderConfig, FundamentalKey, WeightMethod } from '../types';
 import { ExclusionPicker } from './ExclusionPicker';
 import { NumField, Section, ToggleRow, Tip } from './formBits';
 
@@ -37,6 +37,11 @@ export function BuilderForm({ initialCfg, busy, onCancel, onSave, onSaveBacktest
     7: true,
   });
   const set = (patch: Partial<BuilderConfig>) => setCfg((c) => ({ ...c, ...patch }));
+  const setFund = (key: FundamentalKey, bound: 'min' | 'max', v: number | '') =>
+    setCfg((c) => ({
+      ...c,
+      fundamentals: { ...c.fundamentals, [key]: { ...c.fundamentals[key], [bound]: v } },
+    }));
   const toggleSection = (n: number) => setOpen((o) => ({ ...o, [n]: !o[n] }));
 
   const errors = useMemo(() => {
@@ -204,8 +209,52 @@ export function BuilderForm({ initialCfg, busy, onCancel, onSave, onSaveBacktest
           </div>
         </Section>
 
-        {/* 3. Entry & Exit */}
-        <Section num="3" title="Entry & Exit rules" sub="Trade-state parameters" open={open[3]} onToggle={() => toggleSection(3)}>
+        {/* 3. Selection rules */}
+        <Section
+          num="3"
+          title="Selection rules"
+          sub="Fundamental filters (point-in-time)"
+          open={open[3]}
+          onToggle={() => toggleSection(3)}
+        >
+          <div className="sb-universe-result">
+            <Icon name="check" size={15} />
+            <span>
+              Quarterly fundamentals, taken <b>as-of each rebalance</b> with a 90-day
+              reporting lag (so a quarter counts only once it was public). Leave a
+              bound blank to ignore it.
+            </span>
+          </div>
+          <div className="sb-fund-grid">
+            {FUNDAMENTAL_FILTERS.map((f) => (
+              <div className="sb-fund-row" key={f.key}>
+                <div className="sb-field-label">
+                  {f.label}
+                  {f.kind === 'pct' ? ' (%)' : ''} <Tip text={f.hint} />
+                </div>
+                <div className="sb-grid-2">
+                  <NumField
+                    label="Min"
+                    value={cfg.fundamentals[f.key].min}
+                    onChange={(v) => setFund(f.key, 'min', v)}
+                    step={f.kind === 'pct' ? 1 : 0.1}
+                    hint="no lower bound"
+                  />
+                  <NumField
+                    label="Max"
+                    value={cfg.fundamentals[f.key].max}
+                    onChange={(v) => setFund(f.key, 'max', v)}
+                    step={f.kind === 'pct' ? 1 : 0.1}
+                    hint="no upper bound"
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </Section>
+
+        {/* 4. Entry & Exit */}
+        <Section num="4" title="Entry & Exit rules" sub="Trade-state parameters" open={open[4]} onToggle={() => toggleSection(4)}>
           <div className="sb-grid-2" style={{ marginTop: 14 }}>
             <NumField
               label="Min. efficiency ratio"
@@ -249,41 +298,6 @@ export function BuilderForm({ initialCfg, busy, onCancel, onSave, onSaveBacktest
               />
             </div>
           )}
-        </Section>
-
-        {/* 4. Selection */}
-        <Section num="4" title="Selection" sub="Rank and pick from the universe" open={open[4]} onToggle={() => toggleSection(4)}>
-          <div className="sb-grid-2" style={{ marginTop: 14 }}>
-            <div className="sb-field" style={{ marginTop: 0 }}>
-              <div className="sb-field-label">Rank by</div>
-              <div className="sb-select-wrap">
-                <select className="sb-select" value={cfg.sortBy} onChange={(e) => set({ sortBy: e.target.value })}>
-                  {SORT_FIELDS.map((f) => (
-                    <option key={f.k} value={f.k}>
-                      {f.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-            <NumField
-              label="Max per sector"
-              tip="Cap how many names from a single sector can be held. Only applies when the cap is on."
-              value={cfg.maxPerSector}
-              onChange={(v) => set({ maxPerSector: typeof v === 'number' ? v : 5 })}
-              min={1}
-              hint={cfg.perSector ? '' : 'enable cap below'}
-            />
-          </div>
-          <div style={{ marginTop: 16 }}>
-            <ToggleRow
-              name="Cap exposure per sector"
-              tip="Prevents the strategy from loading up on a single sector."
-              desc="Diversify by limiting names from any one sector"
-              on={cfg.perSector}
-              onToggle={() => set({ perSector: !cfg.perSector })}
-            />
-          </div>
         </Section>
 
         {/* 5. Weighting */}

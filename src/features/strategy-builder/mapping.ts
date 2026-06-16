@@ -3,8 +3,10 @@
 import type {
   BacktestResultOut,
   BuilderConfig,
+  FundamentalKey,
   MarketCapBucket,
   PerformanceMetric,
+  RangeFilter,
   StrategySpec,
   UniverseSpec,
 } from './types';
@@ -18,6 +20,29 @@ export const MARKET_CAP_BUCKETS: { k: MarketCapBucket; label: string; hint: stri
   { k: 'micro', label: 'Micro', hint: '$50M–$300M' },
   { k: 'nano', label: 'Nano', hint: '< $50M' },
 ];
+
+// Selection-rules fundamentals (PIT via fundamentals_quarterly). `kind: 'pct'`
+// is entered as a percentage and stored as a fraction (÷100); `ratio` is stored
+// as-entered. Mirrors the backend's PIT_SAFE_QUARTERLY_FIELDS.
+export const FUNDAMENTAL_FILTERS: {
+  key: FundamentalKey;
+  label: string;
+  kind: 'ratio' | 'pct';
+  hint: string;
+}[] = [
+  { key: 'pe_ratio', label: 'P/E ratio', kind: 'ratio', hint: 'Price / trailing earnings (TTM, at quarter-end price).' },
+  { key: 'ps_ratio', label: 'P/S ratio', kind: 'ratio', hint: 'Price / sales.' },
+  { key: 'pb_ratio', label: 'P/B ratio', kind: 'ratio', hint: 'Price / book value.' },
+  { key: 'pcf_ratio', label: 'P/CF ratio', kind: 'ratio', hint: 'Price / operating cash flow.' },
+  { key: 'gross_margin', label: 'Gross margin', kind: 'pct', hint: 'Gross profit / revenue.' },
+  { key: 'operating_margin', label: 'Operating margin', kind: 'pct', hint: 'Operating income / revenue.' },
+];
+
+const EMPTY_FUNDAMENTALS = (): Record<FundamentalKey, { min: number | ''; max: number | '' }> =>
+  FUNDAMENTAL_FILTERS.reduce(
+    (acc, f) => ({ ...acc, [f.key]: { min: '', max: '' } }),
+    {} as Record<FundamentalKey, { min: number | ''; max: number | '' }>,
+  );
 
 // Options for the General-parameters "Performance" select (the metric the
 // strategy is compared to the benchmark on).
@@ -65,6 +90,7 @@ export const DEFAULT_CONFIG: BuilderConfig = {
   performanceMetric: 'total_return',
   companySizes: [],
   excluded: [],
+  fundamentals: EMPTY_FUNDAMENTALS(),
   sector: '',
   minRating: 1,
   minTrendStrength: '',
@@ -99,6 +125,16 @@ export function cfgToSpec(cfg: BuilderConfig): StrategySpec {
   }
   if (cfg.companySizes.length) universe.market_cap_category = cfg.companySizes;
   if (cfg.excluded.length) universe.exclude = cfg.excluded.map((e) => e.symbolId);
+
+  // Selection-rules fundamentals → universe range filters (margins % ÷ 100).
+  for (const f of FUNDAMENTAL_FILTERS) {
+    const r = cfg.fundamentals[f.key];
+    const div = f.kind === 'pct' ? 100 : 1;
+    const range: RangeFilter = {};
+    if (r.min !== '') range.min = Number(r.min) / div;
+    if (r.max !== '') range.max = Number(r.max) / div;
+    if (range.min !== undefined || range.max !== undefined) universe[f.key] = range;
+  }
 
   return {
     general: {

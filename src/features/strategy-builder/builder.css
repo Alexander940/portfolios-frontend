@@ -403,3 +403,7 @@
 }
 .sb-chip button { display: inline-flex; border: 0; background: none; color: var(--c-text-dim); cursor: pointer; padding: 2px; border-radius: 3px; }
 .sb-chip button:hover { background: var(--c-border); color: var(--c-text); }
+
+/* Selection rules — fundamentals min/max grid */
+.sb-fund-grid { margin-top: 14px; display: grid; gap: 16px; }
+.sb-fund-row > .sb-field-label { margin-bottom: 8px; }

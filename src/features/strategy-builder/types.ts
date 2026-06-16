@@ -35,6 +35,24 @@ export interface GeneralSpec {
 export type MarketCapBucket = 'mega' | 'large' | 'mid' | 'small' | 'micro' | 'nano';
 export type InstrumentType = 'stocks';
 
+/** The screener fundamentals enabled as PIT backtest filters (Selection rules) —
+ *  the 6 directly-comparable ratios the backend resolves as-of
+ *  `fundamentals_quarterly`. Per-quarter flow metrics (roe, dividend_yield…) are
+ *  intentionally excluded by the backend's PIT linter. */
+export type FundamentalKey =
+  | 'pe_ratio'
+  | 'ps_ratio'
+  | 'pb_ratio'
+  | 'pcf_ratio'
+  | 'gross_margin'
+  | 'operating_margin';
+
+/** UI-side min/max for a fundamental ('' = no bound). */
+export interface FundamentalRange {
+  min: number | '';
+  max: number | '';
+}
+
 export interface UniverseSpec {
   rating?: RangeFilter;
   trend_strength?: RangeFilter;
@@ -44,6 +62,14 @@ export interface UniverseSpec {
   country?: string[];
   market_cap_category?: MarketCapBucket[];
   exclude?: string[]; // symbol_ids to exclude
+  // Selection-rules fundamentals (PIT via fundamentals_quarterly). Margins are
+  // fractions 0–1 in the spec (the UI enters % and divides by 100).
+  pe_ratio?: RangeFilter;
+  ps_ratio?: RangeFilter;
+  pb_ratio?: RangeFilter;
+  pcf_ratio?: RangeFilter;
+  gross_margin?: RangeFilter;
+  operating_margin?: RangeFilter;
 }
 
 /** A stock chosen for the Exclusion list (kept with ticker/name for display). */
@@ -183,6 +209,8 @@ export interface BuilderConfig {
   // investment universe (instrument type + country are locked)
   companySizes: MarketCapBucket[];
   excluded: ExcludedSymbol[];
+  // selection rules — PIT fundamentals filters (min/max per ratio)
+  fundamentals: Record<FundamentalKey, FundamentalRange>;
   // universe (PIT-safe)
   sector: string; // '' = all
   minRating: number; // -3..3 → universe.rating.min
