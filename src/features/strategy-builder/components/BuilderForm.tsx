@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react';
 
 import { Icon } from '../icons';
-import { PERFORMANCE_METRICS, RATING_OPTIONS, SECTORS_LIST, SORT_FIELDS } from '../mapping';
+import { MARKET_CAP_BUCKETS, PERFORMANCE_METRICS, SORT_FIELDS } from '../mapping';
 import type { BuilderConfig, WeightMethod } from '../types';
+import { ExclusionPicker } from './ExclusionPicker';
 import { NumField, Section, ToggleRow, Tip } from './formBits';
 
 interface Props {
@@ -141,53 +142,65 @@ export function BuilderForm({ initialCfg, busy, onCancel, onSave, onSaveBacktest
           </div>
         </Section>
 
-        {/* 2. Universe */}
-        <Section num="2" title="Universe" sub="Which stocks are eligible" open={open[2]} onToggle={() => toggleSection(2)}>
-          <div className="sb-grid-3" style={{ marginTop: 14 }}>
+        {/* 2. Investment universe */}
+        <Section
+          num="2"
+          title="Investment universe"
+          sub="Instrument, country, size, exclusions"
+          open={open[2]}
+          onToggle={() => toggleSection(2)}
+        >
+          <div className="sb-grid-2" style={{ marginTop: 14 }}>
             <div className="sb-field" style={{ marginTop: 0 }}>
-              <div className="sb-field-label">Sector</div>
+              <div className="sb-field-label">
+                Instrument type <Tip text="Locked to stocks — the engine trades single-name US equities." />
+              </div>
               <div className="sb-select-wrap">
-                <select className="sb-select" value={cfg.sector} onChange={(e) => set({ sector: e.target.value })}>
-                  <option value="">All sectors</option>
-                  {SECTORS_LIST.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
+                <select className="sb-select" value="stocks" disabled>
+                  <option value="stocks">Stocks</option>
                 </select>
               </div>
             </div>
             <div className="sb-field" style={{ marginTop: 0 }}>
               <div className="sb-field-label">
-                Minimum rating <Tip text="Only names with a TrendRating at or above this (−3 strong sell … +3 strong buy) are eligible." />
+                Country <Tip text="Locked to the US — the only market wired right now." />
               </div>
               <div className="sb-select-wrap">
-                <select
-                  className="sb-select"
-                  value={cfg.minRating}
-                  onChange={(e) => set({ minRating: parseInt(e.target.value, 10) })}
-                >
-                  {RATING_OPTIONS.map((r) => (
-                    <option key={r} value={r}>
-                      {r > 0 ? `+${r}` : r} or better
-                    </option>
-                  ))}
+                <select className="sb-select" value="US" disabled>
+                  <option value="US">United States</option>
                 </select>
               </div>
             </div>
-            <NumField
-              label="Min. trend strength"
-              tip="Optional floor on trend strength. Leave blank for no filter."
-              value={cfg.minTrendStrength}
-              onChange={(v) => set({ minTrendStrength: v })}
-              hint="optional"
-            />
           </div>
-          <div className="sb-universe-result">
-            <Icon name="check" size={15} />
-            <span>
-              Backtests screen on <b>point-in-time-safe</b> fields only (rating, momentum, trend, technicals). Fundamentals are excluded — they have no historical as-of value.
-            </span>
+          <div className="sb-field">
+            <div className="sb-field-label">
+              Company size <Tip text="Filter by market-cap bucket (point-in-time). Leave all off for any size." />
+            </div>
+            <div className="sb-size-grid">
+              {MARKET_CAP_BUCKETS.map((b) => {
+                const on = cfg.companySizes.includes(b.k);
+                return (
+                  <button
+                    key={b.k}
+                    type="button"
+                    className={`sb-size-pill ${on ? 'active' : ''}`}
+                    onClick={() =>
+                      set({
+                        companySizes: on
+                          ? cfg.companySizes.filter((x) => x !== b.k)
+                          : [...cfg.companySizes, b.k],
+                      })
+                    }
+                  >
+                    <span className="pn">{b.label}</span>
+                    <span className="ph">{b.hint}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <div style={{ marginTop: 14 }}>
+            <ExclusionPicker value={cfg.excluded} onChange={(v) => set({ excluded: v })} />
           </div>
         </Section>
 

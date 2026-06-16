@@ -362,3 +362,44 @@
   .sb-card { grid-template-columns: 1fr auto; gap: 12px; }
   .sb-card-spark, .sb-metric { display: none; }
 }
+
+/* ============================================================
+   INVESTMENT UNIVERSE — Company size pills + Exclusion picker
+   ============================================================ */
+.sb-size-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.sb-size-pill {
+  display: inline-flex; flex-direction: column; align-items: flex-start; gap: 1px;
+  padding: 7px 12px; border: 1px solid var(--c-border); border-radius: var(--radius-sm);
+  background: var(--c-bg); color: var(--c-text-soft); cursor: pointer; font-family: inherit;
+  transition: all 0.1s;
+}
+.sb-size-pill:hover { border-color: var(--c-border-strong); }
+.sb-size-pill.active { border-color: var(--c-accent); background: var(--c-accent-soft); color: var(--c-accent-text); }
+.sb-size-pill .pn { font-size: 13px; font-weight: 600; }
+.sb-size-pill .ph { font-size: 10.5px; color: var(--c-text-dim); font-family: var(--font-mono); }
+.sb-size-pill.active .ph { color: var(--c-accent-text); opacity: 0.8; }
+
+.sb-exclude-search { position: relative; }
+.sb-search-pop {
+  position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 30;
+  background: var(--c-bg); border: 1px solid var(--c-border-strong); border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-lg); max-height: 240px; overflow-y: auto; padding: 4px;
+}
+.sb-search-item {
+  display: flex; align-items: baseline; gap: 8px; width: 100%; text-align: left;
+  padding: 7px 9px; border: 0; border-radius: 5px; background: none; cursor: pointer; font-family: inherit;
+}
+.sb-search-item:hover:not(:disabled) { background: var(--c-bg-soft); }
+.sb-search-item:disabled { opacity: 0.4; cursor: not-allowed; }
+.sb-search-item .sb-search-tk { font-size: 13px; font-weight: 600; color: var(--c-text); font-family: var(--font-mono); }
+.sb-search-item .sb-search-nm { font-size: 12px; color: var(--c-text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sb-search-empty { padding: 10px 9px; font-size: 12.5px; color: var(--c-text-dim); }
+
+.sb-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.sb-chip {
+  display: inline-flex; align-items: center; gap: 5px; padding: 3px 6px 3px 9px;
+  font-size: 12px; font-weight: 500; font-family: var(--font-mono);
+  background: var(--c-bg-softer); border: 1px solid var(--c-border); border-radius: 5px; color: var(--c-text);
+}
+.sb-chip button { display: inline-flex; border: 0; background: none; color: var(--c-text-dim); cursor: pointer; padding: 2px; border-radius: 3px; }
+.sb-chip button:hover { background: var(--c-border); color: var(--c-text); }

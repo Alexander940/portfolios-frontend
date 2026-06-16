@@ -23,6 +23,7 @@ export type PerformanceMetric =
 /** General/meta parameters — currency + benchmark are locked (US-only / SPY);
  *  performance_metric is the headline strategy-vs-benchmark comparison metric. */
 export interface GeneralSpec {
+  instrument_type: InstrumentType;
   currency: Currency;
   benchmark: Benchmark;
   performance_metric: PerformanceMetric;
@@ -31,12 +32,25 @@ export interface GeneralSpec {
 /** PIT-safe subset of the screener's ScreenerRequest used as the universe.
  *  Fundamentals/performance/pf fields are intentionally omitted — the backend's
  *  PIT linter rejects them in a backtest. */
+export type MarketCapBucket = 'mega' | 'large' | 'mid' | 'small' | 'micro' | 'nano';
+export type InstrumentType = 'stocks';
+
 export interface UniverseSpec {
   rating?: RangeFilter;
   trend_strength?: RangeFilter;
   smart_momentum?: RangeFilter;
   adx?: RangeFilter;
   sector?: string[];
+  country?: string[];
+  market_cap_category?: MarketCapBucket[];
+  exclude?: string[]; // symbol_ids to exclude
+}
+
+/** A stock chosen for the Exclusion list (kept with ticker/name for display). */
+export interface ExcludedSymbol {
+  symbolId: string;
+  ticker: string;
+  name: string;
 }
 
 export interface EntryExitSpec {
@@ -166,6 +180,9 @@ export interface BuilderConfig {
   name: string;
   // general parameters (currency + benchmark are locked; metric is selectable)
   performanceMetric: PerformanceMetric;
+  // investment universe (instrument type + country are locked)
+  companySizes: MarketCapBucket[];
+  excluded: ExcludedSymbol[];
   // universe (PIT-safe)
   sector: string; // '' = all
   minRating: number; // -3..3 → universe.rating.min
