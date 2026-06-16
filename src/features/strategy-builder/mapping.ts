@@ -3,9 +3,22 @@
 import type {
   BacktestResultOut,
   BuilderConfig,
+  PerformanceMetric,
   StrategySpec,
   UniverseSpec,
 } from './types';
+
+// Options for the General-parameters "Performance" select (the metric the
+// strategy is compared to the benchmark on).
+export const PERFORMANCE_METRICS: { k: PerformanceMetric; label: string }[] = [
+  { k: 'total_return', label: 'Total return' },
+  { k: 'cagr', label: 'CAGR' },
+  { k: 'sharpe', label: 'Sharpe' },
+  { k: 'sortino', label: 'Sortino' },
+  { k: 'calmar', label: 'Calmar' },
+  { k: 'alpha', label: 'Alpha' },
+  { k: 'max_drawdown', label: 'Max drawdown' },
+];
 
 // PIT-safe sortable fields (FIELD_MAPPING keys the backtester accepts).
 export const SORT_FIELDS: { k: string; label: string }[] = [
@@ -38,6 +51,7 @@ export const RATING_OPTIONS = [3, 2, 1, 0, -1, -2, -3];
 
 export const DEFAULT_CONFIG: BuilderConfig = {
   name: 'Untitled strategy',
+  performanceMetric: 'total_return',
   sector: '',
   minRating: 1,
   minTrendStrength: '',
@@ -72,6 +86,11 @@ export function cfgToSpec(cfg: BuilderConfig): StrategySpec {
   }
 
   return {
+    general: {
+      currency: 'USD',
+      benchmark: 'SPY',
+      performance_metric: cfg.performanceMetric,
+    },
     universe,
     entry_exit: {
       mode: 'trade_state',

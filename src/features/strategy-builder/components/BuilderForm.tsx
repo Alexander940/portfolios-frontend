@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 
 import { Icon } from '../icons';
-import { RATING_OPTIONS, SECTORS_LIST, SORT_FIELDS } from '../mapping';
+import { PERFORMANCE_METRICS, RATING_OPTIONS, SECTORS_LIST, SORT_FIELDS } from '../mapping';
 import type { BuilderConfig, WeightMethod } from '../types';
 import { NumField, Section, ToggleRow, Tip } from './formBits';
 
@@ -54,18 +54,95 @@ export function BuilderForm({ initialCfg, busy, onCancel, onSave, onSaveBacktest
   const checks = [
     { ok: !errors.name, label: 'Strategy name set' },
     { ok: !errors.endDate, label: 'Valid date range' },
-    { ok: !errors.topN, label: 'Selection ≥ 1 name' },
+    { ok: !errors.topN, label: 'At least 1 holding' },
     { ok: !errors.oosSplit, label: 'Out-of-sample split valid' },
   ];
 
   const weightLabel =
     cfg.weight === 'equal' ? 'Equal' : cfg.weight === 'rating_weighted' ? 'Rating' : 'Mkt cap';
+  const metricLabel =
+    PERFORMANCE_METRICS.find((m) => m.k === cfg.performanceMetric)?.label ?? cfg.performanceMetric;
 
   return (
     <div className="sb-build-grid">
       <div className="sb-form">
-        {/* 1. Universe */}
-        <Section num="1" title="Universe" sub="Which stocks are eligible" open={open[1]} onToggle={() => toggleSection(1)}>
+        {/* 1. General parameters */}
+        <Section
+          num="1"
+          title="General parameters"
+          sub="Holdings, rebalance, currency, performance, benchmark"
+          open={open[1]}
+          onToggle={() => toggleSection(1)}
+        >
+          <div className="sb-grid-3" style={{ marginTop: 14 }}>
+            <NumField
+              label="Number of holdings"
+              tip="How many names the strategy holds at once (the top N after ranking)."
+              value={cfg.topN}
+              onChange={(v) => set({ topN: typeof v === 'number' ? v : 1 })}
+              min={1}
+              error={errors.topN}
+            />
+            <div className="sb-field" style={{ marginTop: 0 }}>
+              <div className="sb-field-label">Rebalance</div>
+              <div className="sb-segment full" style={{ marginTop: 2 }}>
+                {(['weekly', 'monthly'] as const).map((k) => (
+                  <button
+                    key={k}
+                    type="button"
+                    className={`sb-seg-btn ${cfg.rebalance === k ? 'active' : ''}`}
+                    onClick={() => set({ rebalance: k })}
+                  >
+                    {k === 'weekly' ? 'Weekly' : 'Monthly'}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="sb-field" style={{ marginTop: 0 }}>
+              <div className="sb-field-label">
+                Currency <Tip text="Locked to USD — the strategy invests in US equities only for now." />
+              </div>
+              <div className="sb-select-wrap">
+                <select className="sb-select" value="USD" disabled>
+                  <option value="USD">USD</option>
+                </select>
+              </div>
+            </div>
+            <div className="sb-field" style={{ marginTop: 0 }}>
+              <div className="sb-field-label">
+                Performance <Tip text="The metric the strategy is compared to the benchmark on." />
+              </div>
+              <div className="sb-select-wrap">
+                <select
+                  className="sb-select"
+                  value={cfg.performanceMetric}
+                  onChange={(e) =>
+                    set({ performanceMetric: e.target.value as BuilderConfig['performanceMetric'] })
+                  }
+                >
+                  {PERFORMANCE_METRICS.map((m) => (
+                    <option key={m.k} value={m.k}>
+                      {m.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="sb-field" style={{ marginTop: 0 }}>
+              <div className="sb-field-label">
+                Benchmark <Tip text="Locked to the S&P 500 (SPY) — the only benchmark wired right now." />
+              </div>
+              <div className="sb-select-wrap">
+                <select className="sb-select" value="SPY" disabled>
+                  <option value="SPY">S&amp;P 500</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </Section>
+
+        {/* 2. Universe */}
+        <Section num="2" title="Universe" sub="Which stocks are eligible" open={open[2]} onToggle={() => toggleSection(2)}>
           <div className="sb-grid-3" style={{ marginTop: 14 }}>
             <div className="sb-field" style={{ marginTop: 0 }}>
               <div className="sb-field-label">Sector</div>
@@ -114,8 +191,8 @@ export function BuilderForm({ initialCfg, busy, onCancel, onSave, onSaveBacktest
           </div>
         </Section>
 
-        {/* 2. Entry & Exit */}
-        <Section num="2" title="Entry & Exit rules" sub="Trade-state parameters" open={open[2]} onToggle={() => toggleSection(2)}>
+        {/* 3. Entry & Exit */}
+        <Section num="3" title="Entry & Exit rules" sub="Trade-state parameters" open={open[3]} onToggle={() => toggleSection(3)}>
           <div className="sb-grid-2" style={{ marginTop: 14 }}>
             <NumField
               label="Min. efficiency ratio"
@@ -161,9 +238,9 @@ export function BuilderForm({ initialCfg, busy, onCancel, onSave, onSaveBacktest
           )}
         </Section>
 
-        {/* 3. Selection */}
-        <Section num="3" title="Selection" sub="Rank and pick from the universe" open={open[3]} onToggle={() => toggleSection(3)}>
-          <div className="sb-grid-3" style={{ marginTop: 14 }}>
+        {/* 4. Selection */}
+        <Section num="4" title="Selection" sub="Rank and pick from the universe" open={open[4]} onToggle={() => toggleSection(4)}>
+          <div className="sb-grid-2" style={{ marginTop: 14 }}>
             <div className="sb-field" style={{ marginTop: 0 }}>
               <div className="sb-field-label">Rank by</div>
               <div className="sb-select-wrap">
@@ -176,14 +253,6 @@ export function BuilderForm({ initialCfg, busy, onCancel, onSave, onSaveBacktest
                 </select>
               </div>
             </div>
-            <NumField
-              label="Take top N"
-              tip="After ranking, hold the top N names."
-              value={cfg.topN}
-              onChange={(v) => set({ topN: typeof v === 'number' ? v : 1 })}
-              min={1}
-              error={errors.topN}
-            />
             <NumField
               label="Max per sector"
               tip="Cap how many names from a single sector can be held. Only applies when the cap is on."
@@ -204,8 +273,8 @@ export function BuilderForm({ initialCfg, busy, onCancel, onSave, onSaveBacktest
           </div>
         </Section>
 
-        {/* 4. Weighting */}
-        <Section num="4" title="Weighting" sub="How capital is allocated" open={open[4]} onToggle={() => toggleSection(4)}>
+        {/* 5. Weighting */}
+        <Section num="5" title="Weighting" sub="How capital is allocated" open={open[5]} onToggle={() => toggleSection(5)}>
           <div className="sb-radio-grid">
             {WEIGHT_OPTIONS.map((o) => (
               <button
@@ -223,29 +292,6 @@ export function BuilderForm({ initialCfg, busy, onCancel, onSave, onSaveBacktest
                 <div className="sb-radio-desc">{o.d}</div>
               </button>
             ))}
-          </div>
-        </Section>
-
-        {/* 5. Rebalancing */}
-        <Section num="5" title="Rebalancing" sub="How often the book is reconstituted" open={open[5]} onToggle={() => toggleSection(5)}>
-          <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 16 }}>
-            <div className="sb-segment">
-              {(['weekly', 'monthly'] as const).map((k) => (
-                <button
-                  key={k}
-                  type="button"
-                  className={`sb-seg-btn ${cfg.rebalance === k ? 'active' : ''}`}
-                  onClick={() => set({ rebalance: k })}
-                >
-                  {k === 'weekly' ? 'Weekly' : 'Monthly'}
-                </button>
-              ))}
-            </div>
-            <span className="sb-field-hint">
-              {cfg.rebalance === 'weekly'
-                ? 'Higher turnover — more sensitive, higher costs.'
-                : 'Lower turnover — steadier, cheaper to run.'}
-            </span>
           </div>
         </Section>
 
@@ -336,6 +382,10 @@ export function BuilderForm({ initialCfg, busy, onCancel, onSave, onSaveBacktest
           <div className="sb-summary-row">
             <span className="k">Rebalance</span>
             <span className="v">{cfg.rebalance === 'weekly' ? 'Weekly' : 'Monthly'}</span>
+          </div>
+          <div className="sb-summary-row">
+            <span className="k">Performance</span>
+            <span className="v">{metricLabel}</span>
           </div>
           <div className="sb-summary-row">
             <span className="k">Costs</span>
