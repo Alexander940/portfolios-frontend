@@ -1,8 +1,15 @@
 import { useMemo, useState } from 'react';
 
 import { Icon } from '../icons';
-import { PERFORMANCE_METRICS, RATING_OPTIONS, SECTORS_LIST, SORT_FIELDS } from '../mapping';
+import {
+  MARKET_CAP_BUCKETS,
+  PERFORMANCE_METRICS,
+  RATING_OPTIONS,
+  SECTORS_LIST,
+  SORT_FIELDS,
+} from '../mapping';
 import type { BuilderConfig, WeightMethod } from '../types';
+import { ExclusionPicker } from './ExclusionPicker';
 import { NumField, Section, ToggleRow, Tip } from './formBits';
 
 interface Props {
@@ -34,6 +41,7 @@ export function BuilderForm({ initialCfg, busy, onCancel, onSave, onSaveBacktest
     5: true,
     6: true,
     7: true,
+    8: true,
   });
   const set = (patch: Partial<BuilderConfig>) => setCfg((c) => ({ ...c, ...patch }));
   const toggleSection = (n: number) => setOpen((o) => ({ ...o, [n]: !o[n] }));
@@ -141,8 +149,70 @@ export function BuilderForm({ initialCfg, busy, onCancel, onSave, onSaveBacktest
           </div>
         </Section>
 
-        {/* 2. Universe */}
-        <Section num="2" title="Universe" sub="Which stocks are eligible" open={open[2]} onToggle={() => toggleSection(2)}>
+        {/* 2. Investment universe */}
+        <Section
+          num="2"
+          title="Investment universe"
+          sub="Instrument, country, size, exclusions"
+          open={open[2]}
+          onToggle={() => toggleSection(2)}
+        >
+          <div className="sb-grid-2" style={{ marginTop: 14 }}>
+            <div className="sb-field" style={{ marginTop: 0 }}>
+              <div className="sb-field-label">
+                Instrument type <Tip text="Locked to stocks — the engine trades single-name US equities." />
+              </div>
+              <div className="sb-select-wrap">
+                <select className="sb-select" value="stocks" disabled>
+                  <option value="stocks">Stocks</option>
+                </select>
+              </div>
+            </div>
+            <div className="sb-field" style={{ marginTop: 0 }}>
+              <div className="sb-field-label">
+                Country <Tip text="Locked to the US — the only market wired right now." />
+              </div>
+              <div className="sb-select-wrap">
+                <select className="sb-select" value="US" disabled>
+                  <option value="US">United States</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          <div className="sb-field">
+            <div className="sb-field-label">
+              Company size <Tip text="Filter by market-cap bucket (point-in-time). Leave all off for any size." />
+            </div>
+            <div className="sb-size-grid">
+              {MARKET_CAP_BUCKETS.map((b) => {
+                const on = cfg.companySizes.includes(b.k);
+                return (
+                  <button
+                    key={b.k}
+                    type="button"
+                    className={`sb-size-pill ${on ? 'active' : ''}`}
+                    onClick={() =>
+                      set({
+                        companySizes: on
+                          ? cfg.companySizes.filter((x) => x !== b.k)
+                          : [...cfg.companySizes, b.k],
+                      })
+                    }
+                  >
+                    <span className="pn">{b.label}</span>
+                    <span className="ph">{b.hint}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <div style={{ marginTop: 14 }}>
+            <ExclusionPicker value={cfg.excluded} onChange={(v) => set({ excluded: v })} />
+          </div>
+        </Section>
+
+        {/* 3. Universe */}
+        <Section num="3" title="Universe" sub="Which stocks are eligible" open={open[3]} onToggle={() => toggleSection(3)}>
           <div className="sb-grid-3" style={{ marginTop: 14 }}>
             <div className="sb-field" style={{ marginTop: 0 }}>
               <div className="sb-field-label">Sector</div>
@@ -191,8 +261,8 @@ export function BuilderForm({ initialCfg, busy, onCancel, onSave, onSaveBacktest
           </div>
         </Section>
 
-        {/* 3. Entry & Exit */}
-        <Section num="3" title="Entry & Exit rules" sub="Trade-state parameters" open={open[3]} onToggle={() => toggleSection(3)}>
+        {/* 4. Entry & Exit */}
+        <Section num="4" title="Entry & Exit rules" sub="Trade-state parameters" open={open[4]} onToggle={() => toggleSection(4)}>
           <div className="sb-grid-2" style={{ marginTop: 14 }}>
             <NumField
               label="Min. efficiency ratio"
@@ -238,8 +308,8 @@ export function BuilderForm({ initialCfg, busy, onCancel, onSave, onSaveBacktest
           )}
         </Section>
 
-        {/* 4. Selection */}
-        <Section num="4" title="Selection" sub="Rank and pick from the universe" open={open[4]} onToggle={() => toggleSection(4)}>
+        {/* 5. Selection */}
+        <Section num="5" title="Selection" sub="Rank and pick from the universe" open={open[5]} onToggle={() => toggleSection(5)}>
           <div className="sb-grid-2" style={{ marginTop: 14 }}>
             <div className="sb-field" style={{ marginTop: 0 }}>
               <div className="sb-field-label">Rank by</div>
@@ -273,8 +343,8 @@ export function BuilderForm({ initialCfg, busy, onCancel, onSave, onSaveBacktest
           </div>
         </Section>
 
-        {/* 5. Weighting */}
-        <Section num="5" title="Weighting" sub="How capital is allocated" open={open[5]} onToggle={() => toggleSection(5)}>
+        {/* 6. Weighting */}
+        <Section num="6" title="Weighting" sub="How capital is allocated" open={open[6]} onToggle={() => toggleSection(6)}>
           <div className="sb-radio-grid">
             {WEIGHT_OPTIONS.map((o) => (
               <button
@@ -295,8 +365,8 @@ export function BuilderForm({ initialCfg, busy, onCancel, onSave, onSaveBacktest
           </div>
         </Section>
 
-        {/* 6. Costs */}
-        <Section num="6" title="Costs" sub="Trading frictions applied to every fill" open={open[6]} onToggle={() => toggleSection(6)}>
+        {/* 7. Costs */}
+        <Section num="7" title="Costs" sub="Trading frictions applied to every fill" open={open[7]} onToggle={() => toggleSection(7)}>
           <div className="sb-grid-2" style={{ marginTop: 14, maxWidth: 420 }}>
             <NumField
               label="Commission"
@@ -317,8 +387,8 @@ export function BuilderForm({ initialCfg, busy, onCancel, onSave, onSaveBacktest
           </div>
         </Section>
 
-        {/* 7. Validation */}
-        <Section num="7" title="Validation window" sub="Backtest period and robustness checks" open={open[7]} onToggle={() => toggleSection(7)}>
+        {/* 8. Validation */}
+        <Section num="8" title="Validation window" sub="Backtest period and robustness checks" open={open[8]} onToggle={() => toggleSection(8)}>
           <div className="sb-grid-2" style={{ marginTop: 14 }}>
             <div className="sb-field" style={{ marginTop: 0 }}>
               <div className="sb-field-label">Start date</div>

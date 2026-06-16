@@ -3,10 +3,21 @@
 import type {
   BacktestResultOut,
   BuilderConfig,
+  MarketCapBucket,
   PerformanceMetric,
   StrategySpec,
   UniverseSpec,
 } from './types';
+
+// Company-size buckets (mirror the backend MarketCapCategory enum + thresholds).
+export const MARKET_CAP_BUCKETS: { k: MarketCapBucket; label: string; hint: string }[] = [
+  { k: 'mega', label: 'Mega', hint: '> $200B' },
+  { k: 'large', label: 'Large', hint: '$10B–$200B' },
+  { k: 'mid', label: 'Mid', hint: '$2B–$10B' },
+  { k: 'small', label: 'Small', hint: '$300M–$2B' },
+  { k: 'micro', label: 'Micro', hint: '$50M–$300M' },
+  { k: 'nano', label: 'Nano', hint: '< $50M' },
+];
 
 // Options for the General-parameters "Performance" select (the metric the
 // strategy is compared to the benchmark on).
@@ -52,6 +63,8 @@ export const RATING_OPTIONS = [3, 2, 1, 0, -1, -2, -3];
 export const DEFAULT_CONFIG: BuilderConfig = {
   name: 'Untitled strategy',
   performanceMetric: 'total_return',
+  companySizes: [],
+  excluded: [],
   sector: '',
   minRating: 1,
   minTrendStrength: '',
@@ -76,7 +89,7 @@ export const DEFAULT_CONFIG: BuilderConfig = {
 };
 
 export function cfgToSpec(cfg: BuilderConfig): StrategySpec {
-  const universe: UniverseSpec = { rating: { min: cfg.minRating } };
+  const universe: UniverseSpec = { rating: { min: cfg.minRating }, country: ['US'] };
   if (cfg.sector) universe.sector = [cfg.sector];
   if (cfg.minTrendStrength !== '') {
     universe.trend_strength = { min: Number(cfg.minTrendStrength) };
@@ -84,9 +97,12 @@ export function cfgToSpec(cfg: BuilderConfig): StrategySpec {
   if (cfg.minMomentum !== '') {
     universe.smart_momentum = { min: Number(cfg.minMomentum) };
   }
+  if (cfg.companySizes.length) universe.market_cap_category = cfg.companySizes;
+  if (cfg.excluded.length) universe.exclude = cfg.excluded.map((e) => e.symbolId);
 
   return {
     general: {
+      instrument_type: 'stocks',
       currency: 'USD',
       benchmark: 'SPY',
       performance_metric: cfg.performanceMetric,
