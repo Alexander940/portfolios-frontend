@@ -9,6 +9,24 @@ export interface RangeFilter {
 export type SortOrder = 'asc' | 'desc';
 export type WeightMethod = 'equal' | 'rating_weighted' | 'market_cap';
 export type Cadence = 'monthly' | 'weekly';
+export type Currency = 'USD';
+export type Benchmark = 'SPY';
+export type PerformanceMetric =
+  | 'total_return'
+  | 'cagr'
+  | 'sharpe'
+  | 'sortino'
+  | 'calmar'
+  | 'alpha'
+  | 'max_drawdown';
+
+/** General/meta parameters — currency + benchmark are locked (US-only / SPY);
+ *  performance_metric is the headline strategy-vs-benchmark comparison metric. */
+export interface GeneralSpec {
+  currency: Currency;
+  benchmark: Benchmark;
+  performance_metric: PerformanceMetric;
+}
 
 /** PIT-safe subset of the screener's ScreenerRequest used as the universe.
  *  Fundamentals/performance/pf fields are intentionally omitted — the backend's
@@ -61,6 +79,7 @@ export interface ValidationSpec {
 }
 
 export interface StrategySpec {
+  general: GeneralSpec;
   universe: UniverseSpec;
   entry_exit: EntryExitSpec;
   selection: SelectionSpec;
@@ -145,6 +164,8 @@ export interface BacktestStatusResponse {
 
 export interface BuilderConfig {
   name: string;
+  // general parameters (currency + benchmark are locked; metric is selectable)
+  performanceMetric: PerformanceMetric;
   // universe (PIT-safe)
   sector: string; // '' = all
   minRating: number; // -3..3 → universe.rating.min
