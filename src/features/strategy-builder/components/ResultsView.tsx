@@ -114,7 +114,7 @@ export function ResultsView({ status, result, strategyName, errorMsg, progressSt
         <div className="sb-running-spinner" />
         <h3>Running backtest…</h3>
         <p>
-          Simulating <b>{strategyName}</b> over the validation window. This can take a moment.
+          Simulating <b>{strategyName}</b> over the validation window. A full run can take a few minutes — you can keep this tab open.
         </p>
         <div className="sb-progress-track">
           <div className="sb-progress-fill" style={{ width: '70%' }} />
