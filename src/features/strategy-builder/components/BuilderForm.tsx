@@ -1,13 +1,7 @@
 import { useMemo, useState } from 'react';
 
 import { Icon } from '../icons';
-import {
-  MARKET_CAP_BUCKETS,
-  PERFORMANCE_METRICS,
-  RATING_OPTIONS,
-  SECTORS_LIST,
-  SORT_FIELDS,
-} from '../mapping';
+import { MARKET_CAP_BUCKETS, PERFORMANCE_METRICS, SORT_FIELDS } from '../mapping';
 import type { BuilderConfig, WeightMethod } from '../types';
 import { ExclusionPicker } from './ExclusionPicker';
 import { NumField, Section, ToggleRow, Tip } from './formBits';
@@ -41,7 +35,6 @@ export function BuilderForm({ initialCfg, busy, onCancel, onSave, onSaveBacktest
     5: true,
     6: true,
     7: true,
-    8: true,
   });
   const set = (patch: Partial<BuilderConfig>) => setCfg((c) => ({ ...c, ...patch }));
   const toggleSection = (n: number) => setOpen((o) => ({ ...o, [n]: !o[n] }));
@@ -211,58 +204,8 @@ export function BuilderForm({ initialCfg, busy, onCancel, onSave, onSaveBacktest
           </div>
         </Section>
 
-        {/* 3. Universe */}
-        <Section num="3" title="Universe" sub="Which stocks are eligible" open={open[3]} onToggle={() => toggleSection(3)}>
-          <div className="sb-grid-3" style={{ marginTop: 14 }}>
-            <div className="sb-field" style={{ marginTop: 0 }}>
-              <div className="sb-field-label">Sector</div>
-              <div className="sb-select-wrap">
-                <select className="sb-select" value={cfg.sector} onChange={(e) => set({ sector: e.target.value })}>
-                  <option value="">All sectors</option>
-                  {SECTORS_LIST.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-            <div className="sb-field" style={{ marginTop: 0 }}>
-              <div className="sb-field-label">
-                Minimum rating <Tip text="Only names with a TrendRating at or above this (−3 strong sell … +3 strong buy) are eligible." />
-              </div>
-              <div className="sb-select-wrap">
-                <select
-                  className="sb-select"
-                  value={cfg.minRating}
-                  onChange={(e) => set({ minRating: parseInt(e.target.value, 10) })}
-                >
-                  {RATING_OPTIONS.map((r) => (
-                    <option key={r} value={r}>
-                      {r > 0 ? `+${r}` : r} or better
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-            <NumField
-              label="Min. trend strength"
-              tip="Optional floor on trend strength. Leave blank for no filter."
-              value={cfg.minTrendStrength}
-              onChange={(v) => set({ minTrendStrength: v })}
-              hint="optional"
-            />
-          </div>
-          <div className="sb-universe-result">
-            <Icon name="check" size={15} />
-            <span>
-              Backtests screen on <b>point-in-time-safe</b> fields only (rating, momentum, trend, technicals). Fundamentals are excluded — they have no historical as-of value.
-            </span>
-          </div>
-        </Section>
-
-        {/* 4. Entry & Exit */}
-        <Section num="4" title="Entry & Exit rules" sub="Trade-state parameters" open={open[4]} onToggle={() => toggleSection(4)}>
+        {/* 3. Entry & Exit */}
+        <Section num="3" title="Entry & Exit rules" sub="Trade-state parameters" open={open[3]} onToggle={() => toggleSection(3)}>
           <div className="sb-grid-2" style={{ marginTop: 14 }}>
             <NumField
               label="Min. efficiency ratio"
@@ -308,8 +251,8 @@ export function BuilderForm({ initialCfg, busy, onCancel, onSave, onSaveBacktest
           )}
         </Section>
 
-        {/* 5. Selection */}
-        <Section num="5" title="Selection" sub="Rank and pick from the universe" open={open[5]} onToggle={() => toggleSection(5)}>
+        {/* 4. Selection */}
+        <Section num="4" title="Selection" sub="Rank and pick from the universe" open={open[4]} onToggle={() => toggleSection(4)}>
           <div className="sb-grid-2" style={{ marginTop: 14 }}>
             <div className="sb-field" style={{ marginTop: 0 }}>
               <div className="sb-field-label">Rank by</div>
@@ -343,8 +286,8 @@ export function BuilderForm({ initialCfg, busy, onCancel, onSave, onSaveBacktest
           </div>
         </Section>
 
-        {/* 6. Weighting */}
-        <Section num="6" title="Weighting" sub="How capital is allocated" open={open[6]} onToggle={() => toggleSection(6)}>
+        {/* 5. Weighting */}
+        <Section num="5" title="Weighting" sub="How capital is allocated" open={open[5]} onToggle={() => toggleSection(5)}>
           <div className="sb-radio-grid">
             {WEIGHT_OPTIONS.map((o) => (
               <button
@@ -365,8 +308,8 @@ export function BuilderForm({ initialCfg, busy, onCancel, onSave, onSaveBacktest
           </div>
         </Section>
 
-        {/* 7. Costs */}
-        <Section num="7" title="Costs" sub="Trading frictions applied to every fill" open={open[7]} onToggle={() => toggleSection(7)}>
+        {/* 6. Costs */}
+        <Section num="6" title="Costs" sub="Trading frictions applied to every fill" open={open[6]} onToggle={() => toggleSection(6)}>
           <div className="sb-grid-2" style={{ marginTop: 14, maxWidth: 420 }}>
             <NumField
               label="Commission"
@@ -387,8 +330,8 @@ export function BuilderForm({ initialCfg, busy, onCancel, onSave, onSaveBacktest
           </div>
         </Section>
 
-        {/* 8. Validation */}
-        <Section num="8" title="Validation window" sub="Backtest period and robustness checks" open={open[8]} onToggle={() => toggleSection(8)}>
+        {/* 7. Validation */}
+        <Section num="7" title="Validation window" sub="Backtest period and robustness checks" open={open[7]} onToggle={() => toggleSection(7)}>
           <div className="sb-grid-2" style={{ marginTop: 14 }}>
             <div className="sb-field" style={{ marginTop: 0 }}>
               <div className="sb-field-label">Start date</div>
