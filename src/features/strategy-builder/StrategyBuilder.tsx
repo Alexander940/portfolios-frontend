@@ -5,7 +5,14 @@ import { BuilderForm } from './components/BuilderForm';
 import { ListView } from './components/ListView';
 import { ResultsView } from './components/ResultsView';
 import { Icon } from './icons';
-import { adaptResult, cfgToSpec, DEFAULT_CONFIG, type DisplayResult, sparkFromResult } from './mapping';
+import {
+  adaptResult,
+  cfgToSpec,
+  DEFAULT_CONFIG,
+  type DisplayResult,
+  normalizeCfg,
+  sparkFromResult,
+} from './mapping';
 import { createStrategy, getBacktest, runBacktest } from './service';
 import { useStrategyStore } from './store';
 import type { BacktestStatusResponse, BuilderConfig, SavedStrategy } from './types';
@@ -50,7 +57,8 @@ export function StrategyBuilder() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const runFlow = useCallback(
-    async (cfg: BuilderConfig) => {
+    async (rawCfg: BuilderConfig) => {
+      const cfg = normalizeCfg(rawCfg);
       setView('results');
       setStatus('running');
       setActiveName(cfg.name);
@@ -104,7 +112,7 @@ export function StrategyBuilder() {
     setView('build');
   };
   const goEdit = (s: SavedStrategy) => {
-    setEditing({ id: s.id, cfg: s.cfg });
+    setEditing({ id: s.id, cfg: normalizeCfg(s.cfg) });
     setEditKey((k) => k + 1);
     setView('build');
   };
@@ -126,7 +134,7 @@ export function StrategyBuilder() {
     setView('results');
     setStatus('running');
     setActiveName(s.name);
-    setActiveCfg(s.cfg);
+    setActiveCfg(normalizeCfg(s.cfg));
     setResult(null);
     setErrorMsg(null);
     try {

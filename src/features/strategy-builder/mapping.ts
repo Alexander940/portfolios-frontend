@@ -114,6 +114,19 @@ export const DEFAULT_CONFIG: BuilderConfig = {
   minTrades: 30,
 };
 
+/** Merge a (possibly older) saved config onto the current DEFAULT_CONFIG so
+ *  fields added after it was saved — e.g. `fundamentals` — are always present.
+ *  Strategies persisted before a field existed would otherwise crash the form
+ *  (`cfg.fundamentals[k]`) or cfgToSpec. Idempotent on fresh configs. */
+export function normalizeCfg(cfg: BuilderConfig): BuilderConfig {
+  const saved = cfg as Partial<BuilderConfig>;
+  return {
+    ...DEFAULT_CONFIG,
+    ...cfg,
+    fundamentals: { ...DEFAULT_CONFIG.fundamentals, ...(saved.fundamentals ?? {}) },
+  };
+}
+
 export function cfgToSpec(cfg: BuilderConfig): StrategySpec {
   const universe: UniverseSpec = { rating: { min: cfg.minRating }, country: ['US'] };
   if (cfg.sector) universe.sector = [cfg.sector];
