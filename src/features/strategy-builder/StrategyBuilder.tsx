@@ -21,13 +21,15 @@ function errMessage(e: unknown): string {
   return 'Backtest failed';
 }
 
-async function pollBacktest(jobId: string, tries = 20): Promise<BacktestStatusResponse> {
+// The backtest runs asynchronously on the backend (it can take a few minutes on
+// a large universe / long window), so poll generously — ~10 min at 2.5s.
+async function pollBacktest(jobId: string, tries = 240): Promise<BacktestStatusResponse> {
   for (let i = 0; i < tries; i++) {
     const res = await getBacktest(jobId);
     if (res.status === 'done' || res.status === 'error') return res;
-    await new Promise((r) => setTimeout(r, 600));
+    await new Promise((r) => setTimeout(r, 2500));
   }
-  throw new Error('Backtest timed out');
+  throw new Error('Backtest is taking longer than expected — check back shortly.');
 }
 
 export function StrategyBuilder() {
