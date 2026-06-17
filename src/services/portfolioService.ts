@@ -286,3 +286,40 @@ export async function getRelevantEvents(
   });
   return data;
 }
+
+// =============================================================================
+// Portfolio summary (aggregate stat cards for the Portfolio Analysis page)
+// =============================================================================
+
+export interface EventsCount {
+  upgrades: number;
+  downgrades: number;
+  total: number;
+}
+
+export interface PortfolioSummary {
+  as_of: string | null;
+  currency: string;
+  total_aum: number | null;
+  todays_pnl_abs: number | null;
+  todays_pnl_pct: number | null;
+  ytd_pct: number | null;
+  ytd_anchor_date: string | null;
+  events_24h: EventsCount;
+}
+
+/**
+ * Aggregate summary metrics across ALL of the user's portfolios, powering the
+ * four stat cards at the top of the Portfolio Analysis page: total AUM,
+ * AUM-weighted YTD, today's P&L (abs + value-weighted pct), and the 24h rating
+ * events count. When the user has no portfolios/snapshots, the numeric fields
+ * and `as_of` are null and `events_24h` is all zeros.
+ */
+export async function getPortfolioSummary(
+  signal?: AbortSignal,
+): Promise<PortfolioSummary> {
+  const { data } = await apiClient.get<PortfolioSummary>('/portfolios/summary', {
+    signal,
+  });
+  return data;
+}
