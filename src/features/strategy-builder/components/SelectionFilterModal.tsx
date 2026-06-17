@@ -98,9 +98,12 @@ export function SelectionFilterModal({
       <div className="space-y-6">
         <div className="flex items-center gap-4">
           <div className="flex-1">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Minimum</label>
+            <label htmlFor={`sel-min-${def.key}`} className="block text-sm font-medium text-gray-700 mb-1">
+              Minimum
+            </label>
             <div className="relative">
               <input
+                id={`sel-min-${def.key}`}
                 type="number"
                 value={min}
                 onChange={(e) => setMin(parse(e.target.value))}
@@ -118,9 +121,12 @@ export function SelectionFilterModal({
           <span className="text-gray-400 pt-6">—</span>
 
           <div className="flex-1">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Maximum</label>
+            <label htmlFor={`sel-max-${def.key}`} className="block text-sm font-medium text-gray-700 mb-1">
+              Maximum
+            </label>
             <div className="relative">
               <input
+                id={`sel-max-${def.key}`}
                 type="number"
                 value={max}
                 onChange={(e) => setMax(parse(e.target.value))}
