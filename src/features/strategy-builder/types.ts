@@ -47,8 +47,11 @@ export type FundamentalKey =
   | 'gross_margin'
   | 'operating_margin';
 
-/** UI-side min/max for a fundamental ('' = no bound). */
-export interface FundamentalRange {
+/** One active fundamental filter the user added (Selection rules is dynamic —
+ *  the user picks fields from a catalog; only added fields render min/max
+ *  inputs). '' = no bound on that side. */
+export interface FundamentalFilter {
+  key: FundamentalKey;
   min: number | '';
   max: number | '';
 }
@@ -209,8 +212,8 @@ export interface BuilderConfig {
   // investment universe (instrument type + country are locked)
   companySizes: MarketCapBucket[];
   excluded: ExcludedSymbol[];
-  // selection rules — PIT fundamentals filters (min/max per ratio)
-  fundamentals: Record<FundamentalKey, FundamentalRange>;
+  // selection rules — ordered list of the fundamentals the user added (dynamic)
+  fundamentals: FundamentalFilter[];
   // universe (PIT-safe)
   sector: string; // '' = all
   minRating: number; // -3..3 → universe.rating.min
