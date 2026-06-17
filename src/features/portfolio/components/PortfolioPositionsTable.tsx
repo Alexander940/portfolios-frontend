@@ -17,6 +17,8 @@ import type {
   PositionSortField,
   SortOrder,
 } from '@/services/portfolioService';
+import { RatingBadge } from './RatingBadge';
+import { fmtNumber, fmtDate } from '../lib/format';
 
 interface Column {
   key: string;
@@ -44,19 +46,6 @@ const COLUMNS: Column[] = [
   { key: 'entry_date',       label: 'Entry',    align: 'left',   width: '120px', sortBy: 'entry_date',     sortable: true },
 ];
 
-const RATING_CONFIG: Record<number, { color: string }> = {
-  3:    { color: 'var(--c-pos)' },
-  2:    { color: 'var(--c-pos)' },
-  1:    { color: 'var(--c-pos)' },
-  [-1]: { color: 'var(--c-neg)' },
-  [-2]: { color: 'var(--c-neg)' },
-  [-3]: { color: 'var(--c-neg)' },
-};
-
-function formatRatingLabel(rating: number): string {
-  return rating > 0 ? `+${rating}` : `${rating}`;
-}
-
 interface PortfolioPositionsTableProps {
   positions: PortfolioPositionDetail[];
   isLoading: boolean;
@@ -73,25 +62,6 @@ interface PortfolioPositionsTableProps {
 }
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100, 200] as const;
-
-function fmtNumber(n: number | string | null | undefined, decimals = 2): string {
-  if (n === null || n === undefined) return '—';
-  const num = typeof n === 'number' ? n : Number(n);
-  if (!Number.isFinite(num)) return '—';
-  return num.toLocaleString(undefined, {
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals,
-  });
-}
-
-function fmtDate(iso: string | null | undefined): string {
-  if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  });
-}
 
 function parseWidth(w: string): number {
   const n = parseInt(w, 10);
@@ -530,35 +500,6 @@ function PositionRow({
         {fmtDate(pos.entry_date)}
       </td>
     </tr>
-  );
-}
-
-function RatingBadge({ rating }: { rating: number | null | undefined }) {
-  if (rating === null || rating === undefined) {
-    return <span style={{ color: 'var(--c-text-dim)', fontSize: 11 }}>—</span>;
-  }
-  const cfg = RATING_CONFIG[rating];
-  if (!cfg)
-    return <span style={{ color: 'var(--c-text-dim)', fontSize: 11 }}>—</span>;
-  return (
-    <span
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        minWidth: 28,
-        height: 22,
-        padding: '0 6px',
-        borderRadius: 11,
-        color: '#fff',
-        fontSize: 11,
-        fontWeight: 700,
-        background: cfg.color,
-        fontVariantNumeric: 'tabular-nums',
-      }}
-    >
-      {formatRatingLabel(rating)}
-    </span>
   );
 }
 
