@@ -47,11 +47,26 @@ export type FundamentalKey =
   | 'gross_margin'
   | 'operating_margin';
 
-/** One active fundamental filter the user added (Selection rules is dynamic —
- *  the user picks fields from a catalog; only added fields render min/max
- *  inputs). '' = no bound on that side. */
+/** Screener "performance view" fields, PIT via the backfilled symbol_performance
+ *  history. Returns are stored as percent (entered as-is); sharpe is unitless. */
+export type PerformanceKey =
+  | 'return_1w'
+  | 'return_1m'
+  | 'return_3m'
+  | 'return_6m'
+  | 'return_12m'
+  | 'return_ytd'
+  | 'sharpe_6m'
+  | 'sharpe_12m';
+
+/** Any screener field the user can add as a Selection-rules filter. */
+export type ScreenerFieldKey = FundamentalKey | PerformanceKey;
+
+/** One active filter the user added (Selection rules is dynamic — the user picks
+ *  fields from a catalog; only added fields render min/max inputs). '' = no
+ *  bound on that side. */
 export interface FundamentalFilter {
-  key: FundamentalKey;
+  key: ScreenerFieldKey;
   min: number | '';
   max: number | '';
 }
@@ -73,6 +88,16 @@ export interface UniverseSpec {
   pcf_ratio?: RangeFilter;
   gross_margin?: RangeFilter;
   operating_margin?: RangeFilter;
+  // Selection-rules performance (PIT via symbol_performance). Returns are in
+  // percent (no transform); sharpe is unitless.
+  return_1w?: RangeFilter;
+  return_1m?: RangeFilter;
+  return_3m?: RangeFilter;
+  return_6m?: RangeFilter;
+  return_12m?: RangeFilter;
+  return_ytd?: RangeFilter;
+  sharpe_6m?: RangeFilter;
+  sharpe_12m?: RangeFilter;
 }
 
 /** A stock chosen for the Exclusion list (kept with ticker/name for display). */
