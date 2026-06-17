@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import { Icon } from '../icons';
 import {
   FILTER_CATEGORIES,
+  formatRange,
   MARKET_CAP_BUCKETS,
   PERFORMANCE_METRICS,
   SCREENER_FILTERS,
@@ -10,6 +11,7 @@ import {
 import type { BuilderConfig, ScreenerFieldKey, WeightMethod } from '../types';
 import { ExclusionPicker } from './ExclusionPicker';
 import { NumField, Section, Tip } from './formBits';
+import { FilterChip, SelectionFilterModal } from './SelectionFilterModal';
 
 interface Props {
   initialCfg: BuilderConfig;
@@ -41,19 +43,25 @@ export function BuilderForm({ initialCfg, busy, onCancel, onSave, onSaveBacktest
     6: true,
   });
   const set = (patch: Partial<BuilderConfig>) => setCfg((c) => ({ ...c, ...patch }));
-  const addFund = (key: ScreenerFieldKey) =>
-    setCfg((c) =>
-      c.fundamentals.some((f) => f.key === key)
-        ? c
-        : { ...c, fundamentals: [...c.fundamentals, { key, min: '', max: '' }] },
-    );
+  // Which Selection-rules filter the modal is editing (null = closed).
+  const [editingKey, setEditingKey] = useState<ScreenerFieldKey | null>(null);
   const removeFund = (key: ScreenerFieldKey) =>
     setCfg((c) => ({ ...c, fundamentals: c.fundamentals.filter((f) => f.key !== key) }));
-  const setFund = (key: ScreenerFieldKey, bound: 'min' | 'max', v: number | '') =>
-    setCfg((c) => ({
-      ...c,
-      fundamentals: c.fundamentals.map((f) => (f.key === key ? { ...f, [bound]: v } : f)),
-    }));
+  // Add-or-update a filter from the modal: no bounds → not stored (removed);
+  // existing key keeps its position; new key is appended.
+  const upsertFund = (key: ScreenerFieldKey, min: number | '', max: number | '') =>
+    setCfg((c) => {
+      if (min === '' && max === '') {
+        return { ...c, fundamentals: c.fundamentals.filter((f) => f.key !== key) };
+      }
+      if (c.fundamentals.some((f) => f.key === key)) {
+        return {
+          ...c,
+          fundamentals: c.fundamentals.map((f) => (f.key === key ? { key, min, max } : f)),
+        };
+      }
+      return { ...c, fundamentals: [...c.fundamentals, { key, min, max }] };
+    });
   const toggleSection = (n: number) => setOpen((o) => ({ ...o, [n]: !o[n] }));
 
   const errors = useMemo(() => {
@@ -81,10 +89,12 @@ export function BuilderForm({ initialCfg, busy, onCancel, onSave, onSaveBacktest
   const metricLabel =
     PERFORMANCE_METRICS.find((m) => m.k === cfg.performanceMetric)?.label ?? cfg.performanceMetric;
 
-  // Selection rules is dynamic: the add-selector offers only fundamentals the
-  // user hasn't added yet.
+  // Selection rules is dynamic: the add-selector offers only fields the user
+  // hasn't added yet; the modal edits whichever field `editingKey` points at.
   const activeFundKeys = new Set(cfg.fundamentals.map((f) => f.key));
   const availableFundamentals = SCREENER_FILTERS.filter((f) => !activeFundKeys.has(f.key));
+  const editingDef = editingKey ? SCREENER_FILTERS.find((f) => f.key === editingKey) ?? null : null;
+  const editingFilter = editingKey ? cfg.fundamentals.find((f) => f.key === editingKey) ?? null : null;
 
   return (
     <div className="sb-build-grid">
@@ -243,43 +253,18 @@ export function BuilderForm({ initialCfg, busy, onCancel, onSave, onSaveBacktest
             </span>
           </div>
           {cfg.fundamentals.length > 0 && (
-            <div className="sb-fund-grid">
+            <div className="sb-chips" style={{ marginTop: 14 }}>
               {cfg.fundamentals.map((active) => {
                 const meta = SCREENER_FILTERS.find((f) => f.key === active.key);
                 if (!meta) return null;
                 return (
-                  <div className="sb-fund-row" key={active.key}>
-                    <div className="sb-fund-row-head">
-                      <div className="sb-field-label">
-                        {meta.label}
-                        {meta.kind === 'pct' ? ' (%)' : ''} <Tip text={meta.hint} />
-                      </div>
-                      <button
-                        type="button"
-                        className="sb-fund-remove"
-                        onClick={() => removeFund(active.key)}
-                        aria-label={`Remove ${meta.label}`}
-                      >
-                        <Icon name="x" size={13} />
-                      </button>
-                    </div>
-                    <div className="sb-grid-2">
-                      <NumField
-                        label="Min"
-                        value={active.min}
-                        onChange={(v) => setFund(active.key, 'min', v)}
-                        step={meta.kind === 'pct' ? 1 : 0.1}
-                        hint="no lower bound"
-                      />
-                      <NumField
-                        label="Max"
-                        value={active.max}
-                        onChange={(v) => setFund(active.key, 'max', v)}
-                        step={meta.kind === 'pct' ? 1 : 0.1}
-                        hint="no upper bound"
-                      />
-                    </div>
-                  </div>
+                  <FilterChip
+                    key={active.key}
+                    label={meta.label}
+                    value={formatRange(active.min, active.max, meta.unit)}
+                    onClick={() => setEditingKey(active.key)}
+                    onRemove={() => removeFund(active.key)}
+                  />
                 );
               })}
             </div>
@@ -291,7 +276,7 @@ export function BuilderForm({ initialCfg, busy, onCancel, onSave, onSaveBacktest
                   className="sb-select"
                   value=""
                   onChange={(e) => {
-                    if (e.target.value) addFund(e.target.value as ScreenerFieldKey);
+                    if (e.target.value) setEditingKey(e.target.value as ScreenerFieldKey);
                   }}
                 >
                   <option value="">+ Add a filter…</option>
@@ -310,15 +295,34 @@ export function BuilderForm({ initialCfg, busy, onCancel, onSave, onSaveBacktest
                 </select>
               </div>
               {cfg.fundamentals.length === 0 && (
-                <span className="sb-fund-add-hint">No filters yet — pick a field to screen by it.</span>
+                <span className="sb-fund-add-hint">No filters yet — pick a field to add one.</span>
               )}
             </div>
           ) : (
             <div className="sb-fund-add-hint" style={{ marginTop: 12 }}>
-              All available fundamentals added.
+              All available fields added.
             </div>
           )}
         </Section>
+
+        {editingKey && editingDef && (
+          <SelectionFilterModal
+            key={editingKey}
+            def={editingDef}
+            initialMin={editingFilter?.min ?? ''}
+            initialMax={editingFilter?.max ?? ''}
+            exists={!!editingFilter}
+            onApply={(min, max) => {
+              upsertFund(editingKey, min, max);
+              setEditingKey(null);
+            }}
+            onRemove={() => {
+              removeFund(editingKey);
+              setEditingKey(null);
+            }}
+            onClose={() => setEditingKey(null)}
+          />
+        )}
 
         {/* 4. Weighting */}
         <Section num="4" title="Weighting" sub="How capital is allocated" open={open[4]} onToggle={() => toggleSection(4)}>
