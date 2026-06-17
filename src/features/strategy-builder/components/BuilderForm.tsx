@@ -9,7 +9,7 @@ import {
 } from '../mapping';
 import type { BuilderConfig, ScreenerFieldKey, WeightMethod } from '../types';
 import { ExclusionPicker } from './ExclusionPicker';
-import { NumField, Section, ToggleRow, Tip } from './formBits';
+import { NumField, Section, Tip } from './formBits';
 
 interface Props {
   initialCfg: BuilderConfig;
@@ -39,7 +39,6 @@ export function BuilderForm({ initialCfg, busy, onCancel, onSave, onSaveBacktest
     4: true,
     5: true,
     6: true,
-    7: true,
   });
   const set = (patch: Partial<BuilderConfig>) => setCfg((c) => ({ ...c, ...patch }));
   const addFund = (key: ScreenerFieldKey) =>
@@ -321,55 +320,8 @@ export function BuilderForm({ initialCfg, busy, onCancel, onSave, onSaveBacktest
           )}
         </Section>
 
-        {/* 4. Entry & Exit */}
-        <Section num="4" title="Entry & Exit rules" sub="Trade-state parameters" open={open[4]} onToggle={() => toggleSection(4)}>
-          <div className="sb-grid-2" style={{ marginTop: 14 }}>
-            <NumField
-              label="Min. efficiency ratio"
-              tip="Kaufman efficiency ratio (0–1). Higher = cleaner trend. Only enter names above this threshold."
-              value={cfg.minEr}
-              onChange={(v) => set({ minEr: typeof v === 'number' ? v : 0 })}
-              min={0}
-              max={1}
-              step={0.05}
-              hint="0 = choppy, 1 = perfect trend"
-            />
-            <NumField
-              label="Exit rating (long)"
-              tip="Close a long position when the symbol's rating falls to or below this level."
-              value={cfg.exitRatingLong}
-              onChange={(v) => set({ exitRatingLong: typeof v === 'number' ? v : -1 })}
-              min={-3}
-              max={3}
-            />
-          </div>
-          <div style={{ marginTop: 16 }}>
-            <ToggleRow
-              name="Trailing stop"
-              tip="Exit automatically if price falls a set ATR multiple below its peak since entry."
-              desc={cfg.useTrailStop ? `Active — exit at ${cfg.trailAtrMult}× ATR from peak` : 'Disabled'}
-              on={cfg.useTrailStop}
-              onToggle={() => set({ useTrailStop: !cfg.useTrailStop })}
-            />
-          </div>
-          {cfg.useTrailStop && (
-            <div style={{ marginTop: 14, maxWidth: 260 }}>
-              <NumField
-                label="Trailing stop (ATR ×)"
-                tip="How many ATRs below the running peak the stop sits."
-                value={cfg.trailAtrMult}
-                onChange={(v) => set({ trailAtrMult: typeof v === 'number' ? v : 3 })}
-                min={0.5}
-                max={10}
-                step={0.5}
-                suffix="× ATR"
-              />
-            </div>
-          )}
-        </Section>
-
-        {/* 5. Weighting */}
-        <Section num="5" title="Weighting" sub="How capital is allocated" open={open[5]} onToggle={() => toggleSection(5)}>
+        {/* 4. Weighting */}
+        <Section num="4" title="Weighting" sub="How capital is allocated" open={open[4]} onToggle={() => toggleSection(4)}>
           <div className="sb-radio-grid">
             {WEIGHT_OPTIONS.map((o) => (
               <button
@@ -390,8 +342,8 @@ export function BuilderForm({ initialCfg, busy, onCancel, onSave, onSaveBacktest
           </div>
         </Section>
 
-        {/* 6. Costs */}
-        <Section num="6" title="Costs" sub="Trading frictions applied to every fill" open={open[6]} onToggle={() => toggleSection(6)}>
+        {/* 5. Costs */}
+        <Section num="5" title="Costs" sub="Trading frictions applied to every fill" open={open[5]} onToggle={() => toggleSection(5)}>
           <div className="sb-grid-2" style={{ marginTop: 14, maxWidth: 420 }}>
             <NumField
               label="Commission"
@@ -412,8 +364,8 @@ export function BuilderForm({ initialCfg, busy, onCancel, onSave, onSaveBacktest
           </div>
         </Section>
 
-        {/* 7. Validation */}
-        <Section num="7" title="Validation window" sub="Backtest period and robustness checks" open={open[7]} onToggle={() => toggleSection(7)}>
+        {/* 6. Validation */}
+        <Section num="6" title="Validation window" sub="Backtest period and robustness checks" open={open[6]} onToggle={() => toggleSection(6)}>
           <div className="sb-grid-2" style={{ marginTop: 14 }}>
             <div className="sb-field" style={{ marginTop: 0 }}>
               <div className="sb-field-label">Start date</div>
