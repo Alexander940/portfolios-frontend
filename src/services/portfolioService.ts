@@ -225,3 +225,59 @@ export async function getPerformanceCurve(
   );
   return data;
 }
+
+// =============================================================================
+// Relevant events (rating upgrades/downgrades + price movers across holdings)
+// =============================================================================
+
+export type EventPeriod = 'today' | 'week';
+export type RelevantEventType = 'all' | 'upgrades' | 'downgrades' | 'movers';
+
+export interface RelevantEvent {
+  event_type: 'upgrade' | 'downgrade' | 'mover';
+  ticker: string;
+  name: string;
+  sector: string | null;
+  /** Portfolio chosen for this symbol (highest current value). */
+  portfolio_id: string;
+  portfolio_name: string;
+  /** Populated for upgrade/downgrade. */
+  previous_rating: number | null;
+  current_rating: number | null;
+  rating_delta: number | null;
+  /** Populated for movers; sign = direction (e.g. -4.8 = down 4.8%). */
+  move_pct: number | null;
+  /** Rating change date for upgrades/downgrades; latest perf date for movers. */
+  as_of: string | null;
+  /** How many of the user's portfolios hold this symbol. */
+  held_in_portfolios: number;
+}
+
+export interface RelevantEventList {
+  items: RelevantEvent[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+/**
+ * Aggregated "relevant events" across ALL of the user's portfolios: rating
+ * upgrades/downgrades (window-based) and notable price movers among holdings.
+ * Each symbol appears once (deduped to its highest-value portfolio).
+ */
+export async function getRelevantEvents(
+  params: {
+    period: EventPeriod;
+    type: RelevantEventType;
+    min_move_pct?: number;
+    limit?: number;
+    offset?: number;
+  },
+  signal?: AbortSignal,
+): Promise<RelevantEventList> {
+  const { data } = await apiClient.get<RelevantEventList>('/portfolios/events', {
+    params,
+    signal,
+  });
+  return data;
+}

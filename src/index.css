@@ -777,6 +777,147 @@ td.dim,
   background: var(--c-bg-soft);
 }
 
+/* Inline error + retry (compact, fits the 380px rail) */
+.rail-error {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px;
+  font-size: 12px;
+  color: var(--c-neg);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius);
+  background: var(--c-bg-soft);
+}
+.rail-retry {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-family: inherit;
+  color: var(--c-text-soft);
+  background: var(--c-bg);
+  border: 1px solid var(--c-border);
+  border-radius: 100px;
+  cursor: pointer;
+}
+.rail-retry:hover {
+  border-color: var(--c-border-strong);
+  color: var(--c-text);
+}
+
+/* Event list */
+.rail-list {
+  display: flex;
+  flex-direction: column;
+}
+.rail-section-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--c-text-dim);
+  margin: 10px 0 4px;
+  padding: 0 2px;
+}
+.rail-section-label:first-child {
+  margin-top: 0;
+}
+
+/* A single event row (button) */
+.rail-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 8px;
+  text-align: left;
+  font-family: inherit;
+  background: none;
+  border: 0;
+  border-radius: var(--radius-sm);
+  border-bottom: 1px solid var(--c-border);
+  cursor: pointer;
+}
+.rail-row:last-child {
+  border-bottom: 0;
+}
+.rail-row:hover {
+  background: var(--c-bg-soft);
+}
+.rail-row-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.rail-ticker {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--c-text);
+  font-variant-numeric: tabular-nums;
+}
+.rail-name {
+  font-size: 11px;
+  color: var(--c-text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rail-row-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+  flex: 0 0 auto;
+}
+.rail-ratings {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.rail-arrow {
+  font-size: 11px;
+  color: var(--c-text-dim);
+}
+.rail-delta {
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  margin-left: 2px;
+}
+.rail-move {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.rail-date {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Loading skeleton */
+.rail-row-skeleton {
+  cursor: default;
+}
+.rail-row-skeleton:hover {
+  background: none;
+}
+.rail-skel {
+  height: 12px;
+  border-radius: 4px;
+  background: var(--c-bg-softer);
+  animation: pulse 1.6s ease-in-out infinite;
+}
+
 /* ============================================================
    LOGIN — split-pane shell + Prime art panel + form
    ============================================================ */
