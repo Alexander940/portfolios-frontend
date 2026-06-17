@@ -253,7 +253,7 @@ function PerfStatStrip({ portfolioId }: { portfolioId: string }) {
       </span>
       <span>
         <span className="k">Max DD:</span>
-        <span className="neg">
+        <span className={stats.maxDdPct != null && stats.maxDdPct < 0 ? 'neg' : 'dim'}>
           {stats.maxDdPct == null ? DASH : pctLabel(stats.maxDdPct)}
         </span>
       </span>
@@ -277,19 +277,30 @@ interface SectorSlice {
   pct: number;
 }
 
+function toFiniteNumber(v: number | string | null | undefined): number | null {
+  if (v === null || v === undefined) return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
 function aggregateSectors(
   positions: PortfolioPositionDetail[],
 ): SectorSlice[] {
+  // Use ONE consistent basis across the whole portfolio so dollar values and
+  // percentage weights are never summed into the same denominator: value-weight
+  // when every holding has a current value, otherwise the portfolio weight_pct.
+  const useValue =
+    positions.length > 0 &&
+    positions.every((p) => toFiniteNumber(p.current_value) != null);
+
   const totals = new Map<string, number>();
   for (const p of positions) {
-    const sector = p.sector ?? 'Other';
-    const value =
-      p.current_value != null && Number.isFinite(Number(p.current_value))
-        ? Number(p.current_value)
-        : p.weight_pct != null && Number.isFinite(Number(p.weight_pct))
-          ? Number(p.weight_pct)
-          : 0;
+    const raw = useValue
+      ? toFiniteNumber(p.current_value)
+      : toFiniteNumber(p.weight_pct);
+    const value = raw != null && raw > 0 ? raw : 0;
     if (value <= 0) continue;
+    const sector = p.sector ?? 'Other';
     totals.set(sector, (totals.get(sector) ?? 0) + value);
   }
 
