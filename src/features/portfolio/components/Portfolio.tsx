@@ -15,8 +15,12 @@ import { isApiError } from '@/lib/apiErrors';
 import { PortfolioHeader } from './PortfolioHeader';
 import { PortfoliosTable } from './PortfoliosTable';
 import { PortfolioPositionsTable } from './PortfolioPositionsTable';
-import { PortfolioPerformanceChart } from './PortfolioPerformanceChart';
+import { PortfolioOverviewTab } from './PortfolioOverviewTab';
+import { PortfolioEventsTab } from './PortfolioEventsTab';
 import { ImportPortfolioFromExcelModal } from './ImportPortfolioFromExcelModal';
+
+const DETAIL_TABS = ['overview', 'holdings', 'events'] as const;
+type DetailTab = (typeof DETAIL_TABS)[number];
 
 /**
  * Portfolio feature root — renders the Portfolio Analysis page.
@@ -44,6 +48,8 @@ export function Portfolio() {
   const [pageSize, setPageSize] = useState(25);
 
   const [importModalOpen, setImportModalOpen] = useState(false);
+
+  const [activeTab, setActiveTab] = useState<DetailTab>('overview');
 
   const positionsAbortRef = useRef<AbortController | null>(null);
 
@@ -218,22 +224,43 @@ export function Portfolio() {
 
       {portfolio && <PortfolioHeader portfolio={portfolio} />}
 
-      <PortfolioPerformanceChart portfolioId={portfolioId} />
+      <div className="tabs" role="tablist">
+        {DETAIL_TABS.map((t) => (
+          <button
+            key={t}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === t}
+            className={`tab ${activeTab === t ? 'active' : ''}`}
+            onClick={() => setActiveTab(t)}
+          >
+            {t[0].toUpperCase() + t.slice(1)}
+          </button>
+        ))}
+      </div>
 
-      <PortfolioPositionsTable
-        positions={positions}
-        isLoading={positionsLoading}
-        error={positionsError}
-        onRetry={handleRetry}
-        sortBy={sortBy}
-        sortOrder={sortOrder}
-        onSortChange={handleSortChange}
-        page={page}
-        pageSize={pageSize}
-        total={positionsTotal}
-        onPageChange={setPage}
-        onPageSizeChange={handlePageSizeChange}
-      />
+      {activeTab === 'overview' && (
+        <PortfolioOverviewTab portfolioId={portfolioId} />
+      )}
+
+      {activeTab === 'holdings' && (
+        <PortfolioPositionsTable
+          positions={positions}
+          isLoading={positionsLoading}
+          error={positionsError}
+          onRetry={handleRetry}
+          sortBy={sortBy}
+          sortOrder={sortOrder}
+          onSortChange={handleSortChange}
+          page={page}
+          pageSize={pageSize}
+          total={positionsTotal}
+          onPageChange={setPage}
+          onPageSizeChange={handlePageSizeChange}
+        />
+      )}
+
+      {activeTab === 'events' && <PortfolioEventsTab portfolioId={portfolioId} />}
     </div>
   );
 }

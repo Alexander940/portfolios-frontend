@@ -29,8 +29,15 @@ const FILTER_PARAM: Record<FilterLabel, RelevantEventType> = {
  * Mirrors the screener data hook's request lifecycle: cancels the previous
  * request when period/filter change, ignores AbortError, and aborts on unmount.
  * Unlike the screener it takes the UI labels as args (no store, no debounce).
+ *
+ * When `portfolioId` is provided, the feed is scoped to that single portfolio's
+ * holdings; when omitted, it aggregates across all of the user's portfolios.
  */
-export function useRelevantEvents(period: PeriodLabel, filter: FilterLabel) {
+export function useRelevantEvents(
+  period: PeriodLabel,
+  filter: FilterLabel,
+  portfolioId?: string,
+) {
   const [events, setEvents] = useState<RelevantEvent[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -55,6 +62,7 @@ export function useRelevantEvents(period: PeriodLabel, filter: FilterLabel) {
         {
           period: PERIOD_PARAM[period],
           type: FILTER_PARAM[filter],
+          ...(portfolioId ? { portfolio_id: portfolioId } : {}),
         },
         controller.signal,
       );
@@ -86,7 +94,7 @@ export function useRelevantEvents(period: PeriodLabel, filter: FilterLabel) {
         setIsLoading(false);
       }
     }
-  }, [period, filter]);
+  }, [period, filter, portfolioId]);
 
   // Refetch whenever the period or filter changes
   useEffect(() => {

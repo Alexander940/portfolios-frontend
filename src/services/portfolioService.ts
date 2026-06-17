@@ -261,9 +261,13 @@ export interface RelevantEventList {
 }
 
 /**
- * Aggregated "relevant events" across ALL of the user's portfolios: rating
+ * Aggregated "relevant events" across the user's portfolios: rating
  * upgrades/downgrades (window-based) and notable price movers among holdings.
  * Each symbol appears once (deduped to its highest-value portfolio).
+ *
+ * When `portfolio_id` is provided, events are scoped to the holdings of that
+ * single portfolio (which must belong to the authenticated user); when omitted,
+ * the feed aggregates across ALL of the user's portfolios.
  */
 export async function getRelevantEvents(
   params: {
@@ -272,6 +276,7 @@ export async function getRelevantEvents(
     min_move_pct?: number;
     limit?: number;
     offset?: number;
+    portfolio_id?: string;
   },
   signal?: AbortSignal,
 ): Promise<RelevantEventList> {
