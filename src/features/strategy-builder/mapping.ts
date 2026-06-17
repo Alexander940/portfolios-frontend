@@ -27,34 +27,47 @@ export const MARKET_CAP_BUCKETS: { k: MarketCapBucket; label: string; hint: stri
 // PIT_SAFE_QUARTERLY_FIELDS (Fundamentals) + PIT_SAFE_PERF_FIELDS (Performance).
 export type FilterCategory = 'Fundamentals' | 'Performance';
 
-export const SCREENER_FILTERS: {
+export interface ScreenerFilterDef {
   key: ScreenerFieldKey;
   label: string;
   kind: 'ratio' | 'pct';
   hint: string;
   category: FilterCategory;
-}[] = [
+  unit?: string; // shown in the chip/modal (e.g. '%'); margins are also ÷100 (kind 'pct')
+}
+
+export const SCREENER_FILTERS: ScreenerFilterDef[] = [
   // Fundamentals — PIT via fundamentals_quarterly.
   { key: 'pe_ratio', label: 'P/E ratio', kind: 'ratio', hint: 'Price / trailing earnings (TTM, at quarter-end price).', category: 'Fundamentals' },
   { key: 'ps_ratio', label: 'P/S ratio', kind: 'ratio', hint: 'Price / sales.', category: 'Fundamentals' },
   { key: 'pb_ratio', label: 'P/B ratio', kind: 'ratio', hint: 'Price / book value.', category: 'Fundamentals' },
   { key: 'pcf_ratio', label: 'P/CF ratio', kind: 'ratio', hint: 'Price / operating cash flow.', category: 'Fundamentals' },
-  { key: 'gross_margin', label: 'Gross margin', kind: 'pct', hint: 'Gross profit / revenue.', category: 'Fundamentals' },
-  { key: 'operating_margin', label: 'Operating margin', kind: 'pct', hint: 'Operating income / revenue.', category: 'Fundamentals' },
+  { key: 'gross_margin', label: 'Gross margin', kind: 'pct', hint: 'Gross profit / revenue.', category: 'Fundamentals', unit: '%' },
+  { key: 'operating_margin', label: 'Operating margin', kind: 'pct', hint: 'Operating income / revenue.', category: 'Fundamentals', unit: '%' },
   // Performance — PIT via the backfilled symbol_performance history. Returns are
-  // percent (entered as-is, 90-day windows in trading days); sharpe is unitless.
-  { key: 'return_1w', label: 'Return 1W (%)', kind: 'ratio', hint: '1-week price return, point-in-time.', category: 'Performance' },
-  { key: 'return_1m', label: 'Return 1M (%)', kind: 'ratio', hint: '1-month price return, point-in-time.', category: 'Performance' },
-  { key: 'return_3m', label: 'Return 3M (%)', kind: 'ratio', hint: '3-month price return, point-in-time.', category: 'Performance' },
-  { key: 'return_6m', label: 'Return 6M (%)', kind: 'ratio', hint: '6-month price return, point-in-time.', category: 'Performance' },
-  { key: 'return_12m', label: 'Return 12M (%)', kind: 'ratio', hint: '12-month price return, point-in-time.', category: 'Performance' },
-  { key: 'return_ytd', label: 'Return YTD (%)', kind: 'ratio', hint: 'Year-to-date price return, point-in-time.', category: 'Performance' },
+  // percent (entered as-is, windows in trading days); sharpe is unitless.
+  { key: 'return_1w', label: 'Return 1W', kind: 'ratio', hint: '1-week price return, point-in-time.', category: 'Performance', unit: '%' },
+  { key: 'return_1m', label: 'Return 1M', kind: 'ratio', hint: '1-month price return, point-in-time.', category: 'Performance', unit: '%' },
+  { key: 'return_3m', label: 'Return 3M', kind: 'ratio', hint: '3-month price return, point-in-time.', category: 'Performance', unit: '%' },
+  { key: 'return_6m', label: 'Return 6M', kind: 'ratio', hint: '6-month price return, point-in-time.', category: 'Performance', unit: '%' },
+  { key: 'return_12m', label: 'Return 12M', kind: 'ratio', hint: '12-month price return, point-in-time.', category: 'Performance', unit: '%' },
+  { key: 'return_ytd', label: 'Return YTD', kind: 'ratio', hint: 'Year-to-date price return, point-in-time.', category: 'Performance', unit: '%' },
   { key: 'sharpe_6m', label: 'Sharpe 6M', kind: 'ratio', hint: '6-month annualized Sharpe ratio.', category: 'Performance' },
   { key: 'sharpe_12m', label: 'Sharpe 12M', kind: 'ratio', hint: '12-month annualized Sharpe ratio.', category: 'Performance' },
 ];
 
 // Ordered category list for the add-selector's <optgroup>s.
 export const FILTER_CATEGORIES: FilterCategory[] = ['Fundamentals', 'Performance'];
+
+/** Human-readable bounds for a Selection-rules chip: "5 – 20 %", "≥ 5", "≤ 20",
+ *  or "any" when both bounds are blank. */
+export function formatRange(min: number | '', max: number | '', unit?: string): string {
+  const u = unit ? ` ${unit}` : '';
+  if (min !== '' && max !== '') return `${min}${u} – ${max}${u}`;
+  if (min !== '') return `≥ ${min}${u}`;
+  if (max !== '') return `≤ ${max}${u}`;
+  return 'any';
+}
 
 // Catalog lookup by key — cfgToSpec needs each active filter's `kind` (to know
 // whether to divide a percentage margin by 100).
