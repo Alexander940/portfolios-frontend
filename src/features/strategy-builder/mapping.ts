@@ -38,11 +38,9 @@ export const FUNDAMENTAL_FILTERS: {
   { key: 'operating_margin', label: 'Operating margin', kind: 'pct', hint: 'Operating income / revenue.' },
 ];
 
-const EMPTY_FUNDAMENTALS = (): Record<FundamentalKey, { min: number | ''; max: number | '' }> =>
-  FUNDAMENTAL_FILTERS.reduce(
-    (acc, f) => ({ ...acc, [f.key]: { min: '', max: '' } }),
-    {} as Record<FundamentalKey, { min: number | ''; max: number | '' }>,
-  );
+// Catalog lookup by key — cfgToSpec needs each active filter's `kind` (to know
+// whether to divide a percentage margin by 100).
+const FUNDAMENTAL_BY_KEY = new Map(FUNDAMENTAL_FILTERS.map((f) => [f.key, f]));
 
 // Options for the General-parameters "Performance" select (the metric the
 // strategy is compared to the benchmark on).
@@ -90,7 +88,7 @@ export const DEFAULT_CONFIG: BuilderConfig = {
   performanceMetric: 'total_return',
   companySizes: [],
   excluded: [],
-  fundamentals: EMPTY_FUNDAMENTALS(),
+  fundamentals: [],
   sector: '',
   minRating: 1,
   minTrendStrength: '',
@@ -120,11 +118,10 @@ export const DEFAULT_CONFIG: BuilderConfig = {
  *  (`cfg.fundamentals[k]`) or cfgToSpec. Idempotent on fresh configs. */
 export function normalizeCfg(cfg: BuilderConfig): BuilderConfig {
   const saved = cfg as Partial<BuilderConfig>;
-  return {
-    ...DEFAULT_CONFIG,
-    ...cfg,
-    fundamentals: { ...DEFAULT_CONFIG.fundamentals, ...(saved.fundamentals ?? {}) },
-  };
+  // `fundamentals` went from a keyed record to an array of active filters; an
+  // older saved config (record / missing) is dropped to an empty list.
+  const fundamentals = Array.isArray(saved.fundamentals) ? saved.fundamentals : [];
+  return { ...DEFAULT_CONFIG, ...cfg, fundamentals };
 }
 
 export function cfgToSpec(cfg: BuilderConfig): StrategySpec {
@@ -139,13 +136,15 @@ export function cfgToSpec(cfg: BuilderConfig): StrategySpec {
   if (cfg.companySizes.length) universe.market_cap_category = cfg.companySizes;
   if (cfg.excluded.length) universe.exclude = cfg.excluded.map((e) => e.symbolId);
 
-  // Selection-rules fundamentals → universe range filters (margins % ÷ 100).
-  for (const f of FUNDAMENTAL_FILTERS) {
-    const r = cfg.fundamentals[f.key];
-    const div = f.kind === 'pct' ? 100 : 1;
+  // Selection-rules fundamentals → universe range filters (only the filters the
+  // user added; margins entered as % are stored as fractions ÷ 100).
+  for (const f of cfg.fundamentals) {
+    const meta = FUNDAMENTAL_BY_KEY.get(f.key);
+    if (!meta) continue;
+    const div = meta.kind === 'pct' ? 100 : 1;
     const range: RangeFilter = {};
-    if (r.min !== '') range.min = Number(r.min) / div;
-    if (r.max !== '') range.max = Number(r.max) / div;
+    if (f.min !== '') range.min = Number(f.min) / div;
+    if (f.max !== '') range.max = Number(f.max) / div;
     if (range.min !== undefined || range.max !== undefined) universe[f.key] = range;
   }
 

@@ -37,10 +37,18 @@ export function BuilderForm({ initialCfg, busy, onCancel, onSave, onSaveBacktest
     7: true,
   });
   const set = (patch: Partial<BuilderConfig>) => setCfg((c) => ({ ...c, ...patch }));
+  const addFund = (key: FundamentalKey) =>
+    setCfg((c) =>
+      c.fundamentals.some((f) => f.key === key)
+        ? c
+        : { ...c, fundamentals: [...c.fundamentals, { key, min: '', max: '' }] },
+    );
+  const removeFund = (key: FundamentalKey) =>
+    setCfg((c) => ({ ...c, fundamentals: c.fundamentals.filter((f) => f.key !== key) }));
   const setFund = (key: FundamentalKey, bound: 'min' | 'max', v: number | '') =>
     setCfg((c) => ({
       ...c,
-      fundamentals: { ...c.fundamentals, [key]: { ...c.fundamentals[key], [bound]: v } },
+      fundamentals: c.fundamentals.map((f) => (f.key === key ? { ...f, [bound]: v } : f)),
     }));
   const toggleSection = (n: number) => setOpen((o) => ({ ...o, [n]: !o[n] }));
 
@@ -68,6 +76,11 @@ export function BuilderForm({ initialCfg, busy, onCancel, onSave, onSaveBacktest
     cfg.weight === 'equal' ? 'Equal' : cfg.weight === 'rating_weighted' ? 'Rating' : 'Mkt cap';
   const metricLabel =
     PERFORMANCE_METRICS.find((m) => m.k === cfg.performanceMetric)?.label ?? cfg.performanceMetric;
+
+  // Selection rules is dynamic: the add-selector offers only fundamentals the
+  // user hasn't added yet.
+  const activeFundKeys = new Set(cfg.fundamentals.map((f) => f.key));
+  const availableFundamentals = FUNDAMENTAL_FILTERS.filter((f) => !activeFundKeys.has(f.key));
 
   return (
     <div className="sb-build-grid">
@@ -221,36 +234,79 @@ export function BuilderForm({ initialCfg, busy, onCancel, onSave, onSaveBacktest
             <Icon name="check" size={15} />
             <span>
               Quarterly fundamentals, taken <b>as-of each rebalance</b> with a 90-day
-              reporting lag (so a quarter counts only once it was public). Leave a
-              bound blank to ignore it.
+              reporting lag (so a quarter counts only once it was public). Add the
+              fields you want to filter by; leave a bound blank for one-sided.
             </span>
           </div>
-          <div className="sb-fund-grid">
-            {FUNDAMENTAL_FILTERS.map((f) => (
-              <div className="sb-fund-row" key={f.key}>
-                <div className="sb-field-label">
-                  {f.label}
-                  {f.kind === 'pct' ? ' (%)' : ''} <Tip text={f.hint} />
-                </div>
-                <div className="sb-grid-2">
-                  <NumField
-                    label="Min"
-                    value={cfg.fundamentals[f.key].min}
-                    onChange={(v) => setFund(f.key, 'min', v)}
-                    step={f.kind === 'pct' ? 1 : 0.1}
-                    hint="no lower bound"
-                  />
-                  <NumField
-                    label="Max"
-                    value={cfg.fundamentals[f.key].max}
-                    onChange={(v) => setFund(f.key, 'max', v)}
-                    step={f.kind === 'pct' ? 1 : 0.1}
-                    hint="no upper bound"
-                  />
-                </div>
+          {cfg.fundamentals.length > 0 && (
+            <div className="sb-fund-grid">
+              {cfg.fundamentals.map((active) => {
+                const meta = FUNDAMENTAL_FILTERS.find((f) => f.key === active.key);
+                if (!meta) return null;
+                return (
+                  <div className="sb-fund-row" key={active.key}>
+                    <div className="sb-fund-row-head">
+                      <div className="sb-field-label">
+                        {meta.label}
+                        {meta.kind === 'pct' ? ' (%)' : ''} <Tip text={meta.hint} />
+                      </div>
+                      <button
+                        type="button"
+                        className="sb-fund-remove"
+                        onClick={() => removeFund(active.key)}
+                        aria-label={`Remove ${meta.label}`}
+                      >
+                        <Icon name="x" size={13} />
+                      </button>
+                    </div>
+                    <div className="sb-grid-2">
+                      <NumField
+                        label="Min"
+                        value={active.min}
+                        onChange={(v) => setFund(active.key, 'min', v)}
+                        step={meta.kind === 'pct' ? 1 : 0.1}
+                        hint="no lower bound"
+                      />
+                      <NumField
+                        label="Max"
+                        value={active.max}
+                        onChange={(v) => setFund(active.key, 'max', v)}
+                        step={meta.kind === 'pct' ? 1 : 0.1}
+                        hint="no upper bound"
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          {availableFundamentals.length > 0 ? (
+            <div className="sb-fund-add">
+              <div className="sb-select-wrap">
+                <select
+                  className="sb-select"
+                  value=""
+                  onChange={(e) => {
+                    if (e.target.value) addFund(e.target.value as FundamentalKey);
+                  }}
+                >
+                  <option value="">+ Add a fundamental filter…</option>
+                  {availableFundamentals.map((f) => (
+                    <option key={f.key} value={f.key}>
+                      {f.label}
+                    </option>
+                  ))}
+                </select>
               </div>
-            ))}
-          </div>
+              {cfg.fundamentals.length === 0 && (
+                <span className="sb-fund-add-hint">No filters yet — pick a field to screen by it.</span>
+              )}
+            </div>
+          ) : (
+            <div className="sb-fund-add-hint" style={{ marginTop: 12 }}>
+              All available fundamentals added.
+            </div>
+          )}
         </Section>
 
         {/* 4. Entry & Exit */}
