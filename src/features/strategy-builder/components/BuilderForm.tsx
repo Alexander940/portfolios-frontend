@@ -303,7 +303,7 @@ export function BuilderForm({ initialCfg, busy, onCancel, onSave, onSaveBacktest
               )}
             </div>
           ) : (
-            <div className="sb-field-hint" style={{ marginTop: 12 }}>
+            <div className="sb-fund-add-hint" style={{ marginTop: 12 }}>
               All available fundamentals added.
             </div>
           )}
