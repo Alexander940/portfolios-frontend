@@ -3,10 +3,10 @@
 import type {
   BacktestResultOut,
   BuilderConfig,
-  FundamentalKey,
   MarketCapBucket,
   PerformanceMetric,
   RangeFilter,
+  ScreenerFieldKey,
   StrategySpec,
   UniverseSpec,
 } from './types';
@@ -21,26 +21,44 @@ export const MARKET_CAP_BUCKETS: { k: MarketCapBucket; label: string; hint: stri
   { k: 'nano', label: 'Nano', hint: '< $50M' },
 ];
 
-// Selection-rules fundamentals (PIT via fundamentals_quarterly). `kind: 'pct'`
-// is entered as a percentage and stored as a fraction (÷100); `ratio` is stored
-// as-entered. Mirrors the backend's PIT_SAFE_QUARTERLY_FIELDS.
-export const FUNDAMENTAL_FILTERS: {
-  key: FundamentalKey;
+// Catalog of screener fields the user can add as Selection-rules filters,
+// grouped by category. `kind: 'pct'` is entered as a percentage and stored as a
+// fraction (÷100); `ratio` is stored as-entered. Mirrors the backend's
+// PIT_SAFE_QUARTERLY_FIELDS (Fundamentals) + PIT_SAFE_PERF_FIELDS (Performance).
+export type FilterCategory = 'Fundamentals' | 'Performance';
+
+export const SCREENER_FILTERS: {
+  key: ScreenerFieldKey;
   label: string;
   kind: 'ratio' | 'pct';
   hint: string;
+  category: FilterCategory;
 }[] = [
-  { key: 'pe_ratio', label: 'P/E ratio', kind: 'ratio', hint: 'Price / trailing earnings (TTM, at quarter-end price).' },
-  { key: 'ps_ratio', label: 'P/S ratio', kind: 'ratio', hint: 'Price / sales.' },
-  { key: 'pb_ratio', label: 'P/B ratio', kind: 'ratio', hint: 'Price / book value.' },
-  { key: 'pcf_ratio', label: 'P/CF ratio', kind: 'ratio', hint: 'Price / operating cash flow.' },
-  { key: 'gross_margin', label: 'Gross margin', kind: 'pct', hint: 'Gross profit / revenue.' },
-  { key: 'operating_margin', label: 'Operating margin', kind: 'pct', hint: 'Operating income / revenue.' },
+  // Fundamentals — PIT via fundamentals_quarterly.
+  { key: 'pe_ratio', label: 'P/E ratio', kind: 'ratio', hint: 'Price / trailing earnings (TTM, at quarter-end price).', category: 'Fundamentals' },
+  { key: 'ps_ratio', label: 'P/S ratio', kind: 'ratio', hint: 'Price / sales.', category: 'Fundamentals' },
+  { key: 'pb_ratio', label: 'P/B ratio', kind: 'ratio', hint: 'Price / book value.', category: 'Fundamentals' },
+  { key: 'pcf_ratio', label: 'P/CF ratio', kind: 'ratio', hint: 'Price / operating cash flow.', category: 'Fundamentals' },
+  { key: 'gross_margin', label: 'Gross margin', kind: 'pct', hint: 'Gross profit / revenue.', category: 'Fundamentals' },
+  { key: 'operating_margin', label: 'Operating margin', kind: 'pct', hint: 'Operating income / revenue.', category: 'Fundamentals' },
+  // Performance — PIT via the backfilled symbol_performance history. Returns are
+  // percent (entered as-is, 90-day windows in trading days); sharpe is unitless.
+  { key: 'return_1w', label: 'Return 1W (%)', kind: 'ratio', hint: '1-week price return, point-in-time.', category: 'Performance' },
+  { key: 'return_1m', label: 'Return 1M (%)', kind: 'ratio', hint: '1-month price return, point-in-time.', category: 'Performance' },
+  { key: 'return_3m', label: 'Return 3M (%)', kind: 'ratio', hint: '3-month price return, point-in-time.', category: 'Performance' },
+  { key: 'return_6m', label: 'Return 6M (%)', kind: 'ratio', hint: '6-month price return, point-in-time.', category: 'Performance' },
+  { key: 'return_12m', label: 'Return 12M (%)', kind: 'ratio', hint: '12-month price return, point-in-time.', category: 'Performance' },
+  { key: 'return_ytd', label: 'Return YTD (%)', kind: 'ratio', hint: 'Year-to-date price return, point-in-time.', category: 'Performance' },
+  { key: 'sharpe_6m', label: 'Sharpe 6M', kind: 'ratio', hint: '6-month annualized Sharpe ratio.', category: 'Performance' },
+  { key: 'sharpe_12m', label: 'Sharpe 12M', kind: 'ratio', hint: '12-month annualized Sharpe ratio.', category: 'Performance' },
 ];
+
+// Ordered category list for the add-selector's <optgroup>s.
+export const FILTER_CATEGORIES: FilterCategory[] = ['Fundamentals', 'Performance'];
 
 // Catalog lookup by key — cfgToSpec needs each active filter's `kind` (to know
 // whether to divide a percentage margin by 100).
-const FUNDAMENTAL_BY_KEY = new Map(FUNDAMENTAL_FILTERS.map((f) => [f.key, f]));
+const FIELD_BY_KEY = new Map(SCREENER_FILTERS.map((f) => [f.key, f]));
 
 // Options for the General-parameters "Performance" select (the metric the
 // strategy is compared to the benchmark on).
@@ -139,7 +157,7 @@ export function cfgToSpec(cfg: BuilderConfig): StrategySpec {
   // Selection-rules fundamentals → universe range filters (only the filters the
   // user added; margins entered as % are stored as fractions ÷ 100).
   for (const f of cfg.fundamentals) {
-    const meta = FUNDAMENTAL_BY_KEY.get(f.key);
+    const meta = FIELD_BY_KEY.get(f.key);
     if (!meta) continue;
     const div = meta.kind === 'pct' ? 100 : 1;
     const range: RangeFilter = {};

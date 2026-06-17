@@ -1,8 +1,13 @@
 import { useMemo, useState } from 'react';
 
 import { Icon } from '../icons';
-import { FUNDAMENTAL_FILTERS, MARKET_CAP_BUCKETS, PERFORMANCE_METRICS } from '../mapping';
-import type { BuilderConfig, FundamentalKey, WeightMethod } from '../types';
+import {
+  FILTER_CATEGORIES,
+  MARKET_CAP_BUCKETS,
+  PERFORMANCE_METRICS,
+  SCREENER_FILTERS,
+} from '../mapping';
+import type { BuilderConfig, ScreenerFieldKey, WeightMethod } from '../types';
 import { ExclusionPicker } from './ExclusionPicker';
 import { NumField, Section, ToggleRow, Tip } from './formBits';
 
@@ -37,15 +42,15 @@ export function BuilderForm({ initialCfg, busy, onCancel, onSave, onSaveBacktest
     7: true,
   });
   const set = (patch: Partial<BuilderConfig>) => setCfg((c) => ({ ...c, ...patch }));
-  const addFund = (key: FundamentalKey) =>
+  const addFund = (key: ScreenerFieldKey) =>
     setCfg((c) =>
       c.fundamentals.some((f) => f.key === key)
         ? c
         : { ...c, fundamentals: [...c.fundamentals, { key, min: '', max: '' }] },
     );
-  const removeFund = (key: FundamentalKey) =>
+  const removeFund = (key: ScreenerFieldKey) =>
     setCfg((c) => ({ ...c, fundamentals: c.fundamentals.filter((f) => f.key !== key) }));
-  const setFund = (key: FundamentalKey, bound: 'min' | 'max', v: number | '') =>
+  const setFund = (key: ScreenerFieldKey, bound: 'min' | 'max', v: number | '') =>
     setCfg((c) => ({
       ...c,
       fundamentals: c.fundamentals.map((f) => (f.key === key ? { ...f, [bound]: v } : f)),
@@ -80,7 +85,7 @@ export function BuilderForm({ initialCfg, busy, onCancel, onSave, onSaveBacktest
   // Selection rules is dynamic: the add-selector offers only fundamentals the
   // user hasn't added yet.
   const activeFundKeys = new Set(cfg.fundamentals.map((f) => f.key));
-  const availableFundamentals = FUNDAMENTAL_FILTERS.filter((f) => !activeFundKeys.has(f.key));
+  const availableFundamentals = SCREENER_FILTERS.filter((f) => !activeFundKeys.has(f.key));
 
   return (
     <div className="sb-build-grid">
@@ -226,22 +231,22 @@ export function BuilderForm({ initialCfg, busy, onCancel, onSave, onSaveBacktest
         <Section
           num="3"
           title="Selection rules"
-          sub="Fundamental filters (point-in-time)"
+          sub="Fundamental + performance filters (point-in-time)"
           open={open[3]}
           onToggle={() => toggleSection(3)}
         >
           <div className="sb-universe-result">
             <Icon name="check" size={15} />
             <span>
-              Quarterly fundamentals, taken <b>as-of each rebalance</b> with a 90-day
-              reporting lag (so a quarter counts only once it was public). Add the
-              fields you want to filter by; leave a bound blank for one-sided.
+              Screener fields evaluated <b>as-of each rebalance</b> — fundamentals from
+              quarterly filings (90-day reporting lag), performance from price history.
+              Add the fields you want to filter by; leave a bound blank for one-sided.
             </span>
           </div>
           {cfg.fundamentals.length > 0 && (
             <div className="sb-fund-grid">
               {cfg.fundamentals.map((active) => {
-                const meta = FUNDAMENTAL_FILTERS.find((f) => f.key === active.key);
+                const meta = SCREENER_FILTERS.find((f) => f.key === active.key);
                 if (!meta) return null;
                 return (
                   <div className="sb-fund-row" key={active.key}>
@@ -287,15 +292,22 @@ export function BuilderForm({ initialCfg, busy, onCancel, onSave, onSaveBacktest
                   className="sb-select"
                   value=""
                   onChange={(e) => {
-                    if (e.target.value) addFund(e.target.value as FundamentalKey);
+                    if (e.target.value) addFund(e.target.value as ScreenerFieldKey);
                   }}
                 >
-                  <option value="">+ Add a fundamental filter…</option>
-                  {availableFundamentals.map((f) => (
-                    <option key={f.key} value={f.key}>
-                      {f.label}
-                    </option>
-                  ))}
+                  <option value="">+ Add a filter…</option>
+                  {FILTER_CATEGORIES.map((cat) => {
+                    const opts = availableFundamentals.filter((f) => f.category === cat);
+                    return opts.length === 0 ? null : (
+                      <optgroup key={cat} label={cat}>
+                        {opts.map((f) => (
+                          <option key={f.key} value={f.key}>
+                            {f.label}
+                          </option>
+                        ))}
+                      </optgroup>
+                    );
+                  })}
                 </select>
               </div>
               {cfg.fundamentals.length === 0 && (
