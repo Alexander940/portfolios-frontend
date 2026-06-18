@@ -317,7 +317,8 @@ export const useScreenerStore = create<ScreenerState & ScreenerActions>((set, ge
     // Parse additional filters (range filters format: key=min-max)
     const additionalFilters: AdditionalFiltersState = {};
     const rangeFilterKeys = [
-      'pe_ratio', 'ps_ratio', 'pb_ratio', 'pcf_ratio', 'pd_ratio',
+      'pe_ratio', 'peg_ratio_forward', 'peg_ratio_forward_cagr',
+      'ps_ratio', 'pb_ratio', 'pcf_ratio', 'pd_ratio',
       'dividend_yield', 'revenue_growth_3m', 'revenue_growth_12m',
       'earnings_growth_3m', 'earnings_growth_12m', 'return_1w',
       'return_1m', 'return_3m', 'return_6m', 'return_12m', 'return_ytd',

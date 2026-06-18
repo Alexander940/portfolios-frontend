@@ -172,6 +172,22 @@ export const FUNDAMENTALS_FILTERS: FilterDefinition[] = [
     description: 'Price to Earnings ratio',
   },
   {
+    key: 'peg_ratio_forward',
+    label: 'PEG (Forward)',
+    category: 'fundamentals',
+    type: 'range',
+    apiKey: 'peg_ratio_forward',
+    description: 'Forward P/E ÷ 1-year expected EPS growth (FY1→FY2)',
+  },
+  {
+    key: 'peg_ratio_forward_cagr',
+    label: 'PEG (Forward CAGR)',
+    category: 'fundamentals',
+    type: 'range',
+    apiKey: 'peg_ratio_forward_cagr',
+    description: 'Forward P/E ÷ annualized 2-year EPS growth (FY1→FY3 CAGR)',
+  },
+  {
     key: 'ps_ratio',
     label: 'P/S Ratio',
     category: 'fundamentals',
@@ -1293,6 +1309,8 @@ const INDICATORS_COLUMNS: TableColumn[] = [
 
 const FUNDAMENTALS_COLUMNS: TableColumn[] = [
   { key: 'pe_ratio', label: 'P/E', sortable: true, align: 'right', width: '90px', format: (v) => formatNumber(v, 1) },
+  { key: 'peg_ratio_forward', label: 'PEG (Fwd)', sortable: true, align: 'right', width: '100px', format: (v) => formatNumber(v, 2) },
+  { key: 'peg_ratio_forward_cagr', label: 'PEG (Fwd CAGR)', sortable: true, align: 'right', width: '120px', format: (v) => formatNumber(v, 2) },
   { key: 'ps_ratio', label: 'P/S', sortable: true, align: 'right', width: '90px', format: (v) => formatNumber(v, 2) },
   { key: 'pb_ratio', label: 'P/B', sortable: true, align: 'right', width: '90px', format: (v) => formatNumber(v, 2) },
   { key: 'pcf_ratio', label: 'P/CF', sortable: true, align: 'right', width: '90px', format: (v) => formatNumber(v, 2) },

@@ -94,6 +94,8 @@ export interface ScreenerRequest {
   market_cap?: RangeFilter;
   market_cap_category?: MarketCapCategory[];
   pe_ratio?: RangeFilter;
+  peg_ratio_forward?: RangeFilter;
+  peg_ratio_forward_cagr?: RangeFilter;
   ps_ratio?: RangeFilter;
   pb_ratio?: RangeFilter;
   pcf_ratio?: RangeFilter;
@@ -390,6 +392,8 @@ export interface Stock {
   market_cap: number | null;
   market_cap_category: MarketCapCategory | null;
   pe_ratio: number | null;
+  peg_ratio_forward: number | null;
+  peg_ratio_forward_cagr: number | null;
   ps_ratio: number | null;
   pb_ratio: number | null;
   pcf_ratio: number | null;
