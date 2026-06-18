@@ -172,6 +172,14 @@ export const FUNDAMENTALS_FILTERS: FilterDefinition[] = [
     description: 'Price to Earnings ratio',
   },
   {
+    key: 'peg_ratio_trailing',
+    label: 'PEG (Trailing)',
+    category: 'fundamentals',
+    type: 'range',
+    apiKey: 'peg_ratio_trailing',
+    description: 'Trailing P/E ÷ trailing net-income growth (12m YoY)',
+  },
+  {
     key: 'peg_ratio_forward',
     label: 'PEG (Forward)',
     category: 'fundamentals',
@@ -1309,6 +1317,7 @@ const INDICATORS_COLUMNS: TableColumn[] = [
 
 const FUNDAMENTALS_COLUMNS: TableColumn[] = [
   { key: 'pe_ratio', label: 'P/E', sortable: true, align: 'right', width: '90px', format: (v) => formatNumber(v, 1) },
+  { key: 'peg_ratio_trailing', label: 'PEG (Trail)', sortable: true, align: 'right', width: '100px', format: (v) => formatNumber(v, 2) },
   { key: 'peg_ratio_forward', label: 'PEG (Fwd)', sortable: true, align: 'right', width: '100px', format: (v) => formatNumber(v, 2) },
   { key: 'peg_ratio_forward_cagr', label: 'PEG (Fwd CAGR)', sortable: true, align: 'right', width: '120px', format: (v) => formatNumber(v, 2) },
   { key: 'ps_ratio', label: 'P/S', sortable: true, align: 'right', width: '90px', format: (v) => formatNumber(v, 2) },
