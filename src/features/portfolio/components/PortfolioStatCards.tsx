@@ -21,30 +21,43 @@ const compactCurrency = new Intl.NumberFormat('en-US', {
   maximumFractionDigits: 2,
 });
 
+// The API serializes Decimal fields as JSON strings (Pydantic v2), so coerce to
+// a number before any finite check / formatting — otherwise Number.isFinite of a
+// string like "212335.30" is false and the value renders as a dash. (The
+// events_24h counts are plain ints, which is why only those showed up.)
+function toNum(n: number | string | null): number {
+  if (n === null) return NaN;
+  return typeof n === 'number' ? n : Number(n);
+}
+
 /** Compact currency, e.g. 3495475.07 -> "$3.5M" (null -> "—"). */
-function fmtCompactCurrency(n: number | null): string {
-  if (n === null || !Number.isFinite(n)) return DASH;
-  return `$${compactCurrency.format(n)}`;
+function fmtCompactCurrency(n: number | string | null): string {
+  const v = toNum(n);
+  if (!Number.isFinite(v)) return DASH;
+  return `$${compactCurrency.format(v)}`;
 }
 
 /** Signed compact currency, e.g. -68436.92 -> "-$68.44K", 1.2e6 -> "+$1.2M". */
-function fmtSignedCompactCurrency(n: number | null): string {
-  if (n === null || !Number.isFinite(n)) return DASH;
-  const sign = n < 0 ? '-' : '+';
-  return `${sign}$${compactCurrency.format(Math.abs(n))}`;
+function fmtSignedCompactCurrency(n: number | string | null): string {
+  const v = toNum(n);
+  if (!Number.isFinite(v)) return DASH;
+  const sign = v < 0 ? '-' : '+';
+  return `${sign}$${compactCurrency.format(Math.abs(v))}`;
 }
 
 /** Signed percent, e.g. 6.55 -> "+6.55%", -1.92 -> "-1.92%" (null -> "—"). */
-function fmtSignedPercent(n: number | null): string {
-  if (n === null || !Number.isFinite(n)) return DASH;
-  const sign = n > 0 ? '+' : '';
-  return `${sign}${n.toFixed(2)}%`;
+function fmtSignedPercent(n: number | string | null): string {
+  const v = toNum(n);
+  if (!Number.isFinite(v)) return DASH;
+  const sign = v > 0 ? '+' : '';
+  return `${sign}${v.toFixed(2)}%`;
 }
 
 /** ".pos" / ".neg" / "" by sign of a (possibly null) number. */
-function signClass(n: number | null): string {
-  if (n === null || !Number.isFinite(n) || n === 0) return '';
-  return n > 0 ? 'pos' : 'neg';
+function signClass(n: number | string | null): string {
+  const v = toNum(n);
+  if (!Number.isFinite(v) || v === 0) return '';
+  return v > 0 ? 'pos' : 'neg';
 }
 
 export function PortfolioStatCards() {
