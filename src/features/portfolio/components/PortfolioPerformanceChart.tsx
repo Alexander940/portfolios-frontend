@@ -16,6 +16,7 @@ import {
   type PerformanceCurveResponse,
 } from '@/services/portfolioService';
 import { isApiError } from '@/lib/apiErrors';
+import { toLocalDate } from '@/features/portfolio/lib/format';
 
 interface PortfolioPerformanceChartProps {
   portfolioId: string;
@@ -40,8 +41,9 @@ function benchmarkLabel(ticker: string): string {
 }
 
 function formatDate(iso: string): string {
-  // 2026-01-05 -> 05 Jan '26
-  const d = new Date(iso);
+  // 2026-01-05 -> Jan 05, 26. Parse date-only strings as a LOCAL date
+  // (toLocalDate) so the calendar day isn't shifted back for UTC-3 users.
+  const d = toLocalDate(iso);
   if (Number.isNaN(d.getTime())) return iso;
   return d.toLocaleDateString('en-US', {
     day: '2-digit',

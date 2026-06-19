@@ -1,5 +1,6 @@
 import { Briefcase, Calendar, RefreshCw, Wallet } from 'lucide-react';
 import type { PortfolioResponse } from '@/services/portfolioService';
+import { toLocalDate } from '@/features/portfolio/lib/format';
 
 interface PortfolioHeaderProps {
   portfolio: PortfolioResponse;
@@ -13,8 +14,9 @@ const WEIGHTING_LABELS: Record<string, string> = {
 
 function formatDate(iso: string | null): string {
   if (!iso) return '—';
-  const d = new Date(iso);
-  return d.toLocaleDateString('en-US', {
+  // toLocalDate keeps date-only values (e.g. last_rebalance_date) on their
+  // real calendar day for UTC-3 users; full timestamps are parsed as-is.
+  return toLocalDate(iso).toLocaleDateString('en-US', {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
