@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import './builder.css';
 import { BuilderForm } from './components/BuilderForm';
@@ -28,6 +28,16 @@ function errMessage(e: unknown): string {
   return 'Backtest failed';
 }
 
+/** Merge local entries (drafts + this client's backtested runs) with the ones
+ *  fetched from the backend; local wins on id collision (it carries the backtest
+ *  summary/sparkline). Newest first. */
+function mergeStrategies(local: SavedStrategy[], server: SavedStrategy[]): SavedStrategy[] {
+  const byId = new Map<string, SavedStrategy>();
+  for (const s of server) byId.set(s.id, s);
+  for (const s of local) byId.set(s.id, s);
+  return [...byId.values()].sort((a, b) => b.updated - a.updated);
+}
+
 // The backtest runs asynchronously on the backend (it can take a few minutes on
 // a large universe / long window), so poll generously — ~10 min at 2.5s.
 async function pollBacktest(jobId: string, tries = 240): Promise<BacktestStatusResponse> {
@@ -40,9 +50,12 @@ async function pollBacktest(jobId: string, tries = 240): Promise<BacktestStatusR
 }
 
 export function StrategyBuilder() {
-  const strategies = useStrategyStore((s) => s.strategies);
+  const local = useStrategyStore((s) => s.strategies);
+  const server = useStrategyStore((s) => s.server);
+  const loadServer = useStrategyStore((s) => s.loadServer);
   const upsert = useStrategyStore((s) => s.upsert);
   const remove = useStrategyStore((s) => s.remove);
+  const strategies = useMemo(() => mergeStrategies(local, server), [local, server]);
 
   const [view, setView] = useState<View>('list');
   const [editing, setEditing] = useState<{ id: string | null; cfg: BuilderConfig }>({
@@ -55,6 +68,12 @@ export function StrategyBuilder() {
   const [activeName, setActiveName] = useState('');
   const [activeCfg, setActiveCfg] = useState<BuilderConfig>(DEFAULT_CONFIG);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // Hydrate server-persisted strategies (incl. ones the AI assistant created)
+  // whenever the list is shown, so they appear next to local drafts/backtests.
+  useEffect(() => {
+    if (view === 'list') void loadServer();
+  }, [view, loadServer]);
 
   const runFlow = useCallback(
     async (rawCfg: BuilderConfig) => {

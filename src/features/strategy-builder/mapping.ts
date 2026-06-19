@@ -3,6 +3,7 @@
 import type {
   BacktestResultOut,
   BuilderConfig,
+  FundamentalFilter,
   MarketCapBucket,
   PerformanceMetric,
   RangeFilter,
@@ -213,6 +214,60 @@ export function cfgToSpec(cfg: BuilderConfig): StrategySpec {
       oos_split: cfg.oosSplit / 100,
       min_n_trades: cfg.minTrades,
     },
+  };
+}
+
+/** Reverse of cfgToSpec: rebuild a BuilderConfig from a backend StrategySpec so
+ *  a server-persisted strategy (e.g. one the AI assistant created) can be shown
+ *  and opened in the builder. Best-effort — universe filters the builder form
+ *  doesn't expose (dividend_yield, volatility_252d, the Capa-3 gaps, …) are NOT
+ *  carried into the form and would be dropped on a re-save. Robust to the
+ *  serialized spec's explicit `null`s; falls back to DEFAULT_CONFIG. */
+export function specToConfig(spec: StrategySpec, name: string): BuilderConfig {
+  const u = spec.universe ?? ({} as UniverseSpec);
+  const ufields = u as Record<string, RangeFilter | null | undefined>;
+  const ee = spec.entry_exit;
+  const sel = spec.selection;
+  const val = spec.validation;
+
+  const fundamentals: FundamentalFilter[] = [];
+  for (const def of SCREENER_FILTERS) {
+    const rf = ufields[def.key];
+    if (rf == null) continue;
+    const mul = def.kind === 'pct' ? 100 : 1;
+    const min = rf.min != null ? rf.min * mul : '';
+    const max = rf.max != null ? rf.max * mul : '';
+    if (min !== '' || max !== '') fundamentals.push({ key: def.key, min, max });
+  }
+
+  return {
+    ...DEFAULT_CONFIG,
+    name,
+    performanceMetric: spec.general?.performance_metric ?? DEFAULT_CONFIG.performanceMetric,
+    companySizes: (u.market_cap_category ?? []) as MarketCapBucket[],
+    excluded: (u.exclude ?? []).map((id) => ({ symbolId: id, ticker: '', name: '' })),
+    fundamentals,
+    sector: u.sector?.[0] ?? '',
+    minRating: u.rating?.min ?? DEFAULT_CONFIG.minRating,
+    minTrendStrength: u.trend_strength?.min ?? '',
+    minMomentum: u.smart_momentum?.min ?? '',
+    minEr: ee?.min_er ?? DEFAULT_CONFIG.minEr,
+    useTrailStop: ee?.use_trail_stop ?? DEFAULT_CONFIG.useTrailStop,
+    trailAtrMult: ee?.trail_atr_mult ?? DEFAULT_CONFIG.trailAtrMult,
+    exitRatingLong: ee?.exit_rating_long ?? DEFAULT_CONFIG.exitRatingLong,
+    sortBy: sel?.sort_by ?? DEFAULT_CONFIG.sortBy,
+    sortOrder: sel?.sort_order ?? DEFAULT_CONFIG.sortOrder,
+    topN: sel?.top_n ?? DEFAULT_CONFIG.topN,
+    perSector: sel?.per_sector != null,
+    maxPerSector: sel?.per_sector ?? DEFAULT_CONFIG.maxPerSector,
+    weight: spec.weighting?.method ?? DEFAULT_CONFIG.weight,
+    rebalance: spec.rebalance?.cadence ?? DEFAULT_CONFIG.rebalance,
+    commission: spec.costs?.commission_bps ?? DEFAULT_CONFIG.commission,
+    slippage: spec.costs?.slippage_bps ?? DEFAULT_CONFIG.slippage,
+    startDate: val?.start ?? DEFAULT_CONFIG.startDate,
+    endDate: val?.end ?? DEFAULT_CONFIG.endDate,
+    oosSplit: val?.oos_split != null ? val.oos_split * 100 : DEFAULT_CONFIG.oosSplit,
+    minTrades: val?.min_n_trades ?? DEFAULT_CONFIG.minTrades,
   };
 }
 

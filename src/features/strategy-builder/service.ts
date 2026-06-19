@@ -5,8 +5,17 @@ import type {
   BacktestStatusResponse,
   BacktestSubmitResponse,
   StrategyCreatedResponse,
+  StrategyListItem,
   StrategySpec,
 } from './types';
+
+/** The current user's saved strategies (head + latest spec), newest first.
+ *  Backs hydrating the builder list with server-persisted strategies — including
+ *  ones the AI assistant created (which never touch the local store). */
+export async function listStrategies(): Promise<StrategyListItem[]> {
+  const res = await apiClient.get<StrategyListItem[]>('/strategies/');
+  return res.data;
+}
 
 export async function createStrategy(
   name: string,

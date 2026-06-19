@@ -165,6 +165,19 @@ export interface StrategyCreatedResponse {
   content_hash: string;
 }
 
+/** One row of `GET /strategies/` — the current user's saved strategies (head +
+ *  the latest version's spec). Lets the builder list + open server-persisted
+ *  strategies (incl. ones the AI assistant created), not just local ones. */
+export interface StrategyListItem {
+  strategy_id: string;
+  name: string;
+  description: string | null;
+  latest_version: number;
+  created_at: string; // ISO
+  updated_at: string; // ISO
+  spec: StrategySpec;
+}
+
 export interface BacktestSubmitResponse {
   job_id: string;
   status: string;
@@ -273,7 +286,9 @@ export interface BuilderConfig {
 export interface SavedStrategy {
   id: string; // strategy_id from the backend (or a local draft id)
   name: string;
-  status: 'draft' | 'backtested';
+  // 'saved' = persisted on the server (e.g. created by the AI assistant) but not
+  // yet backtested in this client; 'draft' = local-only; 'backtested' = has a run.
+  status: 'draft' | 'backtested' | 'saved';
   updated: number; // epoch ms
   cfg: BuilderConfig;
   jobId?: string;

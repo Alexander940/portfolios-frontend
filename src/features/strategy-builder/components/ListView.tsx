@@ -48,9 +48,13 @@ export function ListView({ strategies, onNew, onOpen, onEdit, onBacktest, onDele
             <div className="sb-card-main">
               <div className="sb-card-title-row">
                 <span className="sb-card-name">{s.name}</span>
-                <span className={`sb-status ${s.status}`}>
+                <span className={`sb-status ${s.status === 'saved' ? 'draft' : s.status}`}>
                   <span className="sb-status-dot" />
-                  {s.status === 'backtested' ? 'Backtested' : 'Draft'}
+                  {s.status === 'backtested'
+                    ? 'Backtested'
+                    : s.status === 'saved'
+                      ? 'Saved'
+                      : 'Draft'}
                 </span>
                 {r?.lowConf && (
                   <span className="sb-lowconf-tag">
