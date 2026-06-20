@@ -149,6 +149,7 @@ export function Modal({
         aria-describedby={descriptionId}
         className={`
           relative z-10 w-full ${sizeStyles[size]}
+          max-h-[90vh] flex flex-col
           bg-white rounded-2xl shadow-2xl
           transform transition-all duration-200
           ${isAnimating
@@ -158,7 +159,7 @@ export function Modal({
         `}
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
+        <div className="flex items-center justify-between p-6 border-b border-gray-200 shrink-0">
           <div>
             <h2
               id={titleId}
@@ -190,8 +191,8 @@ export function Modal({
           </button>
         </div>
 
-        {/* Content */}
-        <div className="p-6">
+        {/* Content (scrolls when taller than the viewport-capped panel) */}
+        <div className="flex-1 min-h-0 overflow-y-auto p-6">
           {children}
         </div>
       </div>
