@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { FileSpreadsheet, Loader2, Upload } from 'lucide-react';
+import { FileSpreadsheet, Loader2, Upload, X } from 'lucide-react';
 import { Modal, Button, Input } from '@/components/ui';
 import {
   confirmImportPortfolio,
@@ -106,16 +106,29 @@ export function ImportPortfolioFromExcelModal({
 
   const usableRows = useMemo(() => rows.filter((r) => r.usable), [rows]);
 
+  // Rows that will actually become positions. In quantities mode a row is
+  // included only when it has a quantity > 0, so blank/0 rows (e.g. a "CASH"
+  // line that happens to resolve to a real ticker) are simply left out instead
+  // of blocking creation — you can run fully invested with no cash position.
+  const selectedRows = useMemo(
+    () =>
+      mode === 'quantities'
+        ? usableRows.filter((r) => r.quantity != null && r.quantity > 0)
+        : usableRows,
+    [mode, usableRows],
+  );
+  const createCount = mode === 'quantities' ? selectedRows.length : usableRows.length;
+
   const estimatedCapital = useMemo(() => {
     if (mode !== 'quantities') return null;
     let sum = 0;
-    let complete = usableRows.length > 0;
-    for (const r of usableRows) {
+    let complete = selectedRows.length > 0;
+    for (const r of selectedRows) {
       if (r.quantity && r.recentPrice != null) sum += r.quantity * r.recentPrice;
       else complete = false;
     }
     return { sum, complete };
-  }, [mode, usableRows]);
+  }, [mode, selectedRows]);
 
   function resetAll() {
     setStep('upload');
@@ -165,14 +178,18 @@ export function ImportPortfolioFromExcelModal({
     setRows((prev) => prev.map((r, i) => (i === index ? { ...r, quantity: qty } : r)));
   }
 
+  function removeRow(index: number) {
+    setRows((prev) => prev.filter((_, i) => i !== index));
+  }
+
   function validate(): string | null {
     if (!name.trim()) return 'Portfolio name is required.';
     if (!startDate) return 'Pick an analyze-from date.';
     if (startDate > todayLocalISO()) return 'The analyze-from date cannot be in the future.';
     if (usableRows.length === 0) return 'No valid tickers to import.';
     if (mode === 'quantities') {
-      if (usableRows.some((r) => !r.quantity || r.quantity <= 0)) {
-        return 'Enter a share quantity (greater than 0) for every ticker.';
+      if (selectedRows.length === 0) {
+        return 'Enter a share quantity for at least one ticker.';
       }
     } else {
       const cash = Number(initialCash);
@@ -198,7 +215,7 @@ export function ImportPortfolioFromExcelModal({
       start_date: startDate,
       positions:
         mode === 'quantities'
-          ? usableRows.map<ImportPositionInput>((r) => ({
+          ? selectedRows.map<ImportPositionInput>((r) => ({
               ticker: r.resolvedTicker,
               quantity: r.quantity,
             }))
@@ -346,15 +363,19 @@ export function ImportPortfolioFromExcelModal({
                     {mode === 'quantities' ? 'Shares' : 'Est. price'}
                   </th>
                   <th className="px-3 py-2 font-medium">Status</th>
+                  <th className="px-2 py-2"></th>
                 </tr>
               </thead>
               <tbody>
                 {rows.map((r, i) => {
                   const badge = STATUS_BADGE[r.status];
+                  const willImport =
+                    r.usable &&
+                    (mode !== 'quantities' || (r.quantity != null && r.quantity > 0));
                   return (
                     <tr
                       key={`${r.inputTicker}-${i}`}
-                      className={`border-t border-gray-100 ${r.usable ? '' : 'opacity-50'}`}
+                      className={`border-t border-gray-100 ${willImport ? '' : 'opacity-45'}`}
                     >
                       <td className="px-3 py-2 font-medium text-gray-900">{r.resolvedTicker}</td>
                       <td className="px-3 py-2 text-gray-600 truncate max-w-[180px]">
@@ -364,11 +385,12 @@ export function ImportPortfolioFromExcelModal({
                         {mode === 'quantities' ? (
                           <input
                             type="number"
-                            min={1}
+                            min={0}
                             step={1}
                             disabled={!r.usable}
                             value={r.quantity ?? ''}
                             onChange={(e) => updateQuantity(i, e.target.value)}
+                            placeholder="0"
                             className="w-24 px-2 py-1 text-right border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-[#1e3a5f] disabled:bg-gray-100"
                           />
                         ) : (
@@ -388,6 +410,17 @@ export function ImportPortfolioFromExcelModal({
                         >
                           {badge.text}
                         </span>
+                      </td>
+                      <td className="px-2 py-2 text-right">
+                        <button
+                          type="button"
+                          onClick={() => removeRow(i)}
+                          className="text-gray-400 hover:text-red-600"
+                          aria-label={`Remove ${r.resolvedTicker}`}
+                          title="Remove from import"
+                        >
+                          <X size={14} />
+                        </button>
                       </td>
                     </tr>
                   );
@@ -410,6 +443,9 @@ export function ImportPortfolioFromExcelModal({
               )}
               <span className="block text-xs text-gray-500 mt-0.5">
                 The exact cost basis uses the closing price on your analyze-from date.
+              </span>
+              <span className="block text-xs text-gray-500 mt-0.5">
+                Rows left blank or 0 (e.g. a cash line) are not included.
               </span>
             </div>
           ) : (
@@ -531,7 +567,10 @@ export function ImportPortfolioFromExcelModal({
               >
                 Back
               </Button>
-              <div className="flex gap-2">
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-gray-500">
+                  {createCount} position{createCount === 1 ? '' : 's'} will be created
+                </span>
                 <Button type="button" variant="ghost" onClick={handleClose} disabled={submitting}>
                   Cancel
                 </Button>
@@ -539,7 +578,7 @@ export function ImportPortfolioFromExcelModal({
                   type="button"
                   onClick={handleConfirm}
                   isLoading={submitting}
-                  disabled={usableRows.length === 0}
+                  disabled={createCount === 0}
                 >
                   {submitting ? 'Creating…' : 'Create Portfolio'}
                 </Button>
