@@ -1,35 +1,17 @@
-import { useRef, useState } from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-import { FileSpreadsheet, Loader2, Upload, X } from 'lucide-react';
-import axios from 'axios';
+import { useMemo, useRef, useState } from 'react';
+import { FileSpreadsheet, Loader2, Upload } from 'lucide-react';
 import { Modal, Button, Input } from '@/components/ui';
 import {
-  createPortfolioFromTickers,
+  confirmImportPortfolio,
+  previewPortfolioFromExcel,
+  type ImportConfirmCreate,
+  type ImportPositionInput,
+  type ImportPreviewRow,
   type PortfolioResponse,
+  type SkippedTicker,
   type WeightingMethod,
 } from '@/services/portfolioService';
-import {
-  parseTickersFromExcel,
-  TickerExcelParseError,
-} from '@/lib/parseTickersFromExcel';
-
-const schema = z.object({
-  name: z
-    .string()
-    .trim()
-    .min(1, 'Name is required')
-    .max(255, 'Max 255 characters'),
-  description: z.string().trim().max(1000).optional(),
-  initial_cash: z
-    .number({ message: 'Must be a number' })
-    .min(1000, 'Minimum $1,000')
-    .max(1_000_000_000, 'Too large'),
-  weighting_method: z.enum(['equal', 'rating_weighted', 'market_cap']),
-});
-
-type FormValues = z.infer<typeof schema>;
+import { getErrorMessage } from '@/lib/apiErrors';
 
 interface ImportPortfolioFromExcelModalProps {
   isOpen: boolean;
@@ -37,13 +19,66 @@ interface ImportPortfolioFromExcelModalProps {
   onCreated: (portfolio: PortfolioResponse) => void;
 }
 
-const WEIGHTING_OPTIONS: { value: WeightingMethod; label: string; hint: string }[] = [
+type Mode = 'quantities' | 'weighting';
+type SelectableWeighting = Exclude<WeightingMethod, 'manual'>;
+
+interface EditableRow {
+  inputTicker: string;
+  resolvedTicker: string;
+  name: string;
+  status: ImportPreviewRow['status'];
+  recentPrice: number | null;
+  quantity: number | null;
+  /** Resolved to a symbol and not a duplicate → can become a position. */
+  usable: boolean;
+}
+
+const ACCEPT = '.xlsx,.xls,.csv';
+
+const WEIGHTING_OPTIONS: { value: SelectableWeighting; label: string; hint: string }[] = [
   { value: 'equal', label: 'Equal Weight', hint: 'Same allocation for every stock' },
   { value: 'rating_weighted', label: 'Rating Weighted', hint: 'Higher rating → higher weight' },
   { value: 'market_cap', label: 'Market Cap Weighted', hint: 'Larger companies get more weight' },
 ];
 
-const ACCEPT = '.xlsx,.xls,.csv';
+const STATUS_BADGE: Record<ImportPreviewRow['status'], { text: string; cls: string }> = {
+  found: { text: 'Found', cls: 'bg-green-100 text-green-700' },
+  normalized: { text: 'Matched', cls: 'bg-green-100 text-green-700' },
+  not_found: { text: 'Not found', cls: 'bg-red-100 text-red-700' },
+  duplicate: { text: 'Duplicate', cls: 'bg-gray-100 text-gray-500' },
+  invalid_quantity: { text: 'Fix qty', cls: 'bg-amber-100 text-amber-800' },
+};
+
+const SKIP_REASON: Record<SkippedTicker['reason'], string> = {
+  unknown_symbol: 'unknown symbol',
+  no_price_asof: 'no price data',
+  before_coverage: 'no price on/before the start date',
+  too_small_to_size: 'allocation too small to buy one share',
+  invalid_quantity: 'invalid quantity',
+};
+
+/** Today as YYYY-MM-DD in LOCAL time (native date inputs are local). */
+function todayLocalISO(): string {
+  const d = new Date();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${d.getFullYear()}-${m}-${day}`;
+}
+
+function toEditableRows(rows: ImportPreviewRow[]): EditableRow[] {
+  return rows.map((r) => ({
+    inputTicker: r.input_ticker,
+    resolvedTicker: r.resolved_ticker ?? r.input_ticker,
+    name: r.name ?? '',
+    status: r.status,
+    recentPrice: r.recent_price,
+    quantity: r.quantity,
+    usable: r.symbol_id !== null && r.status !== 'duplicate',
+  }));
+}
+
+const FIELD_CLS =
+  'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f] focus:border-transparent disabled:bg-gray-100 disabled:text-gray-400';
 
 export function ImportPortfolioFromExcelModal({
   isOpen,
@@ -51,38 +86,51 @@ export function ImportPortfolioFromExcelModal({
   onCreated,
 }: ImportPortfolioFromExcelModalProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [step, setStep] = useState<'upload' | 'preview'>('upload');
   const [fileName, setFileName] = useState<string | null>(null);
-  const [tickers, setTickers] = useState<string[]>([]);
-  const [headerUsed, setHeaderUsed] = useState<string | null>(null);
-  const [parseError, setParseError] = useState<string | null>(null);
-  const [serverError, setServerError] = useState<string | null>(null);
-  const [skipped, setSkipped] = useState<string[] | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
-  const {
-    register,
-    handleSubmit,
-    watch,
-    reset,
-    formState: { errors, isSubmitting },
-  } = useForm<FormValues>({
-    resolver: zodResolver(schema),
-    defaultValues: {
-      name: '',
-      description: '',
-      initial_cash: 100000,
-      weighting_method: 'equal',
-    },
-  });
+  const [rows, setRows] = useState<EditableRow[]>([]);
+  const [mode, setMode] = useState<Mode>('weighting');
 
-  const weightingMethod = watch('weighting_method');
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const [initialCash, setInitialCash] = useState('100000');
+  const [weightingMethod, setWeightingMethod] = useState<SelectableWeighting>('equal');
+  const [startDate, setStartDate] = useState(todayLocalISO());
+
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [skipped, setSkipped] = useState<SkippedTicker[] | null>(null);
+
+  const usableRows = useMemo(() => rows.filter((r) => r.usable), [rows]);
+
+  const estimatedCapital = useMemo(() => {
+    if (mode !== 'quantities') return null;
+    let sum = 0;
+    let complete = usableRows.length > 0;
+    for (const r of usableRows) {
+      if (r.quantity && r.recentPrice != null) sum += r.quantity * r.recentPrice;
+      else complete = false;
+    }
+    return { sum, complete };
+  }, [mode, usableRows]);
 
   function resetAll() {
-    reset();
+    setStep('upload');
     setFileName(null);
-    setTickers([]);
-    setHeaderUsed(null);
-    setParseError(null);
-    setServerError(null);
+    setUploading(false);
+    setUploadError(null);
+    setRows([]);
+    setMode('weighting');
+    setName('');
+    setDescription('');
+    setInitialCash('100000');
+    setWeightingMethod('equal');
+    setStartDate(todayLocalISO());
+    setSubmitting(false);
+    setSubmitError(null);
     setSkipped(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
   }
@@ -96,83 +144,101 @@ export function ImportPortfolioFromExcelModal({
     const file = e.target.files?.[0];
     if (!file) return;
     setFileName(file.name);
-    setParseError(null);
-    setServerError(null);
-    setSkipped(null);
-    setTickers([]);
-    setHeaderUsed(null);
+    setUploadError(null);
+    setUploading(true);
     try {
-      const result = await parseTickersFromExcel(file);
-      setTickers(result.tickers);
-      setHeaderUsed(result.headerUsed);
+      const preview = await previewPortfolioFromExcel(file);
+      setRows(toEditableRows(preview.rows));
+      setMode(preview.has_quantity_column ? 'quantities' : 'weighting');
+      setStep('preview');
     } catch (err) {
-      const message =
-        err instanceof TickerExcelParseError
-          ? err.message
-          : 'Could not read the file.';
-      setParseError(message);
+      setUploadError(getErrorMessage(err));
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   }
 
-  function clearFile() {
-    setFileName(null);
-    setTickers([]);
-    setHeaderUsed(null);
-    setParseError(null);
-    setSkipped(null);
-    if (fileInputRef.current) fileInputRef.current.value = '';
+  function updateQuantity(index: number, raw: string) {
+    const parsed = raw.trim() === '' ? NaN : Math.floor(Number(raw));
+    const qty = Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+    setRows((prev) => prev.map((r, i) => (i === index ? { ...r, quantity: qty } : r)));
   }
 
-  async function onSubmit(values: FormValues) {
-    setServerError(null);
+  function validate(): string | null {
+    if (!name.trim()) return 'Portfolio name is required.';
+    if (!startDate) return 'Pick an analyze-from date.';
+    if (startDate > todayLocalISO()) return 'The analyze-from date cannot be in the future.';
+    if (usableRows.length === 0) return 'No valid tickers to import.';
+    if (mode === 'quantities') {
+      if (usableRows.some((r) => !r.quantity || r.quantity <= 0)) {
+        return 'Enter a share quantity (greater than 0) for every ticker.';
+      }
+    } else {
+      const cash = Number(initialCash);
+      if (!Number.isFinite(cash) || cash < 1000) {
+        return 'Initial capital must be at least $1,000.';
+      }
+    }
+    return null;
+  }
+
+  async function handleConfirm() {
+    setSubmitError(null);
     setSkipped(null);
-    if (tickers.length === 0) {
-      setParseError('Upload a file with a "tickers" column first.');
+    const err = validate();
+    if (err) {
+      setSubmitError(err);
       return;
     }
+
+    const payload: ImportConfirmCreate = {
+      name: name.trim(),
+      description: description.trim() || null,
+      start_date: startDate,
+      positions:
+        mode === 'quantities'
+          ? usableRows.map<ImportPositionInput>((r) => ({
+              ticker: r.resolvedTicker,
+              quantity: r.quantity,
+            }))
+          : usableRows.map<ImportPositionInput>((r) => ({ ticker: r.resolvedTicker })),
+    };
+    if (mode === 'weighting') {
+      payload.initial_cash = Number(initialCash);
+      payload.weighting_method = weightingMethod;
+    }
+
+    setSubmitting(true);
     try {
-      const response = await createPortfolioFromTickers({
-        name: values.name,
-        description: values.description || null,
-        initial_cash: values.initial_cash,
-        weighting_method: values.weighting_method,
-        tickers,
-      });
-      if (response.skipped_tickers.length > 0) {
-        // Notify and keep the modal open so the user can review which tickers
-        // were dropped (unknown symbol or no current price).
-        setSkipped(response.skipped_tickers);
-        onCreated(response.portfolio);
-        return;
+      const resp = await confirmImportPortfolio(payload);
+      onCreated(resp.portfolio);
+      if (resp.skipped.length > 0) {
+        setSkipped(resp.skipped);
+      } else {
+        handleClose();
       }
-      onCreated(response.portfolio);
-      handleClose();
-    } catch (err) {
-      let message = 'Could not create portfolio. Please try again.';
-      if (axios.isAxiosError(err)) {
-        const detail = err.response?.data?.detail;
-        if (typeof detail === 'string') message = detail;
-      }
-      setServerError(message);
+    } catch (e) {
+      setSubmitError(getErrorMessage(e));
+    } finally {
+      setSubmitting(false);
     }
   }
-
-  const canSubmit = tickers.length > 0 && !parseError && !isSubmitting;
 
   return (
     <Modal
       isOpen={isOpen}
       onClose={handleClose}
       title="Import Portfolio from Excel"
-      description='Upload an .xlsx, .xls, or .csv file with a "tickers" column.'
-      size="md"
+      description={
+        step === 'upload'
+          ? 'Upload an .xlsx or .csv with a ticker column (and an optional quantity column).'
+          : 'Review the tickers, set quantities or a weighting method, and pick the analyze-from date.'
+      }
+      size="2xl"
     >
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-        {/* File picker */}
-        <div>
-          <div className="block text-sm font-medium text-gray-700 mb-1">
-            Excel file
-          </div>
+      {step === 'upload' ? (
+        <div className="space-y-4">
           <input
             ref={fileInputRef}
             type="file"
@@ -180,175 +246,308 @@ export function ImportPortfolioFromExcelModal({
             onChange={handleFileChange}
             className="hidden"
             id="tickers-excel-file"
+            disabled={uploading}
           />
-          {!fileName ? (
-            <label
-              htmlFor="tickers-excel-file"
-              className="flex flex-col items-center justify-center gap-2 p-6 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-[#1e3a5f] hover:bg-gray-50 transition-colors"
+          <label
+            htmlFor="tickers-excel-file"
+            className={`flex flex-col items-center justify-center gap-2 p-8 border-2 border-dashed rounded-lg transition-colors ${
+              uploading
+                ? 'border-gray-200 bg-gray-50 cursor-wait'
+                : 'border-gray-300 cursor-pointer hover:border-[#1e3a5f] hover:bg-gray-50'
+            }`}
+          >
+            {uploading ? (
+              <>
+                <Loader2 size={24} className="text-[#1e3a5f] animate-spin" />
+                <div className="text-sm text-gray-700 font-medium">Reading {fileName}…</div>
+              </>
+            ) : (
+              <>
+                <Upload size={24} className="text-gray-400" />
+                <div className="text-sm text-gray-700 font-medium">Click to choose a file</div>
+                <div className="text-xs text-gray-500">
+                  .xlsx, .xls or .csv — a column named ticker/symbol (optional: quantity)
+                </div>
+              </>
+            )}
+          </label>
+
+          {uploadError && (
+            <div className="p-3 rounded-lg bg-red-50 text-red-800 border border-red-200 text-sm">
+              {uploadError}
+            </div>
+          )}
+
+          <div className="flex items-center justify-end gap-2 pt-2">
+            <Button type="button" variant="ghost" onClick={handleClose}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {/* File summary */}
+          <div className="flex items-center justify-between gap-2 px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-sm">
+            <div className="flex items-center gap-2 min-w-0">
+              <FileSpreadsheet size={16} className="text-[#1e3a5f] shrink-0" />
+              <span className="truncate text-gray-900">{fileName}</span>
+              <span className="text-gray-500 shrink-0">
+                · {usableRows.length} usable / {rows.length} rows
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setStep('upload');
+                setRows([]);
+                setSkipped(null);
+                setSubmitError(null);
+              }}
+              className="text-[#1e3a5f] hover:underline shrink-0"
             >
-              <Upload size={24} className="text-gray-400" />
-              <div className="text-sm text-gray-700 font-medium">
-                Click to choose a file
-              </div>
-              <div className="text-xs text-gray-500">
-                .xlsx, .xls or .csv — must contain a column named "tickers"
-              </div>
-            </label>
+              Change file
+            </button>
+          </div>
+
+          {/* Mode toggle */}
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setMode('quantities')}
+              className={`flex-1 p-2 rounded-lg border text-sm font-medium transition-colors ${
+                mode === 'quantities'
+                  ? 'border-[#1e3a5f] bg-[#f0f4fa] text-[#1e3a5f]'
+                  : 'border-gray-200 text-gray-600 hover:border-gray-300'
+              }`}
+            >
+              Share quantities
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode('weighting')}
+              className={`flex-1 p-2 rounded-lg border text-sm font-medium transition-colors ${
+                mode === 'weighting'
+                  ? 'border-[#1e3a5f] bg-[#f0f4fa] text-[#1e3a5f]'
+                  : 'border-gray-200 text-gray-600 hover:border-gray-300'
+              }`}
+            >
+              Capital + weighting
+            </button>
+          </div>
+
+          {/* Preview table */}
+          <div className="max-h-64 overflow-auto border border-gray-200 rounded-lg">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 sticky top-0">
+                <tr className="text-left text-gray-500">
+                  <th className="px-3 py-2 font-medium">Ticker</th>
+                  <th className="px-3 py-2 font-medium">Name</th>
+                  <th className="px-3 py-2 font-medium text-right">
+                    {mode === 'quantities' ? 'Shares' : 'Est. price'}
+                  </th>
+                  <th className="px-3 py-2 font-medium">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r, i) => {
+                  const badge = STATUS_BADGE[r.status];
+                  return (
+                    <tr
+                      key={`${r.inputTicker}-${i}`}
+                      className={`border-t border-gray-100 ${r.usable ? '' : 'opacity-50'}`}
+                    >
+                      <td className="px-3 py-2 font-medium text-gray-900">{r.resolvedTicker}</td>
+                      <td className="px-3 py-2 text-gray-600 truncate max-w-[180px]">
+                        {r.name || '—'}
+                      </td>
+                      <td className="px-3 py-2 text-right">
+                        {mode === 'quantities' ? (
+                          <input
+                            type="number"
+                            min={1}
+                            step={1}
+                            disabled={!r.usable}
+                            value={r.quantity ?? ''}
+                            onChange={(e) => updateQuantity(i, e.target.value)}
+                            className="w-24 px-2 py-1 text-right border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-[#1e3a5f] disabled:bg-gray-100"
+                          />
+                        ) : (
+                          <span className="text-gray-600">
+                            {r.recentPrice != null
+                              ? `$${r.recentPrice.toLocaleString(undefined, {
+                                  minimumFractionDigits: 2,
+                                  maximumFractionDigits: 2,
+                                })}`
+                              : '—'}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2">
+                        <span
+                          className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${badge.cls}`}
+                        >
+                          {badge.text}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Mode-specific controls */}
+          {mode === 'quantities' ? (
+            <div className="p-3 rounded-lg bg-gray-50 border border-gray-200 text-sm text-gray-700">
+              Initial capital is derived from your share quantities.
+              {estimatedCapital && estimatedCapital.complete && (
+                <span className="font-medium text-gray-900">
+                  {' '}
+                  ≈ $
+                  {estimatedCapital.sum.toLocaleString(undefined, { maximumFractionDigits: 0 })} at
+                  latest prices.
+                </span>
+              )}
+              <span className="block text-xs text-gray-500 mt-0.5">
+                The exact cost basis uses the closing price on your analyze-from date.
+              </span>
+            </div>
           ) : (
-            <div className="flex items-center justify-between gap-2 p-3 border border-gray-200 rounded-lg bg-gray-50">
-              <div className="flex items-center gap-2 min-w-0">
-                <FileSpreadsheet size={18} className="text-[#1e3a5f] shrink-0" />
-                <span className="text-sm text-gray-900 truncate">{fileName}</span>
+            <div className="space-y-3">
+              <Input
+                label="Initial capital (USD)"
+                type="number"
+                step="1000"
+                value={initialCash}
+                onChange={(e) => setInitialCash(e.target.value)}
+              />
+              <div>
+                <div className="block text-sm font-medium text-gray-700 mb-2">Weighting method</div>
+                <div className="space-y-2">
+                  {WEIGHTING_OPTIONS.map((opt) => (
+                    <label
+                      key={opt.value}
+                      className={`flex items-start gap-3 p-2.5 rounded-lg border cursor-pointer transition-colors ${
+                        weightingMethod === opt.value
+                          ? 'border-[#1e3a5f] bg-[#f0f4fa]'
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="weighting"
+                        value={opt.value}
+                        checked={weightingMethod === opt.value}
+                        onChange={() => setWeightingMethod(opt.value)}
+                        className="mt-1 accent-[#1e3a5f]"
+                      />
+                      <div>
+                        <div className="text-sm font-medium text-gray-900">{opt.label}</div>
+                        <div className="text-xs text-gray-500">{opt.hint}</div>
+                      </div>
+                    </label>
+                  ))}
+                </div>
               </div>
-              <button
+            </div>
+          )}
+
+          {/* Common fields */}
+          <Input
+            label="Portfolio name"
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+          <div>
+            <label
+              htmlFor="import-description"
+              className="block text-sm font-medium text-gray-700 mb-1"
+            >
+              Description (optional)
+            </label>
+            <textarea
+              id="import-description"
+              rows={2}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className={FIELD_CLS}
+            />
+          </div>
+          <div>
+            <label
+              htmlFor="import-start-date"
+              className="block text-sm font-medium text-gray-700 mb-1"
+            >
+              Analyze from
+            </label>
+            <input
+              id="import-start-date"
+              type="date"
+              value={startDate}
+              max={todayLocalISO()}
+              onChange={(e) => setStartDate(e.target.value)}
+              className={FIELD_CLS}
+            />
+            <div className="text-xs text-gray-500 mt-1">
+              Returns and the equity curve are computed from this date.
+            </div>
+          </div>
+
+          {skipped && skipped.length > 0 && (
+            <div className="p-3 rounded-lg bg-amber-50 text-amber-900 border border-amber-200 text-sm">
+              <div className="font-medium mb-1">
+                Portfolio created — {skipped.length}{' '}
+                {skipped.length === 1 ? 'ticker was' : 'tickers were'} skipped
+              </div>
+              <ul className="text-xs text-amber-800 space-y-0.5">
+                {skipped.map((s) => (
+                  <li key={s.ticker}>
+                    <strong>{s.ticker}</strong> — {SKIP_REASON[s.reason]}
+                  </li>
+                ))}
+              </ul>
+              <div className="flex justify-end mt-2">
+                <Button type="button" variant="ghost" onClick={handleClose}>
+                  Done
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {submitError && (
+            <div className="p-3 rounded-lg bg-red-50 text-red-800 border border-red-200 text-sm">
+              {submitError}
+            </div>
+          )}
+
+          {!skipped && (
+            <div className="flex items-center justify-between gap-2 pt-2">
+              <Button
                 type="button"
-                onClick={clearFile}
-                className="text-gray-400 hover:text-gray-700 shrink-0"
-                aria-label="Remove file"
+                variant="ghost"
+                onClick={() => setStep('upload')}
+                disabled={submitting}
               >
-                <X size={16} />
-              </button>
+                Back
+              </Button>
+              <div className="flex gap-2">
+                <Button type="button" variant="ghost" onClick={handleClose} disabled={submitting}>
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  onClick={handleConfirm}
+                  isLoading={submitting}
+                  disabled={usableRows.length === 0}
+                >
+                  {submitting ? 'Creating…' : 'Create Portfolio'}
+                </Button>
+              </div>
             </div>
           )}
         </div>
-
-        {parseError && (
-          <div className="p-3 rounded-lg bg-red-50 text-red-800 border border-red-200 text-sm">
-            {parseError}
-          </div>
-        )}
-
-        {tickers.length > 0 && (
-          <div className="p-3 rounded-lg bg-blue-50 text-blue-900 border border-blue-200 text-sm">
-            <div className="flex items-center gap-2 font-medium mb-1">
-              <FileSpreadsheet size={16} />
-              Found <strong>{tickers.length}</strong>{' '}
-              {tickers.length === 1 ? 'ticker' : 'tickers'}
-              {headerUsed && (
-                <span className="text-blue-700 font-normal">
-                  &nbsp;in column "{headerUsed}"
-                </span>
-              )}
-            </div>
-            <div className="text-xs text-blue-700 line-clamp-2 break-all">
-              {tickers.slice(0, 20).join(', ')}
-              {tickers.length > 20 && ` … +${tickers.length - 20} more`}
-            </div>
-          </div>
-        )}
-
-        <Input
-          label="Portfolio name"
-          type="text"
-          error={errors.name?.message}
-          {...register('name')}
-        />
-
-        <div>
-          <label
-            htmlFor="import-description"
-            className="block text-sm font-medium text-gray-700 mb-1"
-          >
-            Description (optional)
-          </label>
-          <textarea
-            id="import-description"
-            rows={2}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a5f] focus:border-transparent text-sm"
-            {...register('description')}
-          />
-        </div>
-
-        <Input
-          label="Initial capital (USD)"
-          type="number"
-          step="1000"
-          error={errors.initial_cash?.message}
-          {...register('initial_cash', { valueAsNumber: true })}
-        />
-
-        <div>
-          <div className="block text-sm font-medium text-gray-700 mb-2">
-            Weighting method
-          </div>
-          <div className="space-y-2">
-            {WEIGHTING_OPTIONS.map((opt) => (
-              <label
-                key={opt.value}
-                className={`
-                  flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors
-                  ${
-                    weightingMethod === opt.value
-                      ? 'border-[#1e3a5f] bg-[#f0f4fa]'
-                      : 'border-gray-200 hover:border-gray-300'
-                  }
-                `}
-              >
-                <input
-                  type="radio"
-                  value={opt.value}
-                  {...register('weighting_method')}
-                  className="mt-1 accent-[#1e3a5f]"
-                />
-                <div>
-                  <div className="text-sm font-medium text-gray-900">
-                    {opt.label}
-                  </div>
-                  <div className="text-xs text-gray-500">{opt.hint}</div>
-                </div>
-              </label>
-            ))}
-          </div>
-        </div>
-
-        {skipped && skipped.length > 0 && (
-          <div className="p-3 rounded-lg bg-amber-50 text-amber-900 border border-amber-200 text-sm">
-            <div className="font-medium mb-1">
-              Portfolio created — but {skipped.length}{' '}
-              {skipped.length === 1 ? 'ticker was' : 'tickers were'} skipped
-            </div>
-            <div className="text-xs text-amber-800 break-all">
-              {skipped.join(', ')}
-            </div>
-            <div className="text-xs text-amber-800 mt-2">
-              These tickers were unknown or had no recent price data.
-            </div>
-            <div className="flex justify-end mt-2">
-              <Button type="button" variant="ghost" onClick={handleClose}>
-                Close
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {serverError && (
-          <div className="p-3 rounded-lg bg-red-50 text-red-800 border border-red-200 text-sm">
-            {serverError}
-          </div>
-        )}
-
-        {!skipped && (
-          <div className="flex items-center justify-end gap-2 pt-2">
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={handleClose}
-              disabled={isSubmitting}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              disabled={!canSubmit}
-              leftIcon={
-                isSubmitting ? <Loader2 size={16} className="animate-spin" /> : undefined
-              }
-            >
-              {isSubmitting ? 'Creating...' : 'Create Portfolio'}
-            </Button>
-          </div>
-        )}
-      </form>
+      )}
     </Modal>
   );
 }

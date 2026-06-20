@@ -1,7 +1,7 @@
 import { apiClient } from '@/lib/axios';
 import type { ScreenerRequest } from '@/features/screener/types';
 
-export type WeightingMethod = 'equal' | 'rating_weighted' | 'market_cap';
+export type WeightingMethod = 'equal' | 'rating_weighted' | 'market_cap' | 'manual';
 
 export interface PortfolioResponse {
   portfolio_id: string;
@@ -16,6 +16,7 @@ export interface PortfolioResponse {
   weighting_method: WeightingMethod;
   screener_filters: Record<string, unknown> | null;
   last_rebalance_date: string | null;
+  analysis_start_date: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -65,6 +66,110 @@ export async function createPortfolioFromTickers(
 ): Promise<PortfolioFromTickersResponse> {
   const { data } = await apiClient.post<PortfolioFromTickersResponse>(
     '/portfolios/from-tickers',
+    payload,
+    { signal },
+  );
+  return data;
+}
+
+// =============================================================================
+// Excel import — server-side parse/verify (preview) then create (confirm)
+// =============================================================================
+
+export type ImportRowStatus =
+  | 'found'
+  | 'normalized'
+  | 'not_found'
+  | 'duplicate'
+  | 'invalid_quantity';
+
+export interface ImportPreviewRow {
+  input_ticker: string;
+  status: ImportRowStatus;
+  resolved_ticker: string | null;
+  symbol_id: string | null;
+  name: string | null;
+  recent_price: number | null;
+  quantity: number | null;
+}
+
+export interface ImportPreviewResponse {
+  rows: ImportPreviewRow[];
+  has_quantity_column: boolean;
+  found_count: number;
+  not_found_count: number;
+}
+
+/**
+ * Upload an .xlsx/.csv; the backend parses it (first sheet's ticker column +
+ * optional `quantity` column), verifies each ticker against the catalog (with a
+ * `.`→`-` share-class fallback), and returns a preview. Read-only — nothing is
+ * created. Multipart upload: the JSON default Content-Type is cleared so the
+ * browser sets the multipart boundary.
+ */
+export async function previewPortfolioFromExcel(
+  file: File,
+  signal?: AbortSignal,
+): Promise<ImportPreviewResponse> {
+  const form = new FormData();
+  form.append('file', file);
+  const { data } = await apiClient.post<ImportPreviewResponse>(
+    '/portfolios/import/preview',
+    form,
+    { signal, timeout: 60000, headers: { 'Content-Type': undefined } },
+  );
+  return data;
+}
+
+export interface ImportPositionInput {
+  ticker: string;
+  quantity?: number | null;
+}
+
+export interface ImportConfirmCreate {
+  name: string;
+  description?: string | null;
+  /** Analyze-from date, `YYYY-MM-DD`. */
+  start_date: string;
+  positions: ImportPositionInput[];
+  /** Weighting mode only (omit in quantities mode). */
+  initial_cash?: number | null;
+  /** Weighting mode only (omit in quantities mode). */
+  weighting_method?: WeightingMethod | null;
+}
+
+export type ImportSkipReason =
+  | 'unknown_symbol'
+  | 'no_price_asof'
+  | 'before_coverage'
+  | 'too_small_to_size'
+  | 'invalid_quantity';
+
+export interface SkippedTicker {
+  ticker: string;
+  reason: ImportSkipReason;
+}
+
+export interface ImportConfirmResponse {
+  portfolio: PortfolioResponse;
+  positions_count: number;
+  /** The effective trading day the portfolio was anchored at. */
+  analysis_start_date: string;
+  skipped: SkippedTicker[];
+}
+
+/**
+ * Create a portfolio from the confirmed preview, anchored at `start_date` with
+ * as-of prices, and backfill its snapshot series. Two mutually exclusive modes:
+ * - quantities: every position has a `quantity`; omit `initial_cash`/`weighting_method`.
+ * - weighting: no position has a `quantity`; send `initial_cash` + `weighting_method`.
+ */
+export async function confirmImportPortfolio(
+  payload: ImportConfirmCreate,
+  signal?: AbortSignal,
+): Promise<ImportConfirmResponse> {
+  const { data } = await apiClient.post<ImportConfirmResponse>(
+    '/portfolios/import/confirm',
     payload,
     { signal },
   );
