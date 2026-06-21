@@ -238,6 +238,37 @@ export async function deletePortfolio(
   await apiClient.delete(`/portfolios/${portfolioId}`, { signal });
 }
 
+/**
+ * Export the holdings of the selected portfolios as one `.xlsx` (one sheet per
+ * portfolio). POST /portfolios/export. The caller triggers the browser download
+ * from the returned blob.
+ */
+export async function exportPortfolios(
+  portfolioIds: string[],
+  signal?: AbortSignal,
+): Promise<{ blob: Blob; filename: string }> {
+  const response = await apiClient.post<Blob>(
+    '/portfolios/export',
+    { portfolio_ids: portfolioIds },
+    { responseType: 'blob', signal },
+  );
+  return {
+    blob: response.data,
+    filename: _exportFilename(
+      response.headers['content-disposition'] as string | undefined,
+    ),
+  };
+}
+
+function _exportFilename(disposition: string | undefined): string {
+  if (!disposition) return 'portfolios.xlsx';
+  const quoted = /filename="([^"]+)"/i.exec(disposition);
+  if (quoted) return quoted[1];
+  const unquoted = /filename=([^;]+)/i.exec(disposition);
+  if (unquoted) return unquoted[1].trim();
+  return 'portfolios.xlsx';
+}
+
 export async function getPortfolio(
   portfolioId: string,
   signal?: AbortSignal,

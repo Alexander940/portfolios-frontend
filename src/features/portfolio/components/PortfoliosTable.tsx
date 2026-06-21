@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Briefcase,
@@ -9,6 +9,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import type { PortfolioResponse } from '@/services/portfolioService';
+import { usePortfolioSelection } from '../store/selection';
 
 interface PortfoliosTableProps {
   portfolios: PortfolioResponse[];
@@ -51,6 +52,19 @@ export function PortfoliosTable({
 }: PortfoliosTableProps) {
   const navigate = useNavigate();
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const selectedIds = usePortfolioSelection((s) => s.selectedIds);
+  const toggle = usePortfolioSelection((s) => s.toggle);
+  const setMany = usePortfolioSelection((s) => s.setMany);
+  const selectAllRef = useRef<HTMLInputElement | null>(null);
+
+  const allIds = portfolios.map((p) => p.portfolio_id);
+  const selectedCount = allIds.filter((id) => selectedIds.has(id)).length;
+  const allSelected = allIds.length > 0 && selectedCount === allIds.length;
+  const someSelected = selectedCount > 0 && !allSelected;
+
+  useEffect(() => {
+    if (selectAllRef.current) selectAllRef.current.indeterminate = someSelected;
+  }, [someSelected]);
 
   async function handleDeleteClick(
     e: React.MouseEvent,
@@ -170,6 +184,16 @@ export function PortfoliosTable({
         >
           <thead>
             <tr>
+              <th style={{ ...stickyHeaderStyle, width: 32 }}>
+                <input
+                  ref={selectAllRef}
+                  type="checkbox"
+                  aria-label="Select all portfolios"
+                  checked={allSelected}
+                  onChange={() => setMany(allIds, !allSelected)}
+                  style={{ cursor: 'pointer' }}
+                />
+              </th>
               <th style={{ ...stickyHeaderStyle, width: 28 }}></th>
               <th style={stickyHeaderStyle}>Name</th>
               <th style={stickyHeaderStyle}>Type</th>
@@ -192,6 +216,15 @@ export function PortfoliosTable({
                     navigate(`/dashboard/analysis/${p.portfolio_id}`)
                   }
                 >
+                  <td onClick={(e) => e.stopPropagation()}>
+                    <input
+                      type="checkbox"
+                      aria-label={`Select ${p.name}`}
+                      checked={selectedIds.has(p.portfolio_id)}
+                      onChange={() => toggle(p.portfolio_id)}
+                      style={{ cursor: 'pointer' }}
+                    />
+                  </td>
                   <td>
                     {p.is_default && (
                       <Star

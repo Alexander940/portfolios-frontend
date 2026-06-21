@@ -2,8 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import {
-  deletePortfolio,
-  listPortfolios,
   getPortfolio,
   listPortfolioPositions,
   type PortfolioResponse,
@@ -28,13 +26,26 @@ type DetailTab = (typeof DETAIL_TABS)[number];
  * URL /dashboard/analysis        → list of portfolios (table view).
  * URL /dashboard/analysis/:id    → detail: header + positions table.
  */
-export function Portfolio() {
+interface PortfolioProps {
+  /** List view: the portfolios + handlers, owned by PortfolioAnalysisPage so the
+   * header bulk-action chips and the table act on the same data. Omitted in the
+   * detail view (which fetches the single portfolio by id). */
+  portfolios?: PortfolioResponse[];
+  portfoliosLoading?: boolean;
+  portfoliosError?: string | null;
+  onDeletePortfolio?: (id: string) => Promise<void>;
+  onImportCreated?: (p: PortfolioResponse) => void;
+}
+
+export function Portfolio({
+  portfolios = [],
+  portfoliosLoading = false,
+  portfoliosError = null,
+  onDeletePortfolio,
+  onImportCreated,
+}: PortfolioProps = {}) {
   const { portfolioId } = useParams<{ portfolioId: string }>();
   const navigate = useNavigate();
-
-  const [portfolios, setPortfolios] = useState<PortfolioResponse[]>([]);
-  const [portfoliosLoading, setPortfoliosLoading] = useState(true);
-  const [portfoliosError, setPortfoliosError] = useState<string | null>(null);
 
   const [portfolio, setPortfolio] = useState<PortfolioResponse | null>(null);
   const [positions, setPositions] = useState<PortfolioPositionDetail[]>([]);
@@ -53,31 +64,10 @@ export function Portfolio() {
 
   const positionsAbortRef = useRef<AbortController | null>(null);
 
-  // Load portfolios list once
-  useEffect(() => {
-    const controller = new AbortController();
-    setPortfoliosLoading(true);
-    setPortfoliosError(null);
-
-    listPortfolios(50, 0, controller.signal)
-      .then((res) => {
-        setPortfolios(res.items);
-      })
-      .catch((err) => {
-        if (!controller.signal.aborted) {
-          setPortfoliosError(resolveError(err));
-        }
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setPortfoliosLoading(false);
-      });
-
-    return () => controller.abort();
-  }, []);
-
   // Load selected portfolio details + positions
   useEffect(() => {
     if (!portfolioId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setPortfolio(null);
       setPositions([]);
       setPositionsTotal(0);
@@ -135,11 +125,6 @@ export function Portfolio() {
     setPage(1);
   }
 
-  async function handleDeletePortfolio(id: string) {
-    await deletePortfolio(id);
-    setPortfolios((prev) => prev.filter((p) => p.portfolio_id !== id));
-  }
-
   function handleRetry() {
     if (!portfolioId) return;
     setPositionsLoading(true);
@@ -191,19 +176,13 @@ export function Portfolio() {
       <>
         <PortfoliosTable
           portfolios={portfolios}
-          onDelete={handleDeletePortfolio}
+          onDelete={onDeletePortfolio}
           onImportClick={() => setImportModalOpen(true)}
         />
         <ImportPortfolioFromExcelModal
           isOpen={importModalOpen}
           onClose={() => setImportModalOpen(false)}
-          onCreated={(p) =>
-            setPortfolios((prev) =>
-              prev.some((x) => x.portfolio_id === p.portfolio_id)
-                ? prev
-                : [p, ...prev],
-            )
-          }
+          onCreated={(p) => onImportCreated?.(p)}
         />
       </>
     );
