@@ -86,7 +86,9 @@ export const PERFORMANCE_METRICS: { k: PerformanceMetric; label: string }[] = [
   { k: 'max_drawdown', label: 'Max drawdown' },
 ];
 
-// PIT-safe sortable fields (FIELD_MAPPING keys the backtester accepts).
+// PIT-safe sortable fields (FIELD_MAPPING keys the backtester accepts as a
+// selection.sort_by). The technical fields are point-in-time from ~1990; market_cap
+// (symbol_valuation) and alpha (12m CAPM vs SPY, symbol_performance) from 2015.
 export const SORT_FIELDS: { k: string; label: string }[] = [
   { k: 'rating', label: 'Rating' },
   { k: 'smart_momentum', label: 'Smart Momentum' },
@@ -96,6 +98,8 @@ export const SORT_FIELDS: { k: string; label: string }[] = [
   { k: 'slope_clenow_90d', label: '90d Momentum (Clenow)' },
   { k: 'fss', label: 'Fortaleza (FSS)' },
   { k: 'adx', label: 'ADX' },
+  { k: 'market_cap', label: 'Market Cap' },
+  { k: 'alpha', label: 'Alpha (12M vs S&P)' },
 ];
 
 export const SECTORS_LIST = [

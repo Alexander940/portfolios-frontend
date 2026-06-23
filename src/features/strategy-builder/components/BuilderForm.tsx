@@ -7,6 +7,7 @@ import {
   MARKET_CAP_BUCKETS,
   PERFORMANCE_METRICS,
   SCREENER_FILTERS,
+  SORT_FIELDS,
 } from '../mapping';
 import type { BuilderConfig, ScreenerFieldKey, WeightMethod } from '../types';
 import { ExclusionPicker } from './ExclusionPicker';
@@ -41,6 +42,7 @@ export function BuilderForm({ initialCfg, busy, onCancel, onSave, onSaveBacktest
     4: true,
     5: true,
     6: true,
+    7: true,
   });
   const set = (patch: Partial<BuilderConfig>) => setCfg((c) => ({ ...c, ...patch }));
   // Which Selection-rules filter the modal is editing (null = closed).
@@ -88,6 +90,7 @@ export function BuilderForm({ initialCfg, busy, onCancel, onSave, onSaveBacktest
     cfg.weight === 'equal' ? 'Equal' : cfg.weight === 'rating_weighted' ? 'Rating' : 'Mkt cap';
   const metricLabel =
     PERFORMANCE_METRICS.find((m) => m.k === cfg.performanceMetric)?.label ?? cfg.performanceMetric;
+  const rankLabel = SORT_FIELDS.find((f) => f.k === cfg.sortBy)?.label ?? cfg.sortBy;
 
   // Selection rules is dynamic: the add-selector offers only fields the user
   // hasn't added yet; the modal edits whichever field `editingKey` points at.
@@ -103,19 +106,11 @@ export function BuilderForm({ initialCfg, busy, onCancel, onSave, onSaveBacktest
         <Section
           num="1"
           title="General parameters"
-          sub="Holdings, rebalance, currency, performance, benchmark"
+          sub="Rebalance, currency, performance, benchmark"
           open={open[1]}
           onToggle={() => toggleSection(1)}
         >
           <div className="sb-grid-3" style={{ marginTop: 14 }}>
-            <NumField
-              label="Number of holdings"
-              tip="How many names the strategy holds at once (the top N after ranking)."
-              value={cfg.topN}
-              onChange={(v) => set({ topN: typeof v === 'number' ? v : 1 })}
-              min={1}
-              error={errors.topN}
-            />
             <div className="sb-field" style={{ marginTop: 0 }}>
               <div className="sb-field-label">Rebalance</div>
               <div className="sb-segment full" style={{ marginTop: 2 }}>
@@ -324,8 +319,74 @@ export function BuilderForm({ initialCfg, busy, onCancel, onSave, onSaveBacktest
           />
         )}
 
-        {/* 4. Weighting */}
-        <Section num="4" title="Weighting" sub="How capital is allocated" open={open[4]} onToggle={() => toggleSection(4)}>
+        {/* 4. Ranking */}
+        <Section
+          num="4"
+          title="Ranking"
+          sub="Order the filtered universe, then keep the top N"
+          open={open[4]}
+          onToggle={() => toggleSection(4)}
+        >
+          <div className="sb-universe-result">
+            <Icon name="check" size={15} />
+            <span>
+              After the filters, the universe is ranked by your chosen field{' '}
+              <b>as-of each rebalance</b> and cut to the number of holdings.{' '}
+              <b>Market Cap</b> and <b>Alpha</b> are point-in-time from 2015 onward;
+              the technical fields go deeper.
+            </span>
+          </div>
+          <div className="sb-grid-3" style={{ marginTop: 14 }}>
+            <div className="sb-field" style={{ marginTop: 0 }}>
+              <div className="sb-field-label">
+                Rank by{' '}
+                <Tip text="The parameter the filtered universe is ordered by before taking the top N." />
+              </div>
+              <div className="sb-select-wrap">
+                <select
+                  className="sb-select"
+                  value={cfg.sortBy}
+                  onChange={(e) => set({ sortBy: e.target.value })}
+                >
+                  {SORT_FIELDS.map((f) => (
+                    <option key={f.k} value={f.k}>
+                      {f.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="sb-field" style={{ marginTop: 0 }}>
+              <div className="sb-field-label">
+                Direction{' '}
+                <Tip text="Highest first keeps the top scorers (e.g. largest market cap, highest alpha)." />
+              </div>
+              <div className="sb-segment full" style={{ marginTop: 2 }}>
+                {(['desc', 'asc'] as const).map((k) => (
+                  <button
+                    key={k}
+                    type="button"
+                    className={`sb-seg-btn ${cfg.sortOrder === k ? 'active' : ''}`}
+                    onClick={() => set({ sortOrder: k })}
+                  >
+                    {k === 'desc' ? 'Highest first' : 'Lowest first'}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <NumField
+              label="Number of holdings"
+              tip="How many names the strategy holds at once (the top N after ranking)."
+              value={cfg.topN}
+              onChange={(v) => set({ topN: typeof v === 'number' ? v : 1 })}
+              min={1}
+              error={errors.topN}
+            />
+          </div>
+        </Section>
+
+        {/* 5. Weighting */}
+        <Section num="5" title="Weighting" sub="How capital is allocated" open={open[5]} onToggle={() => toggleSection(5)}>
           <div className="sb-radio-grid">
             {WEIGHT_OPTIONS.map((o) => (
               <button
@@ -346,8 +407,8 @@ export function BuilderForm({ initialCfg, busy, onCancel, onSave, onSaveBacktest
           </div>
         </Section>
 
-        {/* 5. Costs */}
-        <Section num="5" title="Costs" sub="Trading frictions applied to every fill" open={open[5]} onToggle={() => toggleSection(5)}>
+        {/* 6. Costs */}
+        <Section num="6" title="Costs" sub="Trading frictions applied to every fill" open={open[6]} onToggle={() => toggleSection(6)}>
           <div className="sb-grid-2" style={{ marginTop: 14, maxWidth: 420 }}>
             <NumField
               label="Commission"
@@ -368,8 +429,8 @@ export function BuilderForm({ initialCfg, busy, onCancel, onSave, onSaveBacktest
           </div>
         </Section>
 
-        {/* 6. Validation */}
-        <Section num="6" title="Validation window" sub="Backtest period and robustness checks" open={open[6]} onToggle={() => toggleSection(6)}>
+        {/* 7. Validation */}
+        <Section num="7" title="Validation window" sub="Backtest period and robustness checks" open={open[7]} onToggle={() => toggleSection(7)}>
           <div className="sb-grid-2" style={{ marginTop: 14 }}>
             <div className="sb-field" style={{ marginTop: 0 }}>
               <div className="sb-field-label">Start date</div>
@@ -425,6 +486,12 @@ export function BuilderForm({ initialCfg, busy, onCancel, onSave, onSaveBacktest
           <div className="sb-summary-row">
             <span className="k">Holds</span>
             <span className="v">Top {cfg.topN}</span>
+          </div>
+          <div className="sb-summary-row">
+            <span className="k">Ranked by</span>
+            <span className="v">
+              {rankLabel} {cfg.sortOrder === 'asc' ? '↑' : '↓'}
+            </span>
           </div>
           <div className="sb-summary-row">
             <span className="k">Weighting</span>
