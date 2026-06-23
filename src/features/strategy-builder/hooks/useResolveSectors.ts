@@ -4,7 +4,7 @@
 import { useEffect, useState } from 'react';
 
 import { resolveUniverse } from '../service';
-import type { ResolveUniverseResponse, UniverseSpec } from '../types';
+import type { AlphaWindow, ResolveUniverseResponse, UniverseSpec } from '../types';
 
 const DEBOUNCE_MS = 400;
 
@@ -14,7 +14,11 @@ interface ResolveState {
   error: string | null;
 }
 
-export function useResolveSectors(universe: UniverseSpec, enabled: boolean): ResolveState {
+export function useResolveSectors(
+  universe: UniverseSpec,
+  enabled: boolean,
+  alphaWindow: AlphaWindow,
+): ResolveState {
   // Start "loading" when mounted open so the first paint shows a spinner, not the
   // empty state. setState lives only inside the debounce/async callbacks below —
   // never synchronously in the effect body (avoids cascading renders).
@@ -32,7 +36,7 @@ export function useResolveSectors(universe: UniverseSpec, enabled: boolean): Res
     const ctrl = new AbortController();
     const timer = setTimeout(() => {
       setState((s) => ({ ...s, loading: true, error: null }));
-      resolveUniverse(JSON.parse(key) as UniverseSpec, { signal: ctrl.signal })
+      resolveUniverse(JSON.parse(key) as UniverseSpec, { alphaWindow, signal: ctrl.signal })
         .then((data) => {
           if (!ctrl.signal.aborted) setState({ data, loading: false, error: null });
         })
@@ -45,7 +49,7 @@ export function useResolveSectors(universe: UniverseSpec, enabled: boolean): Res
       clearTimeout(timer);
       ctrl.abort();
     };
-  }, [key, enabled]);
+  }, [key, enabled, alphaWindow]);
 
   return state;
 }

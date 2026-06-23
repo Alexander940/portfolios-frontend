@@ -2,11 +2,20 @@
 // (sector tilt by alpha, locked) → Layer 3 (intra-sector method, pluggable).
 // The Layer-2 sector table is gated on the universe resolving — its rows (base
 // weight + alpha vs S&P 500) come from POST /strategies/resolve-universe.
+import { useState } from 'react';
+
 import { Icon } from '../icons';
 import { LAYER3_OPTIONS } from '../mapping';
-import type { BuilderConfig, Layer3Method, UniverseSpec } from '../types';
+import type { AlphaWindow, BuilderConfig, Layer3Method, UniverseSpec } from '../types';
 import { useResolveSectors } from '../hooks/useResolveSectors';
 import { Tip } from './formBits';
+
+const ALPHA_WINDOWS: AlphaWindow[] = ['3m', '6m', '12m'];
+const WINDOW_LABEL: Record<AlphaWindow, string> = {
+  '3m': '3-month',
+  '6m': '6-month',
+  '12m': '12-month',
+};
 
 interface Props {
   universe: UniverseSpec;
@@ -52,7 +61,8 @@ export function SectorWeighting({
   sectorDeltas,
   onChange,
 }: Props) {
-  const { data, loading, error } = useResolveSectors(universe, enabled);
+  const [alphaWindow, setAlphaWindow] = useState<AlphaWindow>('12m');
+  const { data, loading, error } = useResolveSectors(universe, enabled, alphaWindow);
   const sectors = data?.sectors ?? [];
   const thin = data != null && (data.coverage_pct < 0.6 || data.eligible_count < 20);
 
@@ -94,6 +104,32 @@ export function SectorWeighting({
 
         {/* sector table — gated on the universe resolving */}
         <div className="sb-sw-table-wrap">
+          {enabled && (data || loading) && (
+            <div className="sb-sw-controls">
+              <span className="sb-sw-advisory">
+                {data ? (
+                  <>
+                    Median {WINDOW_LABEL[alphaWindow]} alpha vs the S&amp;P 500, as of {data.as_of} —
+                    a guide, not point-in-time.
+                  </>
+                ) : (
+                  'Resolving the universe…'
+                )}
+              </span>
+              <div className="sb-segment sb-sw-window">
+                {ALPHA_WINDOWS.map((w) => (
+                  <button
+                    key={w}
+                    type="button"
+                    className={`sb-seg-btn ${alphaWindow === w ? 'active' : ''}`}
+                    onClick={() => setAlphaWindow(w)}
+                  >
+                    {w.toUpperCase()}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           {!enabled ? null : loading && sectors.length === 0 ? (
             <div className="sb-sw-note">
               <span className="sb-spinner" /> Resolving the universe…
@@ -121,8 +157,10 @@ export function SectorWeighting({
                     <th>Sector</th>
                     <th className="num">% of universe</th>
                     <th className="num">
-                      Alpha vs S&amp;P{' '}
-                      <Tip text="Median 12-month alpha (vs SPY) of the sector's members, as of today. A snapshot guide, not point-in-time." />
+                      Alpha {alphaWindow.toUpperCase()}{' '}
+                      <Tip
+                        text={`Median ${WINDOW_LABEL[alphaWindow]} alpha (vs SPY) of the sector's members, as of today. A snapshot guide, not point-in-time.`}
+                      />
                     </th>
                     <th className="num">± tilt</th>
                   </tr>
@@ -140,7 +178,16 @@ export function SectorWeighting({
                           s.alpha_vs_spy == null ? 'dim' : s.alpha_vs_spy >= 0 ? 'pos' : 'neg'
                         }`}
                       >
-                        {fmtAlpha(s.alpha_vs_spy)}
+                        {s.alpha_vs_spy == null ? (
+                          <span className="sb-sw-na">
+                            —
+                            <Tip
+                              text={`Only ${s.alpha_coverage} of ${s.member_count} names have an alpha — too few for a median.`}
+                            />
+                          </span>
+                        ) : (
+                          fmtAlpha(s.alpha_vs_spy)
+                        )}
                       </td>
                       <td className="num">
                         <span className="sb-sw-delta">

@@ -136,6 +136,8 @@ export interface WeightingSpec {
 export type Layer1Method = 'universe_marketcap';
 export type Layer2Method = 'user_increment';
 export type Layer3Method = 'equal' | 'rating_weighted' | 'inverse_atr_calm' | 'market_cap';
+/** Lookback for the displayed sector alpha (display-only — not stored in the spec). */
+export type AlphaWindow = '3m' | '6m' | '12m';
 
 export interface Layer1Spec {
   method: Layer1Method;

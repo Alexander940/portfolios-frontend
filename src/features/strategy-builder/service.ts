@@ -2,6 +2,7 @@
 import { apiClient } from '@/lib/axios';
 
 import type {
+  AlphaWindow,
   BacktestStatusResponse,
   BacktestSubmitResponse,
   ResolveUniverseResponse,
@@ -37,7 +38,7 @@ export async function createStrategy(
  *  table. `signal` lets the caller cancel a superseded in-flight request. */
 export async function resolveUniverse(
   universe: UniverseSpec,
-  opts: { alphaWindow?: '3m' | '6m' | '12m'; signal?: AbortSignal } = {},
+  opts: { alphaWindow?: AlphaWindow; signal?: AbortSignal } = {},
 ): Promise<ResolveUniverseResponse> {
   const res = await apiClient.post<ResolveUniverseResponse>(
     '/strategies/resolve-universe',
