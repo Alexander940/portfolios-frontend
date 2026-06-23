@@ -408,3 +408,67 @@
 .sb-fund-add { margin-top: 14px; display: flex; align-items: center; gap: 12px; }
 .sb-fund-add .sb-select-wrap { flex: 0 0 auto; min-width: 240px; }
 .sb-fund-add-hint { font-size: 12px; color: var(--c-text-dim); }
+
+/* ============================================================
+   LAYERED WEIGHTING — 3 layer cards + the Layer-2 sector table
+   ============================================================ */
+.sb-layers { display: flex; flex-direction: column; gap: 18px; margin-top: 12px; }
+.sb-layer { display: flex; flex-direction: column; }
+.sb-layer-head { display: flex; align-items: center; gap: 8px; }
+.sb-layer-tag {
+  font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
+  color: var(--c-accent-text); background: var(--c-accent-soft);
+  padding: 2px 7px; border-radius: 5px; font-family: var(--font-mono);
+}
+.sb-layer-title { font-size: 13px; font-weight: 600; color: var(--c-text); }
+/* locked layer (1 & 2): the single card reads as selected but not interactive */
+.sb-radio-card.sb-locked { cursor: default; opacity: 0.85; }
+.sb-radio-card.sb-locked:hover { border-color: var(--c-accent); }
+.sb-lock-pill {
+  margin-left: auto; display: inline-flex; align-items: center; gap: 4px;
+  font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;
+  color: var(--c-text-dim); background: var(--c-bg-softer);
+  border: 1px solid var(--c-border); padding: 1px 6px; border-radius: 100px;
+}
+
+.sb-sw-table-wrap { margin-top: 12px; }
+.sb-sw-note {
+  display: flex; align-items: center; gap: 8px; padding: 10px 12px; font-size: 12.5px;
+  color: var(--c-text-dim); background: var(--c-bg-soft);
+  border: 1px solid var(--c-border); border-radius: var(--radius-sm);
+}
+.sb-sw-note.err { color: var(--c-neg); border-color: color-mix(in oklch, var(--c-neg) 30%, transparent); }
+.sb-sw-note.warn {
+  color: var(--c-text-soft); margin-bottom: 8px;
+  background: color-mix(in oklch, var(--c-warn) 10%, transparent);
+  border-color: color-mix(in oklch, var(--c-warn) 28%, transparent);
+}
+.sb-spinner {
+  width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0;
+  border: 2px solid var(--c-border); border-top-color: var(--c-accent);
+  animation: spin 0.8s linear infinite;
+}
+.sb-sw-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.sb-sw-table th {
+  text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.04em;
+  color: var(--c-text-dim); font-weight: 600; padding: 6px 10px; border-bottom: 1px solid var(--c-border);
+}
+.sb-sw-table th.num, .sb-sw-table td.num { text-align: right; }
+.sb-sw-table td { padding: 7px 10px; border-bottom: 1px solid var(--c-border); color: var(--c-text); }
+.sb-sw-table tr:last-child td { border-bottom: 0; }
+.sb-sw-table td.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.sb-sw-table td.pos { color: var(--c-pos); }
+.sb-sw-table td.neg { color: var(--c-neg); }
+.sb-sw-table td.dim { color: var(--c-text-dim); }
+.sb-sw-members {
+  display: inline-block; margin-left: 7px; font-size: 10.5px; color: var(--c-text-dim);
+  font-family: var(--font-mono); background: var(--c-bg-softer); padding: 0 5px; border-radius: 4px;
+}
+.sb-sw-delta { display: inline-flex; align-items: center; gap: 4px; justify-content: flex-end; }
+.sb-sw-delta .sb-input { width: 64px; text-align: right; padding: 4px 6px; }
+.sb-sw-delta > span { font-size: 11px; color: var(--c-text-dim); font-family: var(--font-mono); }
+.sb-sw-foot {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  margin-top: 8px; font-size: 11.5px; color: var(--c-text-soft); font-family: var(--font-mono);
+}
+.sb-sw-foot .dim { color: var(--c-text-dim); }

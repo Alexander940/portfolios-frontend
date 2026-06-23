@@ -4,9 +4,11 @@ import { apiClient } from '@/lib/axios';
 import type {
   BacktestStatusResponse,
   BacktestSubmitResponse,
+  ResolveUniverseResponse,
   StrategyCreatedResponse,
   StrategyListItem,
   StrategySpec,
+  UniverseSpec,
 } from './types';
 
 /** The current user's saved strategies (head + latest spec), newest first.
@@ -27,6 +29,21 @@ export async function createStrategy(
     description,
     spec,
   });
+  return res.data;
+}
+
+/** Resolve a strategy's investment universe into per-sector Layer-1 base weights
+ *  (market-cap share) + a display alpha vs the S&P 500. Feeds the Layer-2 sector
+ *  table. `signal` lets the caller cancel a superseded in-flight request. */
+export async function resolveUniverse(
+  universe: UniverseSpec,
+  opts: { alphaWindow?: '3m' | '6m' | '12m'; signal?: AbortSignal } = {},
+): Promise<ResolveUniverseResponse> {
+  const res = await apiClient.post<ResolveUniverseResponse>(
+    '/strategies/resolve-universe',
+    { universe, alpha_window: opts.alphaWindow ?? '12m' },
+    { signal: opts.signal },
+  );
   return res.data;
 }
 

@@ -4,6 +4,8 @@ import type {
   BacktestResultOut,
   BuilderConfig,
   FundamentalFilter,
+  Layer3Method,
+  LayeredWeightingSpec,
   MarketCapBucket,
   PerformanceMetric,
   RangeFilter,
@@ -102,6 +104,15 @@ export const SORT_FIELDS: { k: string; label: string }[] = [
   { k: 'alpha', label: 'Alpha (12M vs S&P)' },
 ];
 
+// Layer-3 intra-sector methods. `market_cap` is point-in-time via symbol_valuation
+// (wired in the backtester); locked layers 1 & 2 are rendered separately.
+export const LAYER3_OPTIONS: { k: Layer3Method; n: string; d: string }[] = [
+  { k: 'equal', n: 'Equal weight', d: 'Each stock in a sector gets the same slice of that sector.' },
+  { k: 'rating_weighted', n: 'Rating-weighted', d: 'Higher-rated names get more of their sector (γ sharpens the tilt).' },
+  { k: 'inverse_atr_calm', n: 'Inverse volatility', d: 'Calmer (lower-ATR) names get more weight inside the sector.' },
+  { k: 'market_cap', n: 'Market-cap weighted', d: 'Bigger names get more of their sector (point-in-time market cap).' },
+];
+
 export const SECTORS_LIST = [
   'Technology',
   'Healthcare',
@@ -139,6 +150,9 @@ export const DEFAULT_CONFIG: BuilderConfig = {
   perSector: false,
   maxPerSector: 5,
   weight: 'equal',
+  layer3Method: 'equal',
+  layer3Gamma: '',
+  sectorDeltas: {},
   rebalance: 'monthly',
   commission: 5,
   slippage: 8,
@@ -157,10 +171,15 @@ export function normalizeCfg(cfg: BuilderConfig): BuilderConfig {
   // `fundamentals` went from a keyed record to an array of active filters; an
   // older saved config (record / missing) is dropped to an empty list.
   const fundamentals = Array.isArray(saved.fundamentals) ? saved.fundamentals : [];
-  return { ...DEFAULT_CONFIG, ...cfg, fundamentals };
+  // `sectorDeltas` was added with layered weighting; an older config lacks it.
+  const sectorDeltas =
+    saved.sectorDeltas && typeof saved.sectorDeltas === 'object' ? saved.sectorDeltas : {};
+  return { ...DEFAULT_CONFIG, ...cfg, fundamentals, sectorDeltas };
 }
 
-export function cfgToSpec(cfg: BuilderConfig): StrategySpec {
+/** Build the PIT-safe UniverseSpec from the form config. Exported so the Layer-2
+ *  sector table resolves the SAME universe the backtest will run on. */
+export function buildUniverse(cfg: BuilderConfig): UniverseSpec {
   const universe: UniverseSpec = { rating: { min: cfg.minRating }, country: ['US'] };
   if (cfg.sector) universe.sector = [cfg.sector];
   if (cfg.minTrendStrength !== '') {
@@ -183,6 +202,34 @@ export function cfgToSpec(cfg: BuilderConfig): StrategySpec {
     if (f.max !== '') range.max = Number(f.max) / div;
     if (range.min !== undefined || range.max !== undefined) universe[f.key] = range;
   }
+  return universe;
+}
+
+/** Build the layered-weighting clause from the form, or `undefined` for a plain
+ *  equal strategy (layer3 == equal, no tilts, no gamma). Omitting it keeps the
+ *  backend content_hash of a pre-layered spec byte-identical (the backend pops a
+ *  null `layered` from canonical_json). */
+export function buildLayered(cfg: BuilderConfig): LayeredWeightingSpec | undefined {
+  const deltas: Record<string, number> = {};
+  for (const [sector, pct] of Object.entries(cfg.sectorDeltas ?? {})) {
+    if (pct) deltas[sector] = pct / 100; // % (UI) → relative fraction (spec)
+  }
+  const hasTilt = Object.keys(deltas).length > 0;
+  const hasGamma = cfg.layer3Method === 'rating_weighted' && cfg.layer3Gamma !== '';
+  if (cfg.layer3Method === 'equal' && !hasTilt && !hasGamma) return undefined;
+  return {
+    layer1: { method: 'universe_marketcap' },
+    layer2: { method: 'user_increment', deltas },
+    layer3: {
+      method: cfg.layer3Method,
+      ...(hasGamma ? { gamma: Number(cfg.layer3Gamma) } : {}),
+    },
+  };
+}
+
+export function cfgToSpec(cfg: BuilderConfig): StrategySpec {
+  const universe = buildUniverse(cfg);
+  const layered = buildLayered(cfg);
 
   return {
     general: {
@@ -209,7 +256,11 @@ export function cfgToSpec(cfg: BuilderConfig): StrategySpec {
       top_n: cfg.topN,
       per_sector: cfg.perSector ? cfg.maxPerSector : null,
     },
-    weighting: { method: cfg.weight },
+    // The layered pipeline is the weighting model now; `weighting` stays at the
+    // vestigial default (the backtester reads `layered` when present). Omitted
+    // `layered` (plain equal) keeps the legacy equal-spec content_hash intact.
+    weighting: { method: 'equal' },
+    ...(layered ? { layered } : {}),
     rebalance: { cadence: cfg.rebalance },
     costs: { commission_bps: cfg.commission, slippage_bps: cfg.slippage },
     validation: {
@@ -265,6 +316,19 @@ export function specToConfig(spec: StrategySpec, name: string): BuilderConfig {
     perSector: sel?.per_sector != null,
     maxPerSector: sel?.per_sector ?? DEFAULT_CONFIG.maxPerSector,
     weight: spec.weighting?.method ?? DEFAULT_CONFIG.weight,
+    // Layered weighting: prefer the spec's `layered` clause; otherwise map the
+    // legacy single-stage `weighting.method` onto the closest Layer-3 method
+    // (equal/rating_weighted/market_cap are all valid Layer-3 methods). Re-saving
+    // such a spec adopts the layered model — see buildLayered.
+    layer3Method:
+      spec.layered?.layer3?.method ??
+      ((spec.weighting?.method ?? 'equal') as Layer3Method),
+    layer3Gamma: spec.layered?.layer3?.gamma != null ? spec.layered.layer3.gamma : '',
+    sectorDeltas: spec.layered?.layer2?.deltas
+      ? Object.fromEntries(
+          Object.entries(spec.layered.layer2.deltas).map(([s, frac]) => [s, frac * 100]),
+        )
+      : {},
     rebalance: spec.rebalance?.cadence ?? DEFAULT_CONFIG.rebalance,
     commission: spec.costs?.commission_bps ?? DEFAULT_CONFIG.commission,
     slippage: spec.costs?.slippage_bps ?? DEFAULT_CONFIG.slippage,

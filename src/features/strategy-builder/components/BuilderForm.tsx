@@ -2,16 +2,19 @@ import { useMemo, useState } from 'react';
 
 import { Icon } from '../icons';
 import {
+  buildUniverse,
   FILTER_CATEGORIES,
   formatRange,
+  LAYER3_OPTIONS,
   MARKET_CAP_BUCKETS,
   PERFORMANCE_METRICS,
   SCREENER_FILTERS,
   SORT_FIELDS,
 } from '../mapping';
-import type { BuilderConfig, ScreenerFieldKey, WeightMethod } from '../types';
+import type { BuilderConfig, ScreenerFieldKey } from '../types';
 import { ExclusionPicker } from './ExclusionPicker';
 import { NumField, Section, Tip } from './formBits';
+import { SectorWeighting } from './SectorWeighting';
 import { FilterChip, SelectionFilterModal } from './SelectionFilterModal';
 
 interface Props {
@@ -21,17 +24,6 @@ interface Props {
   onSave: (cfg: BuilderConfig) => void;
   onSaveBacktest: (cfg: BuilderConfig) => void;
 }
-
-const WEIGHT_OPTIONS: { k: WeightMethod; n: string; d: string; disabled?: boolean }[] = [
-  { k: 'equal', n: 'Equal weight', d: 'Every holding gets the same allocation.' },
-  { k: 'rating_weighted', n: 'Rating-weighted', d: 'Higher-rated names get more capital.' },
-  {
-    k: 'market_cap',
-    n: 'Market-cap weighted',
-    d: 'Not available in backtest — no point-in-time valuation.',
-    disabled: true,
-  },
-];
 
 export function BuilderForm({ initialCfg, busy, onCancel, onSave, onSaveBacktest }: Props) {
   const [cfg, setCfg] = useState<BuilderConfig>(initialCfg);
@@ -86,8 +78,9 @@ export function BuilderForm({ initialCfg, busy, onCancel, onSave, onSaveBacktest
     { ok: !errors.oosSplit, label: 'Out-of-sample split valid' },
   ];
 
-  const weightLabel =
-    cfg.weight === 'equal' ? 'Equal' : cfg.weight === 'rating_weighted' ? 'Rating' : 'Mkt cap';
+  const layer3Label = LAYER3_OPTIONS.find((o) => o.k === cfg.layer3Method)?.n ?? 'Equal weight';
+  const hasTilts = Object.keys(cfg.sectorDeltas ?? {}).length > 0;
+  const weightLabel = `Sector → ${layer3Label}${hasTilts ? ' (tilted)' : ''}`;
   const metricLabel =
     PERFORMANCE_METRICS.find((m) => m.k === cfg.performanceMetric)?.label ?? cfg.performanceMetric;
   const rankLabel = SORT_FIELDS.find((f) => f.k === cfg.sortBy)?.label ?? cfg.sortBy;
@@ -385,26 +378,22 @@ export function BuilderForm({ initialCfg, busy, onCancel, onSave, onSaveBacktest
           </div>
         </Section>
 
-        {/* 5. Weighting */}
-        <Section num="5" title="Weighting" sub="How capital is allocated" open={open[5]} onToggle={() => toggleSection(5)}>
-          <div className="sb-radio-grid">
-            {WEIGHT_OPTIONS.map((o) => (
-              <button
-                key={o.k}
-                type="button"
-                className={`sb-radio-card ${cfg.weight === o.k ? 'active' : ''}`}
-                disabled={o.disabled}
-                style={o.disabled ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
-                onClick={() => !o.disabled && set({ weight: o.k })}
-              >
-                <div className="sb-radio-card-head">
-                  <span className="sb-radio-dot" />
-                  <span className="sb-radio-name">{o.n}</span>
-                </div>
-                <div className="sb-radio-desc">{o.d}</div>
-              </button>
-            ))}
-          </div>
+        {/* 5. Weighting — layered: sector base → alpha tilt → intra-sector method */}
+        <Section
+          num="5"
+          title="Weighting"
+          sub="Sector base → alpha tilt → stock weighting"
+          open={open[5]}
+          onToggle={() => toggleSection(5)}
+        >
+          <SectorWeighting
+            universe={buildUniverse(cfg)}
+            enabled={!!open[5]}
+            layer3Method={cfg.layer3Method}
+            layer3Gamma={cfg.layer3Gamma}
+            sectorDeltas={cfg.sectorDeltas}
+            onChange={set}
+          />
         </Section>
 
         {/* 6. Costs */}

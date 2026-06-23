@@ -130,6 +130,51 @@ export interface WeightingSpec {
   method: WeightMethod;
 }
 
+// ---- layered weighting (sector base → sector tilt → intra-sector) ----
+// Mirrors the backend LayeredWeighting clause. Layers 1 & 2 are locked to a
+// single method in v1 (the Literal has one value); layer 3 is pluggable.
+export type Layer1Method = 'universe_marketcap';
+export type Layer2Method = 'user_increment';
+export type Layer3Method = 'equal' | 'rating_weighted' | 'inverse_atr_calm' | 'market_cap';
+
+export interface Layer1Spec {
+  method: Layer1Method;
+}
+export interface Layer2Spec {
+  method: Layer2Method;
+  /** sector (FMP name) → relative tilt as a fraction (+0.2 = +20%). */
+  deltas: Record<string, number>;
+}
+export interface Layer3Spec {
+  method: Layer3Method;
+  gamma?: number | null; // only rating_weighted
+}
+export interface LayeredWeightingSpec {
+  layer1: Layer1Spec;
+  layer2: Layer2Spec;
+  layer3: Layer3Spec;
+}
+
+// ---- resolve-universe DTOs (POST /strategies/resolve-universe) ----
+export interface SectorRow {
+  sector: string; // FMP-normalized; NULL bucket is "Unclassified"
+  member_count: number;
+  alpha_coverage: number;
+  base_weight_pct: number; // Layer 1 market-cap share
+  alpha_vs_spy: number | null; // median member alpha; null if coverage too low
+}
+export interface ResolveUniverseResponse {
+  as_of: string;
+  alpha_window: string;
+  alpha_metric: string;
+  alpha_pit_safe: boolean;
+  base_method: Layer1Method;
+  total_market_cap: number;
+  eligible_count: number;
+  coverage_pct: number;
+  sectors: SectorRow[];
+}
+
 export interface RebalanceSpec {
   cadence: Cadence;
 }
@@ -152,6 +197,10 @@ export interface StrategySpec {
   entry_exit: EntryExitSpec;
   selection: SelectionSpec;
   weighting: WeightingSpec;
+  /** Optional 3-layer weighting. When present the backtester uses it instead of
+   *  `weighting`; omitted (kept undefined) for a plain equal strategy so the
+   *  backend content_hash of pre-layered specs is unchanged. */
+  layered?: LayeredWeightingSpec | null;
   rebalance: RebalanceSpec;
   costs: CostsSpec;
   validation: ValidationSpec;
@@ -268,8 +317,14 @@ export interface BuilderConfig {
   topN: number;
   perSector: boolean;
   maxPerSector: number;
-  // weighting
+  // weighting (legacy single-stage — still read from older saved specs)
   weight: WeightMethod;
+  // layered weighting: layer 1 (sector base) + layer 2 (sector tilt) are locked;
+  // layer 3 (intra-sector) is the pluggable method. `sectorDeltas` is keyed by
+  // FMP sector name and held in PERCENT (UI) — divided by 100 into the spec.
+  layer3Method: Layer3Method;
+  layer3Gamma: number | ''; // only rating_weighted; '' = default (1.0)
+  sectorDeltas: Record<string, number>; // FMP sector → % relative tilt
   // rebalance
   rebalance: Cadence;
   // costs
