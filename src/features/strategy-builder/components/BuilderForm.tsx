@@ -4,7 +4,7 @@ import { Icon } from '../icons';
 import {
   buildUniverse,
   FILTER_CATEGORIES,
-  formatRange,
+  formatFilterRange,
   LAYER3_OPTIONS,
   MARKET_CAP_BUCKETS,
   PERFORMANCE_METRICS,
@@ -249,7 +249,7 @@ export function BuilderForm({ initialCfg, busy, onCancel, onSave, onSaveBacktest
                   <FilterChip
                     key={active.key}
                     label={meta.label}
-                    value={formatRange(active.min, active.max, meta.unit)}
+                    value={formatFilterRange(active.min, active.max, meta)}
                     onClick={() => setEditingKey(active.key)}
                     onRemove={() => removeFund(active.key)}
                   />

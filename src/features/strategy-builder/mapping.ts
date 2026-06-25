@@ -26,14 +26,15 @@ export const MARKET_CAP_BUCKETS: { k: MarketCapBucket; label: string; hint: stri
 
 // Catalog of screener fields the user can add as Selection-rules filters,
 // grouped by category. `kind: 'pct'` is entered as a percentage and stored as a
-// fraction (÷100); `ratio` is stored as-entered. Mirrors the backend's
-// PIT_SAFE_QUARTERLY_FIELDS (Fundamentals) + PIT_SAFE_PERF_FIELDS (Performance).
+// fraction (÷100); `ratio` is stored as-entered; `usd` is an absolute USD amount
+// (entered raw, stored as-entered, shown abbreviated like $1.2B). Mirrors the
+// backend's PIT_SAFE_QUARTERLY_FIELDS (Fundamentals) + PIT_SAFE_PERF_FIELDS.
 export type FilterCategory = 'Fundamentals' | 'Performance';
 
 export interface ScreenerFilterDef {
   key: ScreenerFieldKey;
   label: string;
-  kind: 'ratio' | 'pct';
+  kind: 'ratio' | 'pct' | 'usd';
   hint: string;
   category: FilterCategory;
   unit?: string; // shown in the chip/modal (e.g. '%'); margins are also ÷100 (kind 'pct')
@@ -47,6 +48,17 @@ export const SCREENER_FILTERS: ScreenerFilterDef[] = [
   { key: 'pcf_ratio', label: 'P/CF ratio', kind: 'ratio', hint: 'Price / operating cash flow.', category: 'Fundamentals' },
   { key: 'gross_margin', label: 'Gross margin', kind: 'pct', hint: 'Gross profit / revenue.', category: 'Fundamentals', unit: '%' },
   { key: 'operating_margin', label: 'Operating margin', kind: 'pct', hint: 'Operating income / revenue.', category: 'Fundamentals', unit: '%' },
+  // Growth + the remaining ratios — PIT via fundamentals_quarterly. Growth values
+  // are fractions (entered as %). pd_ratio / free_cash_flow are per-quarter.
+  { key: 'revenue_growth_3m', label: 'Revenue growth 3M', kind: 'pct', hint: 'Sequential QoQ revenue growth (this fiscal quarter vs the prior).', category: 'Fundamentals', unit: '%' },
+  { key: 'revenue_growth_12m', label: 'Revenue growth 12M', kind: 'pct', hint: 'Annual revenue growth (fiscal year vs prior fiscal year — not TTM).', category: 'Fundamentals', unit: '%' },
+  { key: 'earnings_growth_3m', label: 'Earnings growth 3M', kind: 'pct', hint: 'Sequential QoQ net-income growth.', category: 'Fundamentals', unit: '%' },
+  { key: 'earnings_growth_12m', label: 'Earnings growth 12M', kind: 'pct', hint: 'Annual net-income growth (FY vs prior FY).', category: 'Fundamentals', unit: '%' },
+  { key: 'eps_minus_rev_growth_3m', label: 'EPS − Rev growth 3M', kind: 'pct', hint: 'Earnings-growth minus revenue-growth gap (3M).', category: 'Fundamentals', unit: '%' },
+  { key: 'eps_minus_rev_growth_12m', label: 'EPS − Rev growth 12M', kind: 'pct', hint: 'Earnings-growth minus revenue-growth gap (12M, FY).', category: 'Fundamentals', unit: '%' },
+  { key: 'peg_ratio_trailing', label: 'PEG (trailing)', kind: 'ratio', hint: 'Period-end P/E ÷ annual earnings growth. NULL when P/E ≤ 0 or growth ≤ 0.', category: 'Fundamentals' },
+  { key: 'pd_ratio', label: 'P/D ratio', kind: 'ratio', hint: 'Price / dividend (= 1 / dividend yield). Caveat: per-quarter, not annualized.', category: 'Fundamentals' },
+  { key: 'free_cash_flow', label: 'Free cash flow', kind: 'usd', hint: 'Absolute free cash flow for the fiscal quarter (USD; e.g. 1e9 = $1B). Caveat: per-quarter, not TTM.', category: 'Fundamentals', unit: '$' },
   // Performance — PIT via the backfilled symbol_performance history. Returns are
   // percent (entered as-is, windows in trading days); sharpe is unitless.
   { key: 'return_1w', label: 'Return 1W', kind: 'ratio', hint: '1-week price return, point-in-time.', category: 'Performance', unit: '%' },
@@ -69,6 +81,33 @@ export function formatRange(min: number | '', max: number | '', unit?: string): 
   if (min !== '' && max !== '') return `${min}${u} – ${max}${u}`;
   if (min !== '') return `≥ ${min}${u}`;
   if (max !== '') return `≤ ${max}${u}`;
+  return 'any';
+}
+
+/** Abbreviate an absolute USD amount for a chip: $1.2B, $340.0M, $5.0K, $250. */
+export function formatUsd(n: number): string {
+  const a = Math.abs(n);
+  const s = n < 0 ? '-' : '';
+  if (a >= 1e9) return `${s}$${(a / 1e9).toFixed(1)}B`;
+  if (a >= 1e6) return `${s}$${(a / 1e6).toFixed(1)}M`;
+  if (a >= 1e3) return `${s}$${(a / 1e3).toFixed(1)}K`;
+  return `${s}$${a}`;
+}
+
+/** Chip display for an active filter's bounds: USD-abbreviated for `kind: 'usd'`,
+ *  else the plain numeric range with the field's unit. */
+export function formatFilterRange(
+  min: number | '',
+  max: number | '',
+  def: ScreenerFilterDef,
+): string {
+  if (def.kind !== 'usd') return formatRange(min, max, def.unit);
+  const f = (v: number | '') => (v === '' ? '' : formatUsd(Number(v)));
+  const lo = f(min);
+  const hi = f(max);
+  if (lo && hi) return `${lo} – ${hi}`;
+  if (lo) return `≥ ${lo}`;
+  if (hi) return `≤ ${hi}`;
   return 'any';
 }
 

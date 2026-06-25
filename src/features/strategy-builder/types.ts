@@ -35,17 +35,28 @@ export interface GeneralSpec {
 export type MarketCapBucket = 'mega' | 'large' | 'mid' | 'small' | 'micro' | 'nano';
 export type InstrumentType = 'stocks';
 
-/** The screener fundamentals enabled as PIT backtest filters (Selection rules) —
- *  the 6 directly-comparable ratios the backend resolves as-of
- *  `fundamentals_quarterly`. Per-quarter flow metrics (roe, dividend_yield…) are
- *  intentionally excluded by the backend's PIT linter. */
+/** The screener fundamentals enabled as PIT backtest filters (Selection rules),
+ *  resolved by the backend as-of `fundamentals_quarterly`. Beyond the directly-
+ *  comparable ratios/margins these include the mapped growth metrics, trailing PEG,
+ *  price/dividend, and per-period free cash flow. `pd_ratio` and `free_cash_flow`
+ *  are per-quarter (not annual/TTM) — enabled by request. Per-quarter flow metrics
+ *  (roe, dividend_yield, fcf/share…) stay excluded by the backend's PIT linter. */
 export type FundamentalKey =
   | 'pe_ratio'
   | 'ps_ratio'
   | 'pb_ratio'
   | 'pcf_ratio'
   | 'gross_margin'
-  | 'operating_margin';
+  | 'operating_margin'
+  | 'revenue_growth_3m'
+  | 'revenue_growth_12m'
+  | 'earnings_growth_3m'
+  | 'earnings_growth_12m'
+  | 'eps_minus_rev_growth_3m'
+  | 'eps_minus_rev_growth_12m'
+  | 'peg_ratio_trailing'
+  | 'pd_ratio'
+  | 'free_cash_flow';
 
 /** Screener "performance view" fields, PIT via the backfilled symbol_performance
  *  history. Returns are stored as percent (entered as-is); sharpe is unitless. */
@@ -88,6 +99,17 @@ export interface UniverseSpec {
   pcf_ratio?: RangeFilter;
   gross_margin?: RangeFilter;
   operating_margin?: RangeFilter;
+  // Growth (fractions in the spec; the UI enters % and divides by 100) + trailing
+  // PEG, price/dividend, and per-period absolute-USD free cash flow.
+  revenue_growth_3m?: RangeFilter;
+  revenue_growth_12m?: RangeFilter;
+  earnings_growth_3m?: RangeFilter;
+  earnings_growth_12m?: RangeFilter;
+  eps_minus_rev_growth_3m?: RangeFilter;
+  eps_minus_rev_growth_12m?: RangeFilter;
+  peg_ratio_trailing?: RangeFilter;
+  pd_ratio?: RangeFilter;
+  free_cash_flow?: RangeFilter; // per-period absolute USD (backtest-only)
   // Selection-rules performance (PIT via symbol_performance). Returns are in
   // percent (no transform); sharpe is unitless.
   return_1w?: RangeFilter;
