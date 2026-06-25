@@ -171,6 +171,24 @@ export function StrategyBuilder() {
     }
   };
 
+  const handleDelete = useCallback(
+    async (s: SavedStrategy) => {
+      if (
+        !window.confirm(
+          `Delete "${s.name}"? This also removes its backtests and can't be undone.`,
+        )
+      ) {
+        return;
+      }
+      try {
+        await remove(s.id);
+      } catch {
+        window.alert('Could not delete this strategy. Try again in a moment.');
+      }
+    },
+    [remove],
+  );
+
   const headerTitle =
     view === 'list' ? 'Strategy Builder' : view === 'build' ? editing.cfg.name : activeName;
   const headerSub =
@@ -221,7 +239,7 @@ export function StrategyBuilder() {
           onOpen={goOpen}
           onEdit={goEdit}
           onBacktest={(s) => runFlow(s.cfg)}
-          onDelete={(s) => remove(s.id)}
+          onDelete={handleDelete}
         />
       )}
 

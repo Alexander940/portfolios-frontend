@@ -33,6 +33,13 @@ export async function createStrategy(
   return res.data;
 }
 
+/** Delete a strategy the caller owns. The backend cascades its versions and all
+ *  their backtest jobs/results, so this single call clears everything. 204 on
+ *  success; 404 if it is already gone or not owned. */
+export async function deleteStrategy(strategyId: string): Promise<void> {
+  await apiClient.delete(`/strategies/${strategyId}`);
+}
+
 /** Resolve a strategy's investment universe into per-sector Layer-1 base weights
  *  (market-cap share) + a display alpha vs the S&P 500. Feeds the Layer-2 sector
  *  table. `signal` lets the caller cancel a superseded in-flight request. */
