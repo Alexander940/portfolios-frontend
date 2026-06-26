@@ -225,6 +225,12 @@ export interface StrategySpec {
    *  `weighting`; omitted (kept undefined) for a plain equal strategy so the
    *  backend content_hash of pre-layered specs is unchanged. */
   layered?: LayeredWeightingSpec | null;
+  /** Optional post-universe selection filters (same screen vocabulary as the
+   *  universe). When present the backtester narrows the ranked set by them AFTER
+   *  resolving the universe and computing the Layer-1 base — so they never bias
+   *  the weighting. Omitted (kept undefined) for strategies without one, so the
+   *  backend content_hash of pre-existing specs is unchanged. */
+  selection_filters?: UniverseSpec | null;
   rebalance: RebalanceSpec;
   costs: CostsSpec;
   validation: ValidationSpec;
@@ -323,8 +329,14 @@ export interface BuilderConfig {
   // investment universe (instrument type + country are locked)
   companySizes: MarketCapBucket[];
   excluded: ExcludedSymbol[];
-  // selection rules — ordered list of the fundamentals the user added (dynamic)
-  fundamentals: FundamentalFilter[];
+  // "Additional rules" — fundamental/performance filters that CONSTRAIN the
+  // investment universe (and therefore the Layer-1 sector weighting base). They
+  // map into spec.universe. Pre-existing strategies' filters load here.
+  additionalRules: FundamentalFilter[];
+  // "Selection rules" — the SAME field catalog, but applied as a post-universe
+  // phase: they narrow which names are ranked/picked WITHOUT shrinking the
+  // universe or the weighting base. They map into spec.selection_filters.
+  selectionFilters: FundamentalFilter[];
   // universe (PIT-safe)
   sector: string; // '' = all
   minRating: number; // -3..3 → universe.rating.min

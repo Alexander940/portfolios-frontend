@@ -174,7 +174,8 @@ export const DEFAULT_CONFIG: BuilderConfig = {
   performanceMetric: 'total_return',
   companySizes: [],
   excluded: [],
-  fundamentals: [],
+  additionalRules: [],
+  selectionFilters: [],
   sector: '',
   minRating: 1,
   minTrendStrength: '',
@@ -202,22 +203,45 @@ export const DEFAULT_CONFIG: BuilderConfig = {
 };
 
 /** Merge a (possibly older) saved config onto the current DEFAULT_CONFIG so
- *  fields added after it was saved — e.g. `fundamentals` — are always present.
+ *  fields added after it was saved — e.g. `additionalRules` — are always present.
  *  Strategies persisted before a field existed would otherwise crash the form
- *  (`cfg.fundamentals[k]`) or cfgToSpec. Idempotent on fresh configs. */
+ *  or cfgToSpec. Idempotent on fresh configs. */
 export function normalizeCfg(cfg: BuilderConfig): BuilderConfig {
-  const saved = cfg as Partial<BuilderConfig>;
-  // `fundamentals` went from a keyed record to an array of active filters; an
-  // older saved config (record / missing) is dropped to an empty list.
-  const fundamentals = Array.isArray(saved.fundamentals) ? saved.fundamentals : [];
+  const saved = cfg as Partial<BuilderConfig> & { fundamentals?: FundamentalFilter[] };
+  // Legacy migration: the old single `fundamentals` array (which mapped into the
+  // universe) becomes `additionalRules` — the same universe-constraining semantics.
+  const additionalRules = Array.isArray(saved.additionalRules)
+    ? saved.additionalRules
+    : Array.isArray(saved.fundamentals)
+      ? saved.fundamentals
+      : [];
+  const selectionFilters = Array.isArray(saved.selectionFilters) ? saved.selectionFilters : [];
   // `sectorDeltas` was added with layered weighting; an older config lacks it.
   const sectorDeltas =
     saved.sectorDeltas && typeof saved.sectorDeltas === 'object' ? saved.sectorDeltas : {};
-  return { ...DEFAULT_CONFIG, ...cfg, fundamentals, sectorDeltas };
+  return { ...DEFAULT_CONFIG, ...cfg, additionalRules, selectionFilters, sectorDeltas };
+}
+
+/** Write each active filter as a range onto a screen object (universe or the
+ *  selection-phase screen). Margins entered as % are stored as fractions ÷ 100;
+ *  a one-sided filter keeps only its set bound. Shared by buildUniverse +
+ *  buildSelectionFilters so both screens encode filters identically. */
+function addFilterRanges(target: UniverseSpec, filters: FundamentalFilter[]): void {
+  for (const f of filters) {
+    const meta = FIELD_BY_KEY.get(f.key);
+    if (!meta) continue;
+    const div = meta.kind === 'pct' ? 100 : 1;
+    const range: RangeFilter = {};
+    if (f.min !== '') range.min = Number(f.min) / div;
+    if (f.max !== '') range.max = Number(f.max) / div;
+    if (range.min !== undefined || range.max !== undefined) target[f.key] = range;
+  }
 }
 
 /** Build the PIT-safe UniverseSpec from the form config. Exported so the Layer-2
- *  sector table resolves the SAME universe the backtest will run on. */
+ *  sector table resolves the SAME universe the backtest will run on. Includes the
+ *  "Additional rules" (which constrain the universe) but NOT the post-universe
+ *  "Selection rules". */
 export function buildUniverse(cfg: BuilderConfig): UniverseSpec {
   const universe: UniverseSpec = { rating: { min: cfg.minRating }, country: ['US'] };
   if (cfg.sector) universe.sector = [cfg.sector];
@@ -229,19 +253,18 @@ export function buildUniverse(cfg: BuilderConfig): UniverseSpec {
   }
   if (cfg.companySizes.length) universe.market_cap_category = cfg.companySizes;
   if (cfg.excluded.length) universe.exclude = cfg.excluded.map((e) => e.symbolId);
-
-  // Selection-rules fundamentals → universe range filters (only the filters the
-  // user added; margins entered as % are stored as fractions ÷ 100).
-  for (const f of cfg.fundamentals) {
-    const meta = FIELD_BY_KEY.get(f.key);
-    if (!meta) continue;
-    const div = meta.kind === 'pct' ? 100 : 1;
-    const range: RangeFilter = {};
-    if (f.min !== '') range.min = Number(f.min) / div;
-    if (f.max !== '') range.max = Number(f.max) / div;
-    if (range.min !== undefined || range.max !== undefined) universe[f.key] = range;
-  }
+  addFilterRanges(universe, cfg.additionalRules);
   return universe;
+}
+
+/** Build the post-universe selection-phase screen from the "Selection rules", or
+ *  `undefined` when there are none — omitting it keeps the backend content_hash of
+ *  a spec without selection filters byte-identical (the backend pops a null
+ *  `selection_filters` from canonical_json, exactly like `layered`). */
+export function buildSelectionFilters(cfg: BuilderConfig): UniverseSpec | undefined {
+  const screen: UniverseSpec = {};
+  addFilterRanges(screen, cfg.selectionFilters);
+  return Object.keys(screen).length > 0 ? screen : undefined;
 }
 
 /** Build the layered-weighting clause from the form, or `undefined` for a plain
@@ -269,6 +292,7 @@ export function buildLayered(cfg: BuilderConfig): LayeredWeightingSpec | undefin
 export function cfgToSpec(cfg: BuilderConfig): StrategySpec {
   const universe = buildUniverse(cfg);
   const layered = buildLayered(cfg);
+  const selectionFilters = buildSelectionFilters(cfg);
 
   return {
     general: {
@@ -300,6 +324,9 @@ export function cfgToSpec(cfg: BuilderConfig): StrategySpec {
     // `layered` (plain equal) keeps the legacy equal-spec content_hash intact.
     weighting: { method: 'equal' },
     ...(layered ? { layered } : {}),
+    // Omitted when empty so a strategy without selection filters keeps the legacy
+    // content_hash (the backend pops a null `selection_filters` from canonical_json).
+    ...(selectionFilters ? { selection_filters: selectionFilters } : {}),
     rebalance: { cadence: cfg.rebalance },
     costs: { commission_bps: cfg.commission, slippage_bps: cfg.slippage },
     validation: {
@@ -309,6 +336,24 @@ export function cfgToSpec(cfg: BuilderConfig): StrategySpec {
       min_n_trades: cfg.minTrades,
     },
   };
+}
+
+/** Reverse of addFilterRanges: pull the active range filters out of a screen
+ *  (universe or selection_filters) back into the form's FundamentalFilter[] (% margins
+ *  re-multiplied ×100). Only catalog fields the builder exposes are carried. */
+function rangesToFilters(
+  fields: Record<string, RangeFilter | null | undefined>,
+): FundamentalFilter[] {
+  const out: FundamentalFilter[] = [];
+  for (const def of SCREENER_FILTERS) {
+    const rf = fields[def.key];
+    if (rf == null) continue;
+    const mul = def.kind === 'pct' ? 100 : 1;
+    const min = rf.min != null ? rf.min * mul : '';
+    const max = rf.max != null ? rf.max * mul : '';
+    if (min !== '' || max !== '') out.push({ key: def.key, min, max });
+  }
+  return out;
 }
 
 /** Reverse of cfgToSpec: rebuild a BuilderConfig from a backend StrategySpec so
@@ -324,15 +369,13 @@ export function specToConfig(spec: StrategySpec, name: string): BuilderConfig {
   const sel = spec.selection;
   const val = spec.validation;
 
-  const fundamentals: FundamentalFilter[] = [];
-  for (const def of SCREENER_FILTERS) {
-    const rf = ufields[def.key];
-    if (rf == null) continue;
-    const mul = def.kind === 'pct' ? 100 : 1;
-    const min = rf.min != null ? rf.min * mul : '';
-    const max = rf.max != null ? rf.max * mul : '';
-    if (min !== '' || max !== '') fundamentals.push({ key: def.key, min, max });
-  }
+  // Universe fundamentals → "Additional rules" (where they have always lived): a
+  // server/legacy strategy's universe filters constrain the universe, so they
+  // surface in the universe section, not the post-universe selection phase.
+  const additionalRules = rangesToFilters(ufields);
+  // spec.selection_filters → "Selection rules" (the post-universe phase).
+  const sf = (spec.selection_filters ?? {}) as Record<string, RangeFilter | null | undefined>;
+  const selectionFilters = rangesToFilters(sf);
 
   return {
     ...DEFAULT_CONFIG,
@@ -340,7 +383,8 @@ export function specToConfig(spec: StrategySpec, name: string): BuilderConfig {
     performanceMetric: spec.general?.performance_metric ?? DEFAULT_CONFIG.performanceMetric,
     companySizes: (u.market_cap_category ?? []) as MarketCapBucket[],
     excluded: (u.exclude ?? []).map((id) => ({ symbolId: id, ticker: '', name: '' })),
-    fundamentals,
+    additionalRules,
+    selectionFilters,
     sector: u.sector?.[0] ?? '',
     minRating: u.rating?.min ?? DEFAULT_CONFIG.minRating,
     minTrendStrength: u.trend_strength?.min ?? '',

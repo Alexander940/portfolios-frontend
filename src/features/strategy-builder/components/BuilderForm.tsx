@@ -3,19 +3,16 @@ import { useMemo, useState } from 'react';
 import { Icon } from '../icons';
 import {
   buildUniverse,
-  FILTER_CATEGORIES,
-  formatFilterRange,
   LAYER3_OPTIONS,
   MARKET_CAP_BUCKETS,
   PERFORMANCE_METRICS,
-  SCREENER_FILTERS,
   SORT_FIELDS,
 } from '../mapping';
-import type { BuilderConfig, ScreenerFieldKey } from '../types';
+import type { BuilderConfig } from '../types';
 import { ExclusionPicker } from './ExclusionPicker';
+import { FundamentalFilterGroup } from './FundamentalFilterGroup';
 import { NumField, Section, Tip } from './formBits';
 import { SectorWeighting } from './SectorWeighting';
-import { FilterChip, SelectionFilterModal } from './SelectionFilterModal';
 
 interface Props {
   initialCfg: BuilderConfig;
@@ -37,25 +34,6 @@ export function BuilderForm({ initialCfg, busy, onCancel, onSave, onSaveBacktest
     7: true,
   });
   const set = (patch: Partial<BuilderConfig>) => setCfg((c) => ({ ...c, ...patch }));
-  // Which Selection-rules filter the modal is editing (null = closed).
-  const [editingKey, setEditingKey] = useState<ScreenerFieldKey | null>(null);
-  const removeFund = (key: ScreenerFieldKey) =>
-    setCfg((c) => ({ ...c, fundamentals: c.fundamentals.filter((f) => f.key !== key) }));
-  // Add-or-update a filter from the modal: no bounds → not stored (removed);
-  // existing key keeps its position; new key is appended.
-  const upsertFund = (key: ScreenerFieldKey, min: number | '', max: number | '') =>
-    setCfg((c) => {
-      if (min === '' && max === '') {
-        return { ...c, fundamentals: c.fundamentals.filter((f) => f.key !== key) };
-      }
-      if (c.fundamentals.some((f) => f.key === key)) {
-        return {
-          ...c,
-          fundamentals: c.fundamentals.map((f) => (f.key === key ? { key, min, max } : f)),
-        };
-      }
-      return { ...c, fundamentals: [...c.fundamentals, { key, min, max }] };
-    });
   const toggleSection = (n: number) => setOpen((o) => ({ ...o, [n]: !o[n] }));
 
   const errors = useMemo(() => {
@@ -84,13 +62,6 @@ export function BuilderForm({ initialCfg, busy, onCancel, onSave, onSaveBacktest
   const metricLabel =
     PERFORMANCE_METRICS.find((m) => m.k === cfg.performanceMetric)?.label ?? cfg.performanceMetric;
   const rankLabel = SORT_FIELDS.find((f) => f.k === cfg.sortBy)?.label ?? cfg.sortBy;
-
-  // Selection rules is dynamic: the add-selector offers only fields the user
-  // hasn't added yet; the modal edits whichever field `editingKey` points at.
-  const activeFundKeys = new Set(cfg.fundamentals.map((f) => f.key));
-  const availableFundamentals = SCREENER_FILTERS.filter((f) => !activeFundKeys.has(f.key));
-  const editingDef = editingKey ? SCREENER_FILTERS.find((f) => f.key === editingKey) ?? null : null;
-  const editingFilter = editingKey ? cfg.fundamentals.find((f) => f.key === editingKey) ?? null : null;
 
   return (
     <div className="sb-build-grid">
@@ -166,7 +137,7 @@ export function BuilderForm({ initialCfg, busy, onCancel, onSave, onSaveBacktest
         <Section
           num="2"
           title="Investment universe"
-          sub="Instrument, country, size, exclusions"
+          sub="Instrument, country, size, exclusions, additional rules"
           open={open[2]}
           onToggle={() => toggleSection(2)}
         >
@@ -222,95 +193,43 @@ export function BuilderForm({ initialCfg, busy, onCancel, onSave, onSaveBacktest
           <div style={{ marginTop: 14 }}>
             <ExclusionPicker value={cfg.excluded} onChange={(v) => set({ excluded: v })} />
           </div>
+          <div className="sb-field">
+            <div className="sb-field-label">
+              Additional rules{' '}
+              <Tip text="Fundamental / performance filters that CONSTRAIN the universe — they shape which names are eligible and the sector weighting base. Evaluated point-in-time at each rebalance." />
+            </div>
+            <FundamentalFilterGroup
+              filters={cfg.additionalRules}
+              onChange={(v) => set({ additionalRules: v })}
+              emptyHint="No universe filters yet — pick a field to add one."
+            />
+          </div>
         </Section>
 
         {/* 3. Selection rules */}
         <Section
           num="3"
           title="Selection rules"
-          sub="Fundamental + performance filters (point-in-time)"
+          sub="Post-universe filters — narrow the picks, not the universe"
           open={open[3]}
           onToggle={() => toggleSection(3)}
         >
           <div className="sb-universe-result">
             <Icon name="check" size={15} />
             <span>
-              Screener fields evaluated <b>as-of each rebalance</b> — fundamentals from
-              quarterly filings (90-day reporting lag), performance from price history.
-              Add the fields you want to filter by; leave a bound blank for one-sided.
+              Applied <b>after</b> the universe is resolved — a later phase that
+              narrows which names are ranked and picked. Unlike <b>Additional rules</b>,
+              these do <b>not</b> change the universe or the sector weighting base. Same
+              fields, evaluated point-in-time at each rebalance; leave a bound blank for
+              one-sided.
             </span>
           </div>
-          {cfg.fundamentals.length > 0 && (
-            <div className="sb-chips" style={{ marginTop: 14 }}>
-              {cfg.fundamentals.map((active) => {
-                const meta = SCREENER_FILTERS.find((f) => f.key === active.key);
-                if (!meta) return null;
-                return (
-                  <FilterChip
-                    key={active.key}
-                    label={meta.label}
-                    value={formatFilterRange(active.min, active.max, meta)}
-                    onClick={() => setEditingKey(active.key)}
-                    onRemove={() => removeFund(active.key)}
-                  />
-                );
-              })}
-            </div>
-          )}
-          {availableFundamentals.length > 0 ? (
-            <div className="sb-fund-add">
-              <div className="sb-select-wrap">
-                <select
-                  className="sb-select"
-                  value=""
-                  onChange={(e) => {
-                    if (e.target.value) setEditingKey(e.target.value as ScreenerFieldKey);
-                  }}
-                >
-                  <option value="">+ Add a filter…</option>
-                  {FILTER_CATEGORIES.map((cat) => {
-                    const opts = availableFundamentals.filter((f) => f.category === cat);
-                    return opts.length === 0 ? null : (
-                      <optgroup key={cat} label={cat}>
-                        {opts.map((f) => (
-                          <option key={f.key} value={f.key}>
-                            {f.label}
-                          </option>
-                        ))}
-                      </optgroup>
-                    );
-                  })}
-                </select>
-              </div>
-              {cfg.fundamentals.length === 0 && (
-                <span className="sb-fund-add-hint">No filters yet — pick a field to add one.</span>
-              )}
-            </div>
-          ) : (
-            <div className="sb-fund-add-hint" style={{ marginTop: 12 }}>
-              All available fields added.
-            </div>
-          )}
-        </Section>
-
-        {editingKey && editingDef && (
-          <SelectionFilterModal
-            key={editingKey}
-            def={editingDef}
-            initialMin={editingFilter?.min ?? ''}
-            initialMax={editingFilter?.max ?? ''}
-            exists={!!editingFilter}
-            onApply={(min, max) => {
-              upsertFund(editingKey, min, max);
-              setEditingKey(null);
-            }}
-            onRemove={() => {
-              removeFund(editingKey);
-              setEditingKey(null);
-            }}
-            onClose={() => setEditingKey(null)}
+          <FundamentalFilterGroup
+            filters={cfg.selectionFilters}
+            onChange={(v) => set({ selectionFilters: v })}
+            emptyHint="No selection filters yet — pick a field to add one."
           />
-        )}
+        </Section>
 
         {/* 4. Ranking */}
         <Section
