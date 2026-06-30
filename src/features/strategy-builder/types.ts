@@ -6,6 +6,17 @@ export interface RangeFilter {
   max?: number;
 }
 
+/** Inclusive date-range filter (mirrors the backend DateRangeFilter). */
+export interface DateRange {
+  min?: string; // ISO YYYY-MM-DD
+  max?: string;
+}
+
+/** How a catalog filter is entered/serialized. Defaults to 'range' for the
+ *  pre-batch-2 numeric filters; bool / multiselect / daterange were added in
+ *  batch 2 (in_trade excluded — see mapping.ts). */
+export type FilterValueType = 'range' | 'boolean' | 'multiselect' | 'daterange';
+
 export type SortOrder = 'asc' | 'desc';
 export type WeightMethod = 'equal' | 'rating_weighted' | 'market_cap';
 export type Cadence = 'monthly' | 'weekly';
@@ -70,16 +81,111 @@ export type PerformanceKey =
   | 'sharpe_6m'
   | 'sharpe_12m';
 
-/** Any screener field the user can add as a Selection-rules filter. */
-export type ScreenerFieldKey = FundamentalKey | PerformanceKey;
+/** Trend / TrendRating range fields, PIT via the `trend`/`ade` dated series.
+ *  `rating`, `smart_momentum`, `trend_strength` are intentionally NOT here — they
+ *  have dedicated universe controls (minRating / minMomentum / minTrendStrength),
+ *  and adding them to the dynamic catalog would double-count on the universe
+ *  round-trip. `days_since_rating` works as a FILTER but is NOT a valid
+ *  selection.sort_by (the backend ranking path can't resolve the computed column),
+ *  so it must never be offered as a sort key. */
+export type TrendKey = 'retracement' | 'days_since_rating';
 
-/** One active filter the user added (Selection rules is dynamic — the user picks
- *  fields from a catalog; only added fields render min/max inputs). '' = no
- *  bound on that side. */
+/** Smart-Momentum (ADE variant) per-side range fields, PIT via the `ade` series. */
+export type SmartMomentumKey =
+  | 'sm_long_points'
+  | 'sm_short_points'
+  | 'sm_long_pct'
+  | 'sm_short_pct'
+  | 'sm_long_ratio'
+  | 'sm_short_ratio'
+  | 'sm_long_peak_ratio'
+  | 'sm_short_peak_ratio';
+
+/** 90-day trend slopes + bull-cycle / retracement / trade-machine numeric fields,
+ *  PIT via the `ade` series. */
+export type AdeCycleKey =
+  | 'slope_clenow_90d'
+  | 'slope_tema_90d'
+  | 'bull_cycle_origin_price'
+  | 'tracking_low'
+  | 'days_in_cycle'
+  | 'cycle_retracement_pct'
+  | 'off_high_52w_pct'
+  | 'trend_high'
+  | 'trend_low'
+  | 'fss'
+  | 'trade'
+  | 'trade_dir';
+
+/** Technical-indicator range fields, PIT via the `technical_indicators` series. */
+export type IndicatorKey =
+  | 'adx'
+  | 'adxr'
+  | 'mfi_14'
+  | 'rvi'
+  | 'aroon_oscillator'
+  | 'atr'
+  | 'atr_calm'
+  | 'vmc_z_score'
+  | 'tema_30'
+  | 'maa'
+  | 'kama_er';
+
+/** Latest market-bar range fields, PIT via `price_data` (resolved as-of). */
+export type PriceKey = 'open' | 'high' | 'low' | 'close' | 'volume';
+
+/** Boolean (ade) fields, PIT via the `ade` series. `new_high`/`new_low` are
+ *  TRUE-ONLY toggles (the backend gates on truthiness; =False is a no-op).
+ *  `in_trade` is intentionally NOT here — the backtester force-gates the universe
+ *  to in_trade=True, so a user value is overwritten (footgun). */
+export type BooleanFieldKey =
+  | 'new_high'
+  | 'new_low'
+  | 'in_bull_cycle'
+  | 'bull_cycle_started'
+  | 'bull_origin_active'
+  | 'bear_origin_active'
+  | 'atr_spike';
+
+/** Multiselect (sym) classification fields. `country` is omitted (the universe is
+ *  locked to US); `sector` is offered only in the Selection-rules section because
+ *  the universe already has a dedicated single-sector control. Current-only
+ *  (the symbols table is not historized) — a documented PIT caveat. */
+export type ClassificationKey = 'sector' | 'exchange';
+
+/** Date-range (ade) fields, PIT via the `ade` series. */
+export type DateRangeFieldKey = 'bull_cycle_origin_date';
+
+/** Any screener field the user can add as a filter (Additional or Selection
+ *  rules). All are PIT-safe in a backtest — the backend's PIT linter accepts the
+ *  ade/ti/tr/price/sym aliases; Profit-Factor, non-quarterly fundamentals, and
+ *  volatility/liquidity fields stay out because the linter rejects them. */
+export type ScreenerFieldKey =
+  | FundamentalKey
+  | PerformanceKey
+  | TrendKey
+  | SmartMomentumKey
+  | AdeCycleKey
+  | IndicatorKey
+  | PriceKey
+  | BooleanFieldKey
+  | ClassificationKey
+  | DateRangeFieldKey;
+
+/** One active filter the user added (the rule sections are dynamic — the user
+ *  picks fields from a catalog). The shape carries every value type; the catalog's
+ *  `def.type` (mapping.ts) is the source of truth for which fields are populated.
+ *  Pre-batch-2 saved filters are `{key,min,max}` with no `type` → treated as range.
+ *  '' = no bound on that side (range/daterange). */
 export interface FundamentalFilter {
   key: ScreenerFieldKey;
-  min: number | '';
-  max: number | '';
+  type?: FilterValueType; // absent → 'range'
+  min?: number | ''; // range
+  max?: number | ''; // range
+  value?: boolean; // boolean
+  values?: string[]; // multiselect
+  dateMin?: string; // daterange (ISO)
+  dateMax?: string; // daterange (ISO)
 }
 
 export interface UniverseSpec {
@@ -120,6 +226,66 @@ export interface UniverseSpec {
   return_ytd?: RangeFilter;
   sharpe_6m?: RangeFilter;
   sharpe_12m?: RangeFilter;
+  // ---- ade / ti / tr / price range filters (raw values; resolved as-of in a
+  // backtest). Added to the Additional/Selection-rules catalog (see mapping.ts). ----
+  // Trend / TrendRating (alias tr/ade). rating/trend_strength/smart_momentum are
+  // above (dedicated universe controls), so they're not repeated here.
+  retracement?: RangeFilter;
+  days_since_rating?: RangeFilter; // filter-only — not a valid sort_by (see TrendKey)
+  // Smart Momentum (ADE variant, alias ade)
+  sm_long_points?: RangeFilter;
+  sm_short_points?: RangeFilter;
+  sm_long_pct?: RangeFilter;
+  sm_short_pct?: RangeFilter;
+  sm_long_ratio?: RangeFilter;
+  sm_short_ratio?: RangeFilter;
+  sm_long_peak_ratio?: RangeFilter;
+  sm_short_peak_ratio?: RangeFilter;
+  // 90d slopes + bull-cycle / retracement / trend extremes / FSS / trade machine (ade)
+  slope_clenow_90d?: RangeFilter;
+  slope_tema_90d?: RangeFilter;
+  bull_cycle_origin_price?: RangeFilter;
+  tracking_low?: RangeFilter;
+  days_in_cycle?: RangeFilter;
+  cycle_retracement_pct?: RangeFilter;
+  off_high_52w_pct?: RangeFilter;
+  trend_high?: RangeFilter;
+  trend_low?: RangeFilter;
+  fss?: RangeFilter;
+  trade?: RangeFilter;
+  trade_dir?: RangeFilter;
+  // Technical indicators (alias ti). `adx` is declared above (legacy universe field).
+  adxr?: RangeFilter;
+  mfi_14?: RangeFilter;
+  rvi?: RangeFilter;
+  aroon_oscillator?: RangeFilter;
+  atr?: RangeFilter;
+  atr_calm?: RangeFilter;
+  vmc_z_score?: RangeFilter;
+  tema_30?: RangeFilter;
+  maa?: RangeFilter;
+  kama_er?: RangeFilter;
+  // Latest market bar (alias price)
+  open?: RangeFilter;
+  high?: RangeFilter;
+  low?: RangeFilter;
+  close?: RangeFilter;
+  volume?: RangeFilter;
+  // ---- batch-2 non-range filters ----
+  // Boolean (ade). new_high/new_low are TRUE-only (backend gates on truthiness).
+  new_high?: boolean;
+  new_low?: boolean;
+  in_bull_cycle?: boolean;
+  bull_cycle_started?: boolean;
+  bull_origin_active?: boolean;
+  bear_origin_active?: boolean;
+  atr_spike?: boolean;
+  // Multiselect (sym). `sector` / `country` are declared above (string[]); `exchange`
+  // is new. `country` stays universe-only (locked US); `sector` catalog filter is
+  // Selection-rules-only to avoid colliding with the dedicated universe control.
+  exchange?: string[];
+  // Date-range (ade): bull-cycle origin date, resolved as-of.
+  bull_cycle_origin_date?: DateRange;
 }
 
 /** A stock chosen for the Exclusion list (kept with ticker/name for display). */

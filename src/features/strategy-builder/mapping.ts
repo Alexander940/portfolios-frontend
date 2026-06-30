@@ -3,6 +3,8 @@
 import type {
   BacktestResultOut,
   BuilderConfig,
+  DateRange,
+  FilterValueType,
   FundamentalFilter,
   Layer3Method,
   LayeredWeightingSpec,
@@ -29,15 +31,45 @@ export const MARKET_CAP_BUCKETS: { k: MarketCapBucket; label: string; hint: stri
 // fraction (÷100); `ratio` is stored as-entered; `usd` is an absolute USD amount
 // (entered raw, stored as-entered, shown abbreviated like $1.2B). Mirrors the
 // backend's PIT_SAFE_QUARTERLY_FIELDS (Fundamentals) + PIT_SAFE_PERF_FIELDS.
-export type FilterCategory = 'Fundamentals' | 'Performance';
+export type FilterCategory =
+  | 'Fundamentals'
+  | 'Performance'
+  | 'Trend'
+  | 'Smart Momentum'
+  | 'Trend Slopes'
+  | 'Cycle & Trade'
+  | 'Technical Indicators'
+  | 'Price & Volume'
+  | 'Classification';
+
+/** Which builder section a filter may be added in. 'universe' = Additional rules
+ *  (constrain the universe); 'selection' = Selection rules (post-universe phase). */
+export type FilterSection = 'universe' | 'selection';
 
 export interface ScreenerFilterDef {
   key: ScreenerFieldKey;
   label: string;
-  kind: 'ratio' | 'pct' | 'usd';
+  /** Input/serialization type. Absent → 'range' (the 61 numeric filters). */
+  type?: FilterValueType;
+  /** Range unit transform: 'pct' enters % and stores ÷100; 'ratio'/'usd' as-entered.
+   *  Only meaningful for type 'range'. */
+  kind?: 'ratio' | 'pct' | 'usd';
   hint: string;
   category: FilterCategory;
   unit?: string; // shown in the chip/modal (e.g. '%'); margins are also ÷100 (kind 'pct')
+  /** For type 'multiselect': which option list (from GET /screener/options) feeds it. */
+  optionsKey?: 'sectors' | 'exchanges' | 'countries';
+  /** Sections this filter may be added in (default: both). `sector` is selection-only
+   *  to avoid colliding with the dedicated universe sector control. */
+  sections?: FilterSection[];
+  /** For type 'boolean': only a True value is meaningful (the backend gates on
+   *  truthiness, so =False is a no-op). The modal renders an on/off, not Yes/No. */
+  boolTrueOnly?: boolean;
+}
+
+/** Whether a filter is offered in a given section (default: both). */
+export function sectionAllows(def: ScreenerFilterDef, section: FilterSection): boolean {
+  return (def.sections ?? ['universe', 'selection']).includes(section);
 }
 
 export const SCREENER_FILTERS: ScreenerFilterDef[] = [
@@ -69,10 +101,85 @@ export const SCREENER_FILTERS: ScreenerFilterDef[] = [
   { key: 'return_ytd', label: 'Return YTD', kind: 'ratio', hint: 'Year-to-date price return, point-in-time.', category: 'Performance', unit: '%' },
   { key: 'sharpe_6m', label: 'Sharpe 6M', kind: 'ratio', hint: '6-month annualized Sharpe ratio.', category: 'Performance' },
   { key: 'sharpe_12m', label: 'Sharpe 12M', kind: 'ratio', hint: '12-month annualized Sharpe ratio.', category: 'Performance' },
+  // ---- PIT-safe ade / ti / tr / price filters. Values are raw (kind 'ratio', no
+  // ÷100) to match the screener + backend exactly; `unit` is display-only. ----
+  // Trend / TrendRating (alias tr/ade).
+  { key: 'retracement', label: 'Retracement', kind: 'ratio', hint: 'Pullback within the current rating run.', category: 'Trend', unit: '%' },
+  { key: 'days_since_rating', label: 'Days since rating', kind: 'ratio', hint: 'Trading days since the current rating started. Filter-only — not available as a ranking sort key.', category: 'Trend', unit: 'days' },
+  // Smart Momentum (ADE variant, alias ade). Long side ≥ 0, short side ≤ 0.
+  { key: 'sm_long_points', label: 'SM Long Points', kind: 'ratio', hint: 'Smart-Momentum long-side points (≥ 0 once the bull origin activates).', category: 'Smart Momentum' },
+  { key: 'sm_short_points', label: 'SM Short Points', kind: 'ratio', hint: 'Smart-Momentum short-side points (≤ 0 once the bear origin activates).', category: 'Smart Momentum' },
+  { key: 'sm_long_pct', label: 'SM Long %', kind: 'ratio', hint: 'Smart-Momentum long-side percent.', category: 'Smart Momentum', unit: '%' },
+  { key: 'sm_short_pct', label: 'SM Short %', kind: 'ratio', hint: 'Smart-Momentum short-side percent.', category: 'Smart Momentum', unit: '%' },
+  { key: 'sm_long_ratio', label: 'SM Long Ratio', kind: 'ratio', hint: 'Volatility-normalized long-side SM (points / ATR_Calm).', category: 'Smart Momentum' },
+  { key: 'sm_short_ratio', label: 'SM Short Ratio', kind: 'ratio', hint: 'Volatility-normalized short-side SM.', category: 'Smart Momentum' },
+  { key: 'sm_long_peak_ratio', label: 'SM Long Peak', kind: 'ratio', hint: 'Monotonic peak of the long-side SM ratio within the cycle.', category: 'Smart Momentum' },
+  { key: 'sm_short_peak_ratio', label: 'SM Short Peak', kind: 'ratio', hint: 'Monotonic trough of the short-side SM ratio within the cycle.', category: 'Smart Momentum' },
+  // 90d trend slopes (alias ade). The screener exposes Clenow + TEMA as filters.
+  { key: 'slope_clenow_90d', label: 'Slope Clenow (90d)', kind: 'ratio', hint: 'Annualized exp-regression slope × R² over 90 sessions (Clenow momentum).', category: 'Trend Slopes' },
+  { key: 'slope_tema_90d', label: 'Slope TEMA (90d)', kind: 'ratio', hint: '% velocity of the 90-session TEMA(20).', category: 'Trend Slopes' },
+  // Bull cycle / retracement / trend extremes / FSS / trade machine (alias ade).
+  { key: 'bull_cycle_origin_price', label: 'Bull Cycle Origin Price', kind: 'ratio', hint: 'Price where the current bull cycle started.', category: 'Cycle & Trade' },
+  { key: 'tracking_low', label: 'Tracking Low', kind: 'ratio', hint: 'Lowest tracked price of the current cycle.', category: 'Cycle & Trade' },
+  { key: 'days_in_cycle', label: 'Days in Cycle', kind: 'ratio', hint: 'Bars elapsed since the current cycle started.', category: 'Cycle & Trade', unit: 'bars' },
+  { key: 'cycle_retracement_pct', label: 'Cycle Retracement %', kind: 'ratio', hint: 'Retracement from the bull-cycle high (≤ 0).', category: 'Cycle & Trade', unit: '%' },
+  { key: 'off_high_52w_pct', label: 'Off 52w High %', kind: 'ratio', hint: 'Distance below the trailing 52-week high (≤ 0).', category: 'Cycle & Trade', unit: '%' },
+  { key: 'trend_high', label: 'Trend High', kind: 'ratio', hint: 'Running max close since the cycle started (NULL out of cycle).', category: 'Cycle & Trade' },
+  { key: 'trend_low', label: 'Trend Low', kind: 'ratio', hint: 'Running min close since the cycle started (NULL out of cycle).', category: 'Cycle & Trade' },
+  { key: 'fss', label: 'FSS', kind: 'ratio', hint: 'Fortaleza Sub-Score ∈ [0,100] — structural Smart-Money memory + current momentum.', category: 'Cycle & Trade' },
+  { key: 'trade', label: 'Trade (+2 Long / -2 Short)', kind: 'ratio', hint: 'EL Plot7 trade state: +2 Long, -2 Short, 0 flat.', category: 'Cycle & Trade' },
+  { key: 'trade_dir', label: 'Trade Direction', kind: 'ratio', hint: 'Open trade direction (+1 Long, -1 Short, 0 none).', category: 'Cycle & Trade' },
+  // Technical indicators (alias ti).
+  { key: 'adx', label: 'ADX', kind: 'ratio', hint: 'Average Directional Index (trend strength).', category: 'Technical Indicators' },
+  { key: 'adxr', label: 'ADXR', kind: 'ratio', hint: 'ADX Rating (smoothed ADX).', category: 'Technical Indicators' },
+  { key: 'mfi_14', label: 'MFI (14)', kind: 'ratio', hint: 'Money Flow Index, 14-period.', category: 'Technical Indicators' },
+  { key: 'rvi', label: 'RVI', kind: 'ratio', hint: 'Relative Vigor Index.', category: 'Technical Indicators' },
+  { key: 'aroon_oscillator', label: 'Aroon Oscillator', kind: 'ratio', hint: 'Aroon up - Aroon down.', category: 'Technical Indicators' },
+  { key: 'atr', label: 'ATR', kind: 'ratio', hint: 'Average True Range (absolute volatility).', category: 'Technical Indicators' },
+  { key: 'atr_calm', label: 'ATR Calm', kind: 'ratio', hint: 'Smoothed / normalized ATR (calmness).', category: 'Technical Indicators' },
+  { key: 'vmc_z_score', label: 'VMC Z-Score', kind: 'ratio', hint: 'Volume-momentum composite z-score.', category: 'Technical Indicators' },
+  { key: 'tema_30', label: 'TEMA (30)', kind: 'ratio', hint: 'Triple EMA, 30-period.', category: 'Technical Indicators' },
+  { key: 'maa', label: 'MAA', kind: 'ratio', hint: 'Moving-average adaptive value.', category: 'Technical Indicators' },
+  { key: 'kama_er', label: 'KAMA ER', kind: 'ratio', hint: 'Kaufman efficiency ratio.', category: 'Technical Indicators' },
+  // Latest market bar (alias price; resolved as-of in a backtest).
+  { key: 'open', label: 'Open', kind: 'ratio', hint: 'Latest bar open price.', category: 'Price & Volume', unit: 'USD' },
+  { key: 'high', label: 'High', kind: 'ratio', hint: 'Latest bar high price.', category: 'Price & Volume', unit: 'USD' },
+  { key: 'low', label: 'Low', kind: 'ratio', hint: 'Latest bar low price.', category: 'Price & Volume', unit: 'USD' },
+  { key: 'close', label: 'Close', kind: 'ratio', hint: 'Latest bar close price (useful as a min-price / penny-stock filter).', category: 'Price & Volume', unit: 'USD' },
+  { key: 'volume', label: 'Volume', kind: 'ratio', hint: 'Latest bar share volume.', category: 'Price & Volume' },
+  // ---- batch 2: boolean / multiselect / daterange (PIT-safe ade & sym aliases) ----
+  // Booleans (alias ade). new_high/new_low are TRUE-only toggles (backend gates on
+  // truthiness; =False is a no-op). in_trade is excluded — the backtester force-gates
+  // the universe to in_trade=True, so a user value would be silently overwritten.
+  { key: 'new_high', label: 'At new high', type: 'boolean', boolTrueOnly: true, hint: 'Currently at a new high of the rating run (bullish streak). On/off — leaving it off does not add a filter.', category: 'Trend' },
+  { key: 'new_low', label: 'At new low', type: 'boolean', boolTrueOnly: true, hint: 'Currently at a new low of the rating run (bearish streak). On/off. Note: usually empty in a long-only backtest.', category: 'Trend' },
+  { key: 'in_bull_cycle', label: 'In bull cycle', type: 'boolean', hint: 'Currently inside an active bull cycle.', category: 'Cycle & Trade' },
+  { key: 'bull_cycle_started', label: 'Bull cycle started', type: 'boolean', hint: 'The current bull cycle has started.', category: 'Cycle & Trade' },
+  { key: 'bull_origin_active', label: 'Bull origin active', type: 'boolean', hint: 'Bull-origin latch is active.', category: 'Cycle & Trade' },
+  { key: 'bear_origin_active', label: 'Bear origin active', type: 'boolean', hint: 'Bear-origin latch is active (can be true during a long).', category: 'Cycle & Trade' },
+  { key: 'atr_spike', label: 'ATR spike', type: 'boolean', hint: 'Volatility-expansion (ATR spike) flagged.', category: 'Cycle & Trade' },
+  // Date-range (alias ade). NULL out of cycle → implicitly excludes out-of-cycle names.
+  { key: 'bull_cycle_origin_date', label: 'Bull cycle origin date', type: 'daterange', hint: 'Date the current bull cycle started (NULL out of cycle, so this excludes out-of-cycle names).', category: 'Cycle & Trade' },
+  // Multiselect (alias sym; current-only classification — a documented PIT caveat).
+  // `exchange` is clean in both sections; `sector` is Selection-rules-only (the
+  // universe already has a dedicated single-sector control). `country` is omitted
+  // (universe is locked to US).
+  { key: 'exchange', label: 'Exchange', type: 'multiselect', optionsKey: 'exchanges', hint: 'Listing exchange (e.g. NASDAQ, NYSE). Classification is current-only (not point-in-time).', category: 'Classification' },
+  { key: 'sector', label: 'Sector', type: 'multiselect', optionsKey: 'sectors', sections: ['selection'], hint: 'GICS / FMP sector. Selection-rules only — the universe already has its own sector control. Current-only classification.', category: 'Classification' },
 ];
 
 // Ordered category list for the add-selector's <optgroup>s.
-export const FILTER_CATEGORIES: FilterCategory[] = ['Fundamentals', 'Performance'];
+export const FILTER_CATEGORIES: FilterCategory[] = [
+  'Fundamentals',
+  'Performance',
+  'Trend',
+  'Smart Momentum',
+  'Trend Slopes',
+  'Cycle & Trade',
+  'Technical Indicators',
+  'Price & Volume',
+  'Classification',
+];
 
 /** Human-readable bounds for a Selection-rules chip: "5 – 20 %", "≥ 5", "≤ 20",
  *  or "any" when both bounds are blank. */
@@ -111,8 +218,32 @@ export function formatFilterRange(
   return 'any';
 }
 
-// Catalog lookup by key — cfgToSpec needs each active filter's `kind` (to know
-// whether to divide a percentage margin by 100).
+/** Chip display for any active filter, dispatched on the catalog `type`. */
+export function formatFilterValue(f: FundamentalFilter, def: ScreenerFilterDef): string {
+  const type: FilterValueType = def.type ?? 'range';
+  if (type === 'boolean') return f.value ? 'Yes' : 'No';
+  if (type === 'multiselect') return f.values && f.values.length ? f.values.join(', ') : 'any';
+  if (type === 'daterange') {
+    const lo = f.dateMin || '';
+    const hi = f.dateMax || '';
+    if (lo && hi) return `${lo} – ${hi}`;
+    if (lo) return `≥ ${lo}`;
+    if (hi) return `≤ ${hi}`;
+    return 'any';
+  }
+  return formatFilterRange(f.min ?? '', f.max ?? '', def);
+}
+
+/** Whether an active filter has no effective constraint (→ should be dropped). */
+export function isEmptyFilter(f: FundamentalFilter, def: ScreenerFilterDef): boolean {
+  const type: FilterValueType = def.type ?? 'range';
+  if (type === 'boolean') return typeof f.value !== 'boolean';
+  if (type === 'multiselect') return !(f.values && f.values.length);
+  if (type === 'daterange') return !f.dateMin && !f.dateMax;
+  return (f.min === '' || f.min == null) && (f.max === '' || f.max == null);
+}
+
+// Catalog lookup by key — cfgToSpec needs each active filter's `kind`/`type`.
 const FIELD_BY_KEY = new Map(SCREENER_FILTERS.map((f) => [f.key, f]));
 
 // Options for the General-parameters "Performance" select (the metric the
@@ -222,19 +353,37 @@ export function normalizeCfg(cfg: BuilderConfig): BuilderConfig {
   return { ...DEFAULT_CONFIG, ...cfg, additionalRules, selectionFilters, sectorDeltas };
 }
 
-/** Write each active filter as a range onto a screen object (universe or the
- *  selection-phase screen). Margins entered as % are stored as fractions ÷ 100;
- *  a one-sided filter keeps only its set bound. Shared by buildUniverse +
- *  buildSelectionFilters so both screens encode filters identically. */
-function addFilterRanges(target: UniverseSpec, filters: FundamentalFilter[]): void {
+/** Write each active filter onto a screen object (universe or the selection-phase
+ *  screen), dispatched on the catalog `type`: range (% margins stored ÷100),
+ *  boolean, multiselect (string[]), or daterange. A filter whose catalog def isn't
+ *  allowed in `section` is skipped (a safety net for the sector selection-only rule).
+ *  Shared by buildUniverse + buildSelectionFilters so both screens encode identically. */
+function addFilters(
+  target: UniverseSpec,
+  filters: FundamentalFilter[],
+  section: FilterSection,
+): void {
+  const t = target as Record<string, unknown>;
   for (const f of filters) {
     const meta = FIELD_BY_KEY.get(f.key);
-    if (!meta) continue;
-    const div = meta.kind === 'pct' ? 100 : 1;
-    const range: RangeFilter = {};
-    if (f.min !== '') range.min = Number(f.min) / div;
-    if (f.max !== '') range.max = Number(f.max) / div;
-    if (range.min !== undefined || range.max !== undefined) target[f.key] = range;
+    if (!meta || !sectionAllows(meta, section)) continue;
+    const type: FilterValueType = meta.type ?? 'range';
+    if (type === 'boolean') {
+      if (typeof f.value === 'boolean') t[f.key] = f.value;
+    } else if (type === 'multiselect') {
+      if (f.values && f.values.length) t[f.key] = [...f.values];
+    } else if (type === 'daterange') {
+      const dr: DateRange = {};
+      if (f.dateMin) dr.min = f.dateMin;
+      if (f.dateMax) dr.max = f.dateMax;
+      if (dr.min !== undefined || dr.max !== undefined) t[f.key] = dr;
+    } else {
+      const div = meta.kind === 'pct' ? 100 : 1;
+      const range: RangeFilter = {};
+      if (f.min !== '' && f.min != null) range.min = Number(f.min) / div;
+      if (f.max !== '' && f.max != null) range.max = Number(f.max) / div;
+      if (range.min !== undefined || range.max !== undefined) t[f.key] = range;
+    }
   }
 }
 
@@ -253,7 +402,7 @@ export function buildUniverse(cfg: BuilderConfig): UniverseSpec {
   }
   if (cfg.companySizes.length) universe.market_cap_category = cfg.companySizes;
   if (cfg.excluded.length) universe.exclude = cfg.excluded.map((e) => e.symbolId);
-  addFilterRanges(universe, cfg.additionalRules);
+  addFilters(universe, cfg.additionalRules, 'universe');
   return universe;
 }
 
@@ -263,7 +412,7 @@ export function buildUniverse(cfg: BuilderConfig): UniverseSpec {
  *  `selection_filters` from canonical_json, exactly like `layered`). */
 export function buildSelectionFilters(cfg: BuilderConfig): UniverseSpec | undefined {
   const screen: UniverseSpec = {};
-  addFilterRanges(screen, cfg.selectionFilters);
+  addFilters(screen, cfg.selectionFilters, 'selection');
   return Object.keys(screen).length > 0 ? screen : undefined;
 }
 
@@ -338,20 +487,41 @@ export function cfgToSpec(cfg: BuilderConfig): StrategySpec {
   };
 }
 
-/** Reverse of addFilterRanges: pull the active range filters out of a screen
- *  (universe or selection_filters) back into the form's FundamentalFilter[] (% margins
- *  re-multiplied ×100). Only catalog fields the builder exposes are carried. */
-function rangesToFilters(
-  fields: Record<string, RangeFilter | null | undefined>,
+/** Reverse of addFilters: pull the active filters out of a screen (universe or
+ *  selection_filters) back into the form's FundamentalFilter[], dispatched on the
+ *  catalog `type` (% range margins re-multiplied ×100; bool/multiselect/daterange
+ *  reconstructed as-is — NOT coerced through the numeric range path, which would
+ *  NaN a date string and drop bool/list values). `section` skips catalog fields not
+ *  offered there (so a universe screen never reconstructs the selection-only
+ *  `sector` into Additional rules, where the dedicated control owns it). */
+function screenToFilters(
+  fields: Record<string, unknown>,
+  section: FilterSection,
 ): FundamentalFilter[] {
   const out: FundamentalFilter[] = [];
   for (const def of SCREENER_FILTERS) {
-    const rf = fields[def.key];
-    if (rf == null) continue;
-    const mul = def.kind === 'pct' ? 100 : 1;
-    const min = rf.min != null ? rf.min * mul : '';
-    const max = rf.max != null ? rf.max * mul : '';
-    if (min !== '' || max !== '') out.push({ key: def.key, min, max });
+    if (!sectionAllows(def, section)) continue;
+    const raw = fields[def.key];
+    if (raw == null) continue;
+    const type: FilterValueType = def.type ?? 'range';
+    if (type === 'boolean') {
+      if (typeof raw === 'boolean') out.push({ key: def.key, type, value: raw });
+    } else if (type === 'multiselect') {
+      if (Array.isArray(raw) && raw.length) {
+        out.push({ key: def.key, type, values: raw as string[] });
+      }
+    } else if (type === 'daterange') {
+      const dr = raw as DateRange;
+      if (dr && (dr.min || dr.max)) {
+        out.push({ key: def.key, type, dateMin: dr.min ?? '', dateMax: dr.max ?? '' });
+      }
+    } else {
+      const rf = raw as RangeFilter;
+      const mul = def.kind === 'pct' ? 100 : 1;
+      const min = rf.min != null ? rf.min * mul : '';
+      const max = rf.max != null ? rf.max * mul : '';
+      if (min !== '' || max !== '') out.push({ key: def.key, type, min, max });
+    }
   }
   return out;
 }
@@ -364,7 +534,7 @@ function rangesToFilters(
  *  serialized spec's explicit `null`s; falls back to DEFAULT_CONFIG. */
 export function specToConfig(spec: StrategySpec, name: string): BuilderConfig {
   const u = spec.universe ?? ({} as UniverseSpec);
-  const ufields = u as Record<string, RangeFilter | null | undefined>;
+  const ufields = u as Record<string, unknown>;
   const ee = spec.entry_exit;
   const sel = spec.selection;
   const val = spec.validation;
@@ -372,10 +542,10 @@ export function specToConfig(spec: StrategySpec, name: string): BuilderConfig {
   // Universe fundamentals → "Additional rules" (where they have always lived): a
   // server/legacy strategy's universe filters constrain the universe, so they
   // surface in the universe section, not the post-universe selection phase.
-  const additionalRules = rangesToFilters(ufields);
+  const additionalRules = screenToFilters(ufields, 'universe');
   // spec.selection_filters → "Selection rules" (the post-universe phase).
-  const sf = (spec.selection_filters ?? {}) as Record<string, RangeFilter | null | undefined>;
-  const selectionFilters = rangesToFilters(sf);
+  const sf = (spec.selection_filters ?? {}) as Record<string, unknown>;
+  const selectionFilters = screenToFilters(sf, 'selection');
 
   return {
     ...DEFAULT_CONFIG,

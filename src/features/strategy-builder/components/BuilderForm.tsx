@@ -199,6 +199,7 @@ export function BuilderForm({ initialCfg, busy, onCancel, onSave, onSaveBacktest
               <Tip text="Fundamental / performance filters that CONSTRAIN the universe — they shape which names are eligible and the sector weighting base. Evaluated point-in-time at each rebalance." />
             </div>
             <FundamentalFilterGroup
+              section="universe"
               filters={cfg.additionalRules}
               onChange={(v) => set({ additionalRules: v })}
               emptyHint="No universe filters yet — pick a field to add one."
@@ -225,6 +226,7 @@ export function BuilderForm({ initialCfg, busy, onCancel, onSave, onSaveBacktest
             </span>
           </div>
           <FundamentalFilterGroup
+            section="selection"
             filters={cfg.selectionFilters}
             onChange={(v) => set({ selectionFilters: v })}
             emptyHint="No selection filters yet — pick a field to add one."
