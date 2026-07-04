@@ -23,6 +23,7 @@ interface Props {
   layer3Method: Layer3Method;
   layer3Gamma: number | '';
   sectorDeltas: Record<string, number>; // FMP sector → % relative tilt
+  sectorCaps: Record<string, number>; // FMP sector → max weight in PERCENT
   onChange: (patch: Partial<BuilderConfig>) => void;
 }
 
@@ -59,6 +60,7 @@ export function SectorWeighting({
   layer3Method,
   layer3Gamma,
   sectorDeltas,
+  sectorCaps,
   onChange,
 }: Props) {
   const [alphaWindow, setAlphaWindow] = useState<AlphaWindow>('12m');
@@ -73,7 +75,16 @@ export function SectorWeighting({
     else next[sector] = pct;
     onChange({ sectorDeltas: next });
   };
+  const setCap = (sector: string, raw: string) => {
+    const pct = raw === '' ? 0 : parseFloat(raw);
+    const next = { ...sectorCaps };
+    // empty/0/negative → no cap; the backend rejects > 100% (fraction > 1) so clamp.
+    if (!pct || Number.isNaN(pct) || pct <= 0) delete next[sector];
+    else next[sector] = Math.min(pct, 100);
+    onChange({ sectorCaps: next });
+  };
   const netTilt = Object.values(sectorDeltas).reduce((a, b) => a + b, 0);
+  const nCaps = Object.keys(sectorCaps).length;
 
   return (
     <div className="sb-layers">
@@ -163,6 +174,10 @@ export function SectorWeighting({
                       />
                     </th>
                     <th className="num">± tilt</th>
+                    <th className="num">
+                      Max %{' '}
+                      <Tip text="Optional ceiling on the sector's final weight. If it exceeds this after the tilt, the excess is redistributed to the uncapped sectors. Blank = no cap. (This caps the WEIGHT — the per-sector name limit is set in Selection.)" />
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -202,6 +217,21 @@ export function SectorWeighting({
                           <span>%</span>
                         </span>
                       </td>
+                      <td className="num">
+                        <span className="sb-sw-delta">
+                          <input
+                            type="number"
+                            className="sb-input mono"
+                            value={sectorCaps[s.sector] ?? ''}
+                            placeholder="—"
+                            min={0}
+                            max={100}
+                            step={5}
+                            onChange={(e) => setCap(s.sector, e.target.value)}
+                          />
+                          <span>%</span>
+                        </span>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -211,6 +241,12 @@ export function SectorWeighting({
                   Net tilt {netTilt > 0 ? '+' : ''}
                   {netTilt}% across {Object.keys(sectorDeltas).length} sector
                   {Object.keys(sectorDeltas).length === 1 ? '' : 's'}
+                  {nCaps > 0 && (
+                    <>
+                      {' · '}
+                      {nCaps} cap{nCaps === 1 ? '' : 's'}
+                    </>
+                  )}
                 </span>
                 <span className="dim">renormalized to 100% at run time</span>
               </div>

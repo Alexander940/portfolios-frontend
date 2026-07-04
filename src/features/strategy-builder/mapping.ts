@@ -324,6 +324,7 @@ export const DEFAULT_CONFIG: BuilderConfig = {
   layer3Method: 'equal',
   layer3Gamma: '',
   sectorDeltas: {},
+  sectorCaps: {},
   rebalance: 'monthly',
   commission: 5,
   slippage: 8,
@@ -350,7 +351,10 @@ export function normalizeCfg(cfg: BuilderConfig): BuilderConfig {
   // `sectorDeltas` was added with layered weighting; an older config lacks it.
   const sectorDeltas =
     saved.sectorDeltas && typeof saved.sectorDeltas === 'object' ? saved.sectorDeltas : {};
-  return { ...DEFAULT_CONFIG, ...cfg, additionalRules, selectionFilters, sectorDeltas };
+  // `sectorCaps` was added after per-sector tilts; an older config lacks it.
+  const sectorCaps =
+    saved.sectorCaps && typeof saved.sectorCaps === 'object' ? saved.sectorCaps : {};
+  return { ...DEFAULT_CONFIG, ...cfg, additionalRules, selectionFilters, sectorDeltas, sectorCaps };
 }
 
 /** Write each active filter onto a screen object (universe or the selection-phase
@@ -425,12 +429,19 @@ export function buildLayered(cfg: BuilderConfig): LayeredWeightingSpec | undefin
   for (const [sector, pct] of Object.entries(cfg.sectorDeltas ?? {})) {
     if (pct) deltas[sector] = pct / 100; // % (UI) → relative fraction (spec)
   }
+  const caps: Record<string, number> = {};
+  for (const [sector, pct] of Object.entries(cfg.sectorCaps ?? {})) {
+    if (pct) caps[sector] = pct / 100; // % (UI) → fraction (spec); 30 → 0.3
+  }
   const hasTilt = Object.keys(deltas).length > 0;
+  const hasCap = Object.keys(caps).length > 0;
   const hasGamma = cfg.layer3Method === 'rating_weighted' && cfg.layer3Gamma !== '';
-  if (cfg.layer3Method === 'equal' && !hasTilt && !hasGamma) return undefined;
+  if (cfg.layer3Method === 'equal' && !hasTilt && !hasGamma && !hasCap) return undefined;
   return {
     layer1: { method: 'universe_marketcap' },
-    layer2: { method: 'user_increment', deltas },
+    // `sector_caps` omitted when empty so it isn't serialized (the backend pops it
+    // from canonical_json anyway; keeping them consistent avoids a spurious hash).
+    layer2: { method: 'user_increment', deltas, ...(hasCap ? { sector_caps: caps } : {}) },
     layer3: {
       method: cfg.layer3Method,
       ...(hasGamma ? { gamma: Number(cfg.layer3Gamma) } : {}),
@@ -580,6 +591,11 @@ export function specToConfig(spec: StrategySpec, name: string): BuilderConfig {
     sectorDeltas: spec.layered?.layer2?.deltas
       ? Object.fromEntries(
           Object.entries(spec.layered.layer2.deltas).map(([s, frac]) => [s, frac * 100]),
+        )
+      : {},
+    sectorCaps: spec.layered?.layer2?.sector_caps
+      ? Object.fromEntries(
+          Object.entries(spec.layered.layer2.sector_caps).map(([s, frac]) => [s, frac * 100]),
         )
       : {},
     rebalance: spec.rebalance?.cadence ?? DEFAULT_CONFIG.rebalance,

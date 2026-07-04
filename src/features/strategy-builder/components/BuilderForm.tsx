@@ -313,6 +313,7 @@ export function BuilderForm({ initialCfg, busy, onCancel, onSave, onSaveBacktest
             layer3Method={cfg.layer3Method}
             layer3Gamma={cfg.layer3Gamma}
             sectorDeltas={cfg.sectorDeltas}
+            sectorCaps={cfg.sectorCaps}
             onChange={set}
           />
         </Section>

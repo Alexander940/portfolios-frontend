@@ -334,6 +334,10 @@ export interface Layer2Spec {
   method: Layer2Method;
   /** sector (FMP name) → relative tilt as a fraction (+0.2 = +20%). */
   deltas: Record<string, number>;
+  /** sector (FMP name) → max weight as a fraction in (0, 1] (0.3 = cap at 30%).
+   *  Optional/omitted when empty so the backend content_hash of a pre-caps layered
+   *  spec is unchanged (the backend pops an empty `sector_caps` from canonical_json). */
+  sector_caps?: Record<string, number>;
 }
 export interface Layer3Spec {
   method: Layer3Method;
@@ -527,6 +531,7 @@ export interface BuilderConfig {
   layer3Method: Layer3Method;
   layer3Gamma: number | ''; // only rating_weighted; '' = default (1.0)
   sectorDeltas: Record<string, number>; // FMP sector → % relative tilt
+  sectorCaps: Record<string, number>; // FMP sector → max weight in PERCENT (30 = 30%)
   // rebalance
   rebalance: Cadence;
   // costs
