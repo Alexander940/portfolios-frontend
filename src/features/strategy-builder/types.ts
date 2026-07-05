@@ -395,6 +395,12 @@ export interface StrategySpec {
    *  `weighting`; omitted (kept undefined) for a plain equal strategy so the
    *  backend content_hash of pre-layered specs is unchanged. */
   layered?: LayeredWeightingSpec | null;
+  /** Optional per-name MAX weight (a fraction in (0, 1]): no single position may
+   *  exceed this share of the portfolio. Applied as a final clamp on the target
+   *  weights (both the legacy and the layered path). Omitted (kept undefined) when
+   *  uncapped so the backend content_hash of pre-existing specs is unchanged (the
+   *  backend pops a null `max_position_weight` from canonical_json). */
+  max_position_weight?: number | null;
   /** Optional post-universe selection filters (same screen vocabulary as the
    *  universe). When present the backtester narrows the ranked set by them AFTER
    *  resolving the universe and computing the Layer-1 base — so they never bias
@@ -532,6 +538,9 @@ export interface BuilderConfig {
   layer3Gamma: number | ''; // only rating_weighted; '' = default (1.0)
   sectorDeltas: Record<string, number>; // FMP sector → % relative tilt
   sectorCaps: Record<string, number>; // FMP sector → max weight in PERCENT (30 = 30%)
+  // Per-name max weight in PERCENT (10 = cap every position at 10%); '' = uncapped.
+  // Applies to any strategy (both paths); divided by 100 into spec.max_position_weight.
+  maxPositionWeight: number | '';
   // rebalance
   rebalance: Cadence;
   // costs

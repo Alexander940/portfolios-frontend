@@ -325,6 +325,7 @@ export const DEFAULT_CONFIG: BuilderConfig = {
   layer3Gamma: '',
   sectorDeltas: {},
   sectorCaps: {},
+  maxPositionWeight: '',
   rebalance: 'monthly',
   commission: 5,
   slippage: 8,
@@ -453,6 +454,10 @@ export function cfgToSpec(cfg: BuilderConfig): StrategySpec {
   const universe = buildUniverse(cfg);
   const layered = buildLayered(cfg);
   const selectionFilters = buildSelectionFilters(cfg);
+  // Per-name cap: % (UI) → fraction (spec). Omitted when empty/≤0 so an uncapped
+  // strategy keeps the legacy content_hash (the backend pops a null value).
+  const maxPos =
+    cfg.maxPositionWeight !== '' && cfg.maxPositionWeight > 0 ? cfg.maxPositionWeight / 100 : null;
 
   return {
     general: {
@@ -484,6 +489,8 @@ export function cfgToSpec(cfg: BuilderConfig): StrategySpec {
     // `layered` (plain equal) keeps the legacy equal-spec content_hash intact.
     weighting: { method: 'equal' },
     ...(layered ? { layered } : {}),
+    // Omitted when uncapped so an uncapped strategy keeps the legacy content_hash.
+    ...(maxPos != null ? { max_position_weight: maxPos } : {}),
     // Omitted when empty so a strategy without selection filters keeps the legacy
     // content_hash (the backend pops a null `selection_filters` from canonical_json).
     ...(selectionFilters ? { selection_filters: selectionFilters } : {}),
@@ -598,6 +605,8 @@ export function specToConfig(spec: StrategySpec, name: string): BuilderConfig {
           Object.entries(spec.layered.layer2.sector_caps).map(([s, frac]) => [s, frac * 100]),
         )
       : {},
+    // fraction (spec) → % (UI); uncapped specs load as '' (empty input).
+    maxPositionWeight: spec.max_position_weight != null ? spec.max_position_weight * 100 : '',
     rebalance: spec.rebalance?.cadence ?? DEFAULT_CONFIG.rebalance,
     commission: spec.costs?.commission_bps ?? DEFAULT_CONFIG.commission,
     slippage: spec.costs?.slippage_bps ?? DEFAULT_CONFIG.slippage,

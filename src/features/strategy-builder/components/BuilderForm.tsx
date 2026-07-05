@@ -316,6 +316,19 @@ export function BuilderForm({ initialCfg, busy, onCancel, onSave, onSaveBacktest
             sectorCaps={cfg.sectorCaps}
             onChange={set}
           />
+          <div style={{ marginTop: 18, maxWidth: 240 }}>
+            <NumField
+              label="Max weight per stock"
+              tip="No single position may exceed this share of the portfolio. The excess is redistributed to the other names; if the cap is too small to fill the book (e.g. 5 names at 10%) the remainder stays in cash. Leave empty for no per-stock limit."
+              value={cfg.maxPositionWeight}
+              onChange={(v) => set({ maxPositionWeight: v })}
+              min={0}
+              max={100}
+              step={0.5}
+              suffix="%"
+              hint="Empty = uncapped"
+            />
+          </div>
         </Section>
 
         {/* 6. Costs */}
