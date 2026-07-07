@@ -3,6 +3,18 @@ import type { ScreenerRequest } from '@/features/screener/types';
 
 export type WeightingMethod = 'equal' | 'rating_weighted' | 'market_cap' | 'manual';
 
+/**
+ * Effective role the caller has on a portfolio. `owner` is implicit (the primary
+ * owner, never a share row); `co_owner`/`viewer` come from a share grant.
+ */
+export type PortfolioPermission = 'owner' | 'co_owner' | 'viewer';
+
+/**
+ * Role a share grant can carry — a subset of PortfolioPermission (ownership is
+ * not "shared"; use transferOwnership for that).
+ */
+export type SharePermission = 'viewer' | 'co_owner';
+
 export interface PortfolioResponse {
   portfolio_id: string;
   user_id: string;
@@ -19,6 +31,11 @@ export interface PortfolioResponse {
   analysis_start_date: string | null;
   created_at: string;
   updated_at: string;
+  // Sharing — decide ownership from `is_owner`, NEVER by comparing ids
+  // (client User.id is a number, user_id is a uuid string; they never match).
+  is_owner: boolean | null;
+  permission: PortfolioPermission | null;
+  owner_email: string | null;
 }
 
 export interface PortfolioFromScreenerCreate {
@@ -457,5 +474,122 @@ export async function getPortfolioSummary(
   const { data } = await apiClient.get<PortfolioSummary>('/portfolios/summary', {
     signal,
   });
+  return data;
+}
+
+// =============================================================================
+// Sharing — grant/list/change/revoke collaborators + transfer ownership
+// =============================================================================
+
+export interface ShareResponse {
+  share_id: string;
+  portfolio_id: string;
+  shared_with_user_id: string;
+  email: string;
+  permission: SharePermission;
+  created_at: string;
+}
+
+export interface ShareList {
+  items: ShareResponse[];
+  total: number;
+}
+
+export interface ShareCreate {
+  email: string;
+  /** Defaults to `viewer` on the backend when omitted. */
+  permission?: SharePermission;
+}
+
+export interface ShareUpdate {
+  permission: SharePermission;
+}
+
+export interface TransferRequest {
+  email: string;
+}
+
+/**
+ * Portfolios shared WITH the current user. Same shape as `listPortfolios`; each
+ * item carries `is_owner=false`, its `permission`, and the `owner_email`.
+ */
+export async function listSharedWithMe(
+  limit = 50,
+  offset = 0,
+  signal?: AbortSignal,
+): Promise<PortfolioList> {
+  const { data } = await apiClient.get<PortfolioList>(
+    '/portfolios/shared-with-me',
+    { params: { limit, offset }, signal },
+  );
+  return data;
+}
+
+/** Collaborators on a portfolio. Owner/co_owner only. */
+export async function listShares(
+  portfolioId: string,
+  signal?: AbortSignal,
+): Promise<ShareList> {
+  const { data } = await apiClient.get<ShareList>(
+    `/portfolios/${portfolioId}/shares`,
+    { signal },
+  );
+  return data;
+}
+
+/** Invite a registered user by email. Co_owner grants require the owner. */
+export async function createShare(
+  portfolioId: string,
+  payload: ShareCreate,
+  signal?: AbortSignal,
+): Promise<ShareResponse> {
+  const { data } = await apiClient.post<ShareResponse>(
+    `/portfolios/${portfolioId}/shares`,
+    payload,
+    { signal },
+  );
+  return data;
+}
+
+/** Change a collaborator's role. Promoting to/from co_owner requires the owner. */
+export async function updateShare(
+  portfolioId: string,
+  userId: string,
+  payload: ShareUpdate,
+  signal?: AbortSignal,
+): Promise<ShareResponse> {
+  const { data } = await apiClient.patch<ShareResponse>(
+    `/portfolios/${portfolioId}/shares/${userId}`,
+    payload,
+    { signal },
+  );
+  return data;
+}
+
+/** Revoke a collaborator's access. */
+export async function deleteShare(
+  portfolioId: string,
+  userId: string,
+  signal?: AbortSignal,
+): Promise<void> {
+  await apiClient.delete(`/portfolios/${portfolioId}/shares/${userId}`, {
+    signal,
+  });
+}
+
+/**
+ * Transfer ownership to another registered user. Owner-only; the caller becomes
+ * a co_owner afterwards (the returned portfolio reflects the new perspective).
+ */
+export async function transferOwnership(
+  portfolioId: string,
+  payload: TransferRequest,
+  signal?: AbortSignal,
+): Promise<PortfolioResponse> {
+  const { data } = await apiClient.post<PortfolioResponse>(
+    `/portfolios/${portfolioId}/transfer`,
+    payload,
+    { signal },
+  );
   return data;
 }

@@ -35,6 +35,8 @@ interface PortfolioProps {
   portfoliosError?: string | null;
   onDeletePortfolio?: (id: string) => Promise<void>;
   onImportCreated?: (p: PortfolioResponse) => void;
+  /** Import creates owned portfolios — hidden in the "shared with me" list. */
+  showImport?: boolean;
 }
 
 export function Portfolio({
@@ -43,6 +45,7 @@ export function Portfolio({
   portfoliosError = null,
   onDeletePortfolio,
   onImportCreated,
+  showImport = true,
 }: PortfolioProps = {}) {
   const { portfolioId } = useParams<{ portfolioId: string }>();
   const navigate = useNavigate();
@@ -177,13 +180,15 @@ export function Portfolio({
         <PortfoliosTable
           portfolios={portfolios}
           onDelete={onDeletePortfolio}
-          onImportClick={() => setImportModalOpen(true)}
+          onImportClick={showImport ? () => setImportModalOpen(true) : undefined}
         />
-        <ImportPortfolioFromExcelModal
-          isOpen={importModalOpen}
-          onClose={() => setImportModalOpen(false)}
-          onCreated={(p) => onImportCreated?.(p)}
-        />
+        {showImport && (
+          <ImportPortfolioFromExcelModal
+            isOpen={importModalOpen}
+            onClose={() => setImportModalOpen(false)}
+            onCreated={(p) => onImportCreated?.(p)}
+          />
+        )}
       </>
     );
   }
@@ -201,7 +206,9 @@ export function Portfolio({
         Back to all portfolios
       </button>
 
-      {portfolio && <PortfolioHeader portfolio={portfolio} />}
+      {portfolio && (
+        <PortfolioHeader portfolio={portfolio} onTransferred={setPortfolio} />
+      )}
 
       <div className="tabs" role="tablist">
         {DETAIL_TABS.map((t) => (

@@ -1,9 +1,13 @@
-import { Briefcase, Calendar, RefreshCw, Wallet } from 'lucide-react';
+import { useState } from 'react';
+import { Briefcase, Calendar, RefreshCw, Share2, Users, Wallet } from 'lucide-react';
 import type { PortfolioResponse } from '@/services/portfolioService';
 import { toLocalDate } from '@/features/portfolio/lib/format';
+import { SharePortfolioModal } from './SharePortfolioModal';
 
 interface PortfolioHeaderProps {
   portfolio: PortfolioResponse;
+  /** Bubble up the reshaped portfolio after an ownership transfer. */
+  onTransferred?: (updated: PortfolioResponse) => void;
 }
 
 const WEIGHTING_LABELS: Record<string, string> = {
@@ -23,10 +27,20 @@ function formatDate(iso: string | null): string {
   });
 }
 
-export function PortfolioHeader({ portfolio }: PortfolioHeaderProps) {
+export function PortfolioHeader({ portfolio, onTransferred }: PortfolioHeaderProps) {
+  const [shareOpen, setShareOpen] = useState(false);
+
   const weighting =
     WEIGHTING_LABELS[portfolio.weighting_method] ?? portfolio.weighting_method;
   const typeClass = portfolio.portfolio_type.toLowerCase();
+
+  const isOwner = portfolio.is_owner === true;
+  const isShared = portfolio.is_owner === false;
+  // Owner manages every grant + transfer; a co_owner can still open the dialog
+  // to invite/remove viewers, so both get the "Compartir" affordance.
+  const canManageShares = isOwner || portfolio.permission === 'co_owner';
+  const sharedRoleLabel =
+    portfolio.permission === 'co_owner' ? 'Co-propietario' : 'Solo lectura';
 
   const meta = [
     {
@@ -57,6 +71,7 @@ export function PortfolioHeader({ portfolio }: PortfolioHeaderProps) {
   ];
 
   return (
+    <>
     <div className="card" style={{ padding: '20px 24px' }}>
       <div
         style={{
@@ -95,7 +110,44 @@ export function PortfolioHeader({ portfolio }: PortfolioHeaderProps) {
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        <div
+          style={{
+            display: 'flex',
+            gap: 6,
+            flexWrap: 'wrap',
+            alignItems: 'center',
+          }}
+        >
+          {isShared && (
+            <span
+              className="type-badge"
+              title={portfolio.owner_email ?? undefined}
+              style={{
+                background: 'var(--c-bg-soft)',
+                color: 'var(--c-text-soft)',
+                border: '1px solid var(--c-border)',
+                textTransform: 'none',
+                letterSpacing: 'normal',
+                fontWeight: 500,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                maxWidth: 320,
+              }}
+            >
+              <Users size={12} style={{ flexShrink: 0 }} />
+              <span
+                style={{
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                Compartido por {portfolio.owner_email ?? 'el propietario'} ·{' '}
+                {sharedRoleLabel}
+              </span>
+            </span>
+          )}
           <span
             className={`type-badge ${
               ['model', 'custom', 'virtual'].includes(typeClass)
@@ -115,6 +167,17 @@ export function PortfolioHeader({ portfolio }: PortfolioHeaderProps) {
           >
             {weighting}
           </span>
+          {canManageShares && (
+            <button
+              type="button"
+              className="topbar-btn"
+              onClick={() => setShareOpen(true)}
+              style={{ border: '1px solid var(--c-border)' }}
+            >
+              <Share2 size={14} />
+              Compartir
+            </button>
+          )}
         </div>
       </div>
 
@@ -167,5 +230,14 @@ export function PortfolioHeader({ portfolio }: PortfolioHeaderProps) {
         })}
       </div>
     </div>
+    {canManageShares && (
+      <SharePortfolioModal
+        isOpen={shareOpen}
+        onClose={() => setShareOpen(false)}
+        portfolio={portfolio}
+        onTransferred={onTransferred}
+      />
+    )}
+    </>
   );
 }

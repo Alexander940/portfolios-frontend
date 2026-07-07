@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
+  Bookmark,
   Briefcase,
   ChevronRight,
   FileSpreadsheet,
   Loader2,
   Star,
   Trash2,
+  Users,
 } from 'lucide-react';
 import type { PortfolioResponse } from '@/services/portfolioService';
 import { usePortfolioSelection } from '../store/selection';
@@ -57,9 +59,14 @@ export function PortfoliosTable({
   const setMany = usePortfolioSelection((s) => s.setMany);
   const selectAllRef = useRef<HTMLInputElement | null>(null);
 
-  const allIds = portfolios.map((p) => p.portfolio_id);
-  const selectedCount = allIds.filter((id) => selectedIds.has(id)).length;
-  const allSelected = allIds.length > 0 && selectedCount === allIds.length;
+  // Only owned rows are selectable / deletable; shared rows have no checkbox,
+  // so bulk actions can never target a portfolio the user doesn't own.
+  const selectableIds = portfolios
+    .filter((p) => p.is_owner !== false)
+    .map((p) => p.portfolio_id);
+  const selectedCount = selectableIds.filter((id) => selectedIds.has(id)).length;
+  const allSelected =
+    selectableIds.length > 0 && selectedCount === selectableIds.length;
   const someSelected = selectedCount > 0 && !allSelected;
 
   useEffect(() => {
@@ -190,7 +197,8 @@ export function PortfoliosTable({
                   type="checkbox"
                   aria-label="Select all portfolios"
                   checked={allSelected}
-                  onChange={() => setMany(allIds, !allSelected)}
+                  disabled={selectableIds.length === 0}
+                  onChange={() => setMany(selectableIds, !allSelected)}
                   style={{ cursor: 'pointer' }}
                 />
               </th>
@@ -208,6 +216,7 @@ export function PortfoliosTable({
           <tbody>
             {portfolios.map((p) => {
               const typeClass = p.portfolio_type.toLowerCase();
+              const isOwned = p.is_owner !== false;
               return (
                 <tr
                   key={p.portfolio_id}
@@ -217,13 +226,15 @@ export function PortfoliosTable({
                   }
                 >
                   <td onClick={(e) => e.stopPropagation()}>
-                    <input
-                      type="checkbox"
-                      aria-label={`Select ${p.name}`}
-                      checked={selectedIds.has(p.portfolio_id)}
-                      onChange={() => toggle(p.portfolio_id)}
-                      style={{ cursor: 'pointer' }}
-                    />
+                    {isOwned && (
+                      <input
+                        type="checkbox"
+                        aria-label={`Select ${p.name}`}
+                        checked={selectedIds.has(p.portfolio_id)}
+                        onChange={() => toggle(p.portfolio_id)}
+                        style={{ cursor: 'pointer' }}
+                      />
+                    )}
                   </td>
                   <td>
                     {p.is_default && (
@@ -235,8 +246,17 @@ export function PortfoliosTable({
                     )}
                   </td>
                   <td className="name-cell">
-                    <div style={{ fontWeight: 500, color: 'var(--c-text)' }}>
-                      {p.name}
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        fontWeight: 500,
+                        color: 'var(--c-text)',
+                      }}
+                    >
+                      <span>{p.name}</span>
+                      <RoleTag portfolio={p} />
                     </div>
                     {p.description && (
                       <div
@@ -276,6 +296,7 @@ export function PortfoliosTable({
                     {p.last_rebalance_date ? fmtDate(p.last_rebalance_date) : '—'}
                   </td>
                   <td className="num">
+                    {isOwned && (
                     <button
                       type="button"
                       aria-label={`Delete portfolio ${p.name}`}
@@ -313,6 +334,7 @@ export function PortfoliosTable({
                         <Trash2 size={14} />
                       )}
                     </button>
+                    )}
                   </td>
                   <td className="num">
                     <ChevronRight size={14} color="var(--c-text-dim)" />
@@ -324,5 +346,45 @@ export function PortfoliosTable({
         </table>
       </div>
     </div>
+  );
+}
+
+/**
+ * Small ownership/role marker next to a portfolio name — mirrors the
+ * owned-vs-not icon idiom from the screener's SavedScreensBar. Owned rows get a
+ * subtle bookmark; shared rows show their role (Co-owner / Viewer).
+ */
+function RoleTag({ portfolio }: { portfolio: PortfolioResponse }) {
+  if (portfolio.is_owner === false) {
+    const label = portfolio.permission === 'co_owner' ? 'Co-owner' : 'Viewer';
+    return (
+      <span
+        title={`Shared with you — ${label}`}
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 4,
+          padding: '1px 6px',
+          borderRadius: 100,
+          fontSize: 10,
+          fontWeight: 600,
+          textTransform: 'uppercase',
+          letterSpacing: '0.04em',
+          color: 'var(--c-text-soft)',
+          background: 'var(--c-bg-soft)',
+          border: '1px solid var(--c-border)',
+        }}
+      >
+        <Users size={10} />
+        {label}
+      </span>
+    );
+  }
+  return (
+    <Bookmark
+      size={12}
+      color="var(--c-text-dim)"
+      aria-label="Owned by you"
+    />
   );
 }
