@@ -147,7 +147,7 @@ interface MockHandle {
 async function mockApi(page: Page, opts: MockOptions = {}): Promise<MockHandle> {
   const handle: MockHandle = { trackers: 0, fail: opts.failInitially ?? false };
 
-  await page.route('**/trackers', async (route) => {
+  await page.route('**/trackers/', async (route) => {
     handle.trackers += 1;
     if (handle.fail) {
       await route.fulfill({ status: 500, json: { detail: 'Internal error' } });

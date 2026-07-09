@@ -23,7 +23,10 @@ import type {
 export async function getTrackers(
   signal?: AbortSignal,
 ): Promise<TrackersListResponse> {
-  const res = await apiClient.get<unknown>('/trackers', { signal });
+  // Ruta canónica CON slash: el backend expone /trackers/ y el 307 de
+  // FastAPI para /trackers devuelve un Location http:// detrás del proxy,
+  // que el navegador bloquea por mixed content en producción.
+  const res = await apiClient.get<unknown>('/trackers/', { signal });
   const data = res.data as
     | TrackerListItem[]
     | { items?: TrackerListItem[]; trackers?: TrackerListItem[]; data_as_of?: string | null };

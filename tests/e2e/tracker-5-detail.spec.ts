@@ -115,7 +115,7 @@ async function mockTrackerApi(page: Page, opts: MockOptions = {}): Promise<Recor
     }),
   );
   // El índice (#4) — destino tras el DELETE — consulta GET /trackers.
-  await page.route('**/trackers', (route) =>
+  await page.route('**/trackers/', (route) =>
     route.fulfill({ json: { items: [], data_as_of: null } }),
   );
 
