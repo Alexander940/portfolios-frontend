@@ -314,16 +314,14 @@ test.describe('Tracker detail — header, banners y acciones (#5)', () => {
     expect(del?.query).toContain('keep_portfolio=false');
   });
 
-  test('404 del tracker muestra el estado sin-tracker (flujo de activación)', async ({
-    page,
-  }) => {
+  test('404 del tracker muestra el flujo de activación (#6)', async ({ page }) => {
     await seedAuth(page);
     await mockTrackerApi(page, { trackerStatus: 404 });
     await page.goto(DETAIL_URL);
 
-    await expect(page.getByTestId('tracker-not-found')).toBeVisible();
-    await expect(page.getByTestId('tracker-not-found')).toContainText(
-      'no tiene tracker',
-    );
+    // El fixture de holdings de este spec no trae posiciones → el flujo de
+    // activación muestra el estado de universo vacío. El flujo completo se
+    // cubre en tracker-6-activation.spec.ts.
+    await expect(page.getByTestId('activation-empty')).toBeVisible();
   });
 });

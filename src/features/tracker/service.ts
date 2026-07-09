@@ -1,9 +1,10 @@
 import { apiClient } from '@/lib/axios';
 import type {
+  HoldingsPreviewResponse,
+  TrackerCreateResponse,
   TrackerRebaseRequest,
   TrackerResponse,
   TrackerUpdateRequest,
-  WarningsCarrier,
 } from './types';
 
 export async function getTracker(
@@ -49,16 +50,27 @@ export async function deleteTracker(
 }
 
 /**
- * Holdings fetched here only for `warnings[]` + `data_as_of` (issue #5);
- * issue #7 types and consumes the full payload.
+ * Materialization preview (issue #6); also the source of `warnings[]` +
+ * `data_as_of` for the detail banners (issue #5).
  */
 export async function getStrategyHoldings(
   strategyId: string,
   signal?: AbortSignal,
-): Promise<WarningsCarrier> {
-  const res = await apiClient.get<WarningsCarrier>(
+): Promise<HoldingsPreviewResponse> {
+  const res = await apiClient.get<HoldingsPreviewResponse>(
     `/strategies/${strategyId}/holdings`,
     { signal },
+  );
+  return res.data;
+}
+
+export async function createTracker(
+  strategyId: string,
+  initialCash: number,
+): Promise<TrackerCreateResponse> {
+  const res = await apiClient.post<TrackerCreateResponse>(
+    `/strategies/${strategyId}/tracker`,
+    { initial_cash: initialCash },
   );
   return res.data;
 }

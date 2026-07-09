@@ -1,11 +1,12 @@
 import { useEffect } from 'react';
 import { Navigate, useParams } from 'react-router-dom';
-import { Loader2, Target } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui';
 import { useTrackerStore } from './store';
 import { TrackerHeader } from './components/TrackerHeader';
 import { TrackerBanners } from './components/TrackerBanners';
 import { TrackerActions } from './components/TrackerActions';
+import { ActivationFlow } from './components/ActivationFlow';
 import './tracker.css';
 
 /**
@@ -51,20 +52,7 @@ export function TrackerDetail() {
   }
 
   if (notFound) {
-    // Issue #6 replaces this empty state with the activation flow
-    // (materialization preview + POST tracker).
-    return (
-      <div className="card">
-        <div className="trk-empty" data-testid="tracker-not-found">
-          <Target size={32} style={{ color: 'var(--c-text-dim)' }} aria-hidden />
-          <h3>Esta estrategia no tiene tracker</h3>
-          <p>
-            Activa el tracker para materializar la estrategia en un portafolio y
-            seguirla en vivo.
-          </p>
-        </div>
-      </div>
-    );
+    return <ActivationFlow strategyId={strategyId} />;
   }
 
   if (!tracker) return null;
