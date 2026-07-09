@@ -11,6 +11,7 @@ import { PositionsSection } from './components/PositionsSection';
 import { DriftPanel } from './components/DriftPanel';
 import { PerformanceSection } from './components/PerformanceSection';
 import { SectorComposition } from './components/SectorComposition';
+import { EventsJournal } from './components/EventsJournal';
 import './tracker.css';
 
 /**
@@ -70,6 +71,7 @@ export function TrackerDetail() {
       <DriftPanel />
       <PerformanceSection />
       <SectorComposition />
+      <EventsJournal />
     </div>
   );
 }

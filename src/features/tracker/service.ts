@@ -2,10 +2,12 @@ import { apiClient } from '@/lib/axios';
 import type {
   BacktestJob,
   DriftResponse,
+  EventsResponse,
   HoldingsPreviewResponse,
   PositionsResponse,
   TrackerCreateResponse,
   TrackerRebaseRequest,
+  TrackerEventType,
   TrackerResponse,
   TrackerUpdateRequest,
   VsBacktestResponse,
@@ -99,6 +101,24 @@ export async function getDrift(
   const res = await apiClient.get<DriftResponse>(
     `/strategies/${strategyId}/tracker/drift`,
     { signal },
+  );
+  return res.data;
+}
+
+/** Journal cronológico del tracker; filtro y paginación server-side. */
+export async function getEvents(
+  strategyId: string,
+  opts: { type?: TrackerEventType | null; limit: number; offset: number },
+  signal?: AbortSignal,
+): Promise<EventsResponse> {
+  const params: Record<string, string | number> = {
+    limit: opts.limit,
+    offset: opts.offset,
+  };
+  if (opts.type) params.type = opts.type;
+  const res = await apiClient.get<EventsResponse>(
+    `/strategies/${strategyId}/tracker/events`,
+    { params, signal },
   );
   return res.data;
 }

@@ -224,6 +224,38 @@ export interface BacktestJob {
   status: string;
 }
 
+/**
+ * Tipos de evento del journal. `trade_state_exit` existe en el enum del
+ * backend pero v1 nunca lo emite — no tiene chip de filtro.
+ */
+export type TrackerEventType =
+  | 'rebalance'
+  | 'enter'
+  | 'exit'
+  | 'skip'
+  | 'error'
+  | 'trade_state_exit';
+
+/** Un evento del journal; `payload` es JSONB por tipo — renderizar defensivo. */
+export interface TrackerEvent {
+  event_id: string;
+  event_date: string;
+  event_type: TrackerEventType;
+  symbol_id: string | null;
+  ticker: string | null;
+  symbol_name: string | null;
+  payload: Record<string, unknown>;
+  created_at: string;
+}
+
+/** GET /strategies/{id}/tracker/events */
+export interface EventsResponse {
+  events: TrackerEvent[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
 export function hasInertWarning(warnings: string[] | null | undefined): string | null {
   if (!warnings) return null;
   return warnings.find((w) => w.toLowerCase().includes('inert')) ?? null;
