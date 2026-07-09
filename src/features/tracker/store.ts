@@ -12,6 +12,7 @@ import {
 } from './service';
 import type {
   DriftResponse,
+  HoldingsPreviewResponse,
   PositionItem,
   TrackerResponse,
   TrackerStatus,
@@ -40,6 +41,8 @@ interface TrackerDetailState {
   drift: DriftResponse | null;
   driftLoading: boolean;
   driftError: string | null;
+  /** Preview completo de holdings — target sectorial (#10) + warnings (#5). */
+  holdingsPreview: HoldingsPreviewResponse | null;
 }
 
 interface TrackerDetailActions {
@@ -73,6 +76,7 @@ const initialState: TrackerDetailState = {
   drift: null,
   driftLoading: false,
   driftError: null,
+  holdingsPreview: null,
 };
 
 export const useTrackerStore = create<TrackerDetailState & TrackerDetailActions>()(
@@ -90,7 +94,11 @@ export const useTrackerStore = create<TrackerDetailState & TrackerDetailActions>
         // if holdings are unavailable.
         getStrategyHoldings(strategyId)
           .then((h) =>
-            set({ warnings: h.warnings ?? [], dataAsOf: h.data_as_of ?? null }),
+            set({
+              holdingsPreview: h,
+              warnings: h.warnings ?? [],
+              dataAsOf: h.data_as_of ?? null,
+            }),
           )
           .catch(() => {});
       } catch (err) {

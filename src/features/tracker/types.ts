@@ -74,6 +74,14 @@ export interface HoldingPreview {
   weight_realized_pct: ApiNumber;
 }
 
+/** Distribución sectorial del target de hoy (weighting L1/L2). */
+export interface SectorBreakdownItem {
+  sector: string | null;
+  /** 0-100, como los weight_pct de holdings. */
+  weight_pct: ApiNumber;
+  holdings_count: number;
+}
+
 /**
  * GET /strategies/{id}/holdings — materialization preview. The backend
  * computes `shares` with a fixed initial_cash of 100000; for a user-chosen
@@ -87,7 +95,7 @@ export interface HoldingsPreviewResponse extends WarningsCarrier {
   initial_cash?: ApiNumber;
   cash_pct?: ApiNumber;
   holdings?: HoldingPreview[];
-  sector_breakdown?: unknown[];
+  sector_breakdown?: SectorBreakdownItem[];
 }
 
 /** POST /strategies/{id}/tracker → 201. */

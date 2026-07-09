@@ -1604,3 +1604,22 @@ td.dim,
     transform: translateY(0);
   }
 }
+
+/* ============================================================
+   CATEGORICAL SECTOR PALETTE (design system)
+   Reemplaza los oklch placeholder del mock del tracker.
+   ============================================================ */
+:root {
+  --c-sector-1: oklch(0.62 0.14 250);
+  --c-sector-2: oklch(0.65 0.13 160);
+  --c-sector-3: oklch(0.66 0.14 20);
+  --c-sector-4: oklch(0.7 0.13 80);
+  --c-sector-5: oklch(0.6 0.12 300);
+  --c-sector-6: oklch(0.58 0.1 220);
+  --c-sector-7: oklch(0.62 0.13 45);
+  --c-sector-8: oklch(0.6 0.09 130);
+  --c-sector-9: oklch(0.64 0.11 350);
+  --c-sector-10: oklch(0.66 0.1 190);
+  --c-sector-11: oklch(0.58 0.12 275);
+  --c-sector-12: oklch(0.6 0.03 260);
+}

@@ -412,3 +412,75 @@
     text-align: left;
   }
 }
+
+/* Composición sectorial (#10) */
+.trk-sectors {
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.trk-sector-row {
+  display: grid;
+  grid-template-columns: 160px 1fr 110px;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+.trk-sector-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.trk-sector-track {
+  position: relative;
+  height: 14px;
+  border-radius: 7px;
+  background: var(--c-bg-soft);
+  overflow: visible;
+}
+.trk-sector-bar {
+  height: 100%;
+  border-radius: 7px;
+  min-width: 2px;
+}
+.trk-sector-tick {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--c-text);
+  transform: translateX(-50%);
+}
+.trk-sector-values {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.trk-sector-legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--c-text-dim);
+}
+.trk-sector-legend-swatch {
+  width: 14px;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--c-sector-1);
+}
+.trk-sector-legend-tick {
+  width: 3px;
+  height: 12px;
+  border-radius: 2px;
+  background: var(--c-text);
+  margin-left: 10px;
+}
+@media (max-width: 900px) {
+  .trk-sector-row {
+    grid-template-columns: 100px 1fr 96px;
+  }
+}
