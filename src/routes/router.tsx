@@ -15,6 +15,11 @@ const AlertsPage = lazy(() =>
 const StrategyTrackerPage = lazy(() =>
   import('@/pages/dashboard/StrategyTrackerPage').then((m) => ({ default: m.StrategyTrackerPage }))
 );
+const StrategyTrackerDetailPage = lazy(() =>
+  import('@/pages/dashboard/StrategyTrackerDetailPage').then((m) => ({
+    default: m.StrategyTrackerDetailPage,
+  }))
+);
 const MarketsPage = lazy(() =>
   import('@/pages/dashboard/MarketsPage').then((m) => ({ default: m.MarketsPage }))
 );
@@ -108,6 +113,10 @@ export const router = createBrowserRouter([
       {
         path: 'strategy',
         element: withSuspense(StrategyTrackerPage),
+      },
+      {
+        path: 'strategy/:strategyId',
+        element: withSuspense(StrategyTrackerDetailPage),
       },
       {
         path: 'markets',

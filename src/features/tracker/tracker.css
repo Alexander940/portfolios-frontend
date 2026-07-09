@@ -1,0 +1,180 @@
+/* Strategy Tracker feature styles ("trk-" prefix).
+   Shell primitives (.card, .stat-card, .tbl, .page-header…) come from
+   src/index.css; only tracker-specific bits live here. */
+
+.trk-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 10px;
+  border-radius: 11px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.trk-status::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.trk-status.active {
+  color: var(--c-pos);
+  background: color-mix(in oklch, var(--c-pos) 12%, transparent);
+}
+.trk-status.paused {
+  color: var(--c-warn);
+  background: color-mix(in oklch, var(--c-warn) 14%, transparent);
+}
+.trk-status.error {
+  color: var(--c-neg);
+  background: color-mix(in oklch, var(--c-neg) 12%, transparent);
+}
+
+.trk-asof {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--c-text-dim);
+  border: 1px solid var(--c-border);
+  border-radius: 999px;
+  padding: 3px 10px;
+  background: var(--c-bg-soft);
+}
+
+.trk-head-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.trk-dates {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.trk-date-card {
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  background: var(--c-bg);
+}
+.trk-date-card.highlight {
+  border-color: color-mix(in oklch, var(--c-accent) 45%, var(--c-border));
+  background: var(--c-accent-soft);
+}
+.trk-date-label {
+  font-size: 11px;
+  color: var(--c-text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 4px;
+}
+.trk-date-value {
+  font-size: 14px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.trk-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  border: 1px solid var(--c-border);
+  background: var(--c-bg-soft);
+  font-size: 13px;
+  line-height: 1.45;
+  margin-bottom: 12px;
+}
+.trk-banner > svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.trk-banner .trk-banner-body {
+  flex: 1;
+}
+.trk-banner .trk-banner-title {
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+.trk-banner.warn {
+  border-color: color-mix(in oklch, var(--c-warn) 40%, var(--c-border));
+  background: color-mix(in oklch, var(--c-warn) 8%, var(--c-bg));
+}
+.trk-banner.warn > svg {
+  color: var(--c-warn);
+}
+.trk-banner.error {
+  border-color: color-mix(in oklch, var(--c-neg) 40%, var(--c-border));
+  background: color-mix(in oklch, var(--c-neg) 7%, var(--c-bg));
+}
+.trk-banner.error > svg {
+  color: var(--c-neg);
+}
+.trk-banner.info > svg {
+  color: var(--c-accent);
+}
+
+.trk-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+.trk-actions .spacer {
+  flex: 1;
+}
+
+.trk-modal-warn {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  font-size: 13px;
+  color: var(--c-text-soft);
+  background: color-mix(in oklch, var(--c-warn) 10%, var(--c-bg));
+  border: 1px solid color-mix(in oklch, var(--c-warn) 35%, var(--c-border));
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  margin: 12px 0;
+}
+.trk-modal-warn > svg {
+  color: var(--c-warn);
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.trk-empty {
+  text-align: center;
+  padding: 48px 24px;
+}
+.trk-empty h3 {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 12px 0 6px;
+}
+.trk-empty p {
+  font-size: 13px;
+  color: var(--c-text-soft);
+  max-width: 420px;
+  margin: 0 auto 16px;
+}
+
+.trk-error-box {
+  padding: 32px;
+  text-align: center;
+  color: var(--c-text-soft);
+  font-size: 13px;
+}
+.trk-error-box button {
+  margin-top: 12px;
+}

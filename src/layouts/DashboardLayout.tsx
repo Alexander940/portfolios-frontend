@@ -1,5 +1,6 @@
 import { Outlet, useLocation } from 'react-router-dom';
 import { Sidebar, Topbar } from '@/components/navigation';
+import { Toaster } from '@/components/ui';
 import { RelevantEventsRail } from '@/features/portfolio';
 
 /**
@@ -34,6 +35,7 @@ export function DashboardLayout() {
           </aside>
         )}
       </div>
+      <Toaster />
     </div>
   );
 }
