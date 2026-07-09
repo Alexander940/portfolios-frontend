@@ -4,3 +4,4 @@ export {
   isApiError,
   getErrorMessage,
 } from './apiErrors';
+export { fmtNumber, fmtMoney, fmtPct, toLocalDate, fmtDate } from './format';

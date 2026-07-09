@@ -1,0 +1,290 @@
+/**
+ * Strategy Tracker — API contracts.
+ *
+ * Money/percentage fields are `number | string`: the backend serializes
+ * Pydantic Decimals as strings. Fields marked "backend#51" are absent until
+ * the enriched TrackerResponse ships; render '—' when missing.
+ */
+
+export type TrackerStatus = 'active' | 'paused' | 'error';
+
+/** Decimal-bearing field as the backend may serialize it. */
+export type ApiNumber = number | string;
+
+export interface TrackerResponse {
+  tracker_id: string;
+  strategy_id: string;
+  strategy_version_id: string;
+  portfolio_id: string;
+  status: TrackerStatus;
+  initial_cash: ApiNumber;
+  started_at: string;
+  last_rebalance_date: string | null;
+  next_rebalance_date: string | null;
+  last_evaluated_date: string | null;
+  force_rebalance: boolean;
+  notifications_enabled: boolean;
+  last_error: string | null;
+  created_at: string;
+  // backend#51 enrichment (optional until deployed)
+  version?: number;
+  latest_version?: number;
+  total_value?: ApiNumber;
+  cash?: ApiNumber;
+  pnl_total?: ApiNumber;
+  pnl_total_pct?: ApiNumber;
+  pnl_day?: ApiNumber;
+  pnl_day_pct?: ApiNumber;
+  holdings_count?: number;
+}
+
+/** PATCH /strategies/{id}/tracker — partial; 422 if empty. */
+export interface TrackerUpdateRequest {
+  status?: Exclude<TrackerStatus, 'error'>;
+  notifications_enabled?: boolean;
+}
+
+/** POST /strategies/{id}/tracker/rebase */
+export interface TrackerRebaseRequest {
+  version: number;
+}
+
+/**
+ * Minimal shape shared by responses that carry `warnings[]` (inert-clause
+ * detection) and `data_as_of` (global freshness badge): holdings and drift.
+ * Issue #7/#8 extend these with their full payloads.
+ */
+export interface WarningsCarrier {
+  data_as_of?: string | null;
+  warnings?: string[] | null;
+}
+
+/** One row of GET /strategies/{id}/holdings. */
+export interface HoldingPreview {
+  symbol_id: string;
+  ticker: string;
+  name: string;
+  sector: string | null;
+  rating: number | null;
+  score: ApiNumber | null;
+  price: ApiNumber;
+  weight_pct: ApiNumber;
+  shares: number;
+  est_value: ApiNumber;
+  weight_realized_pct: ApiNumber;
+}
+
+/** Distribución sectorial del target de hoy (weighting L1/L2). */
+export interface SectorBreakdownItem {
+  sector: string | null;
+  /** 0-100, como los weight_pct de holdings. */
+  weight_pct: ApiNumber;
+  holdings_count: number;
+}
+
+/**
+ * GET /strategies/{id}/holdings — materialization preview. The backend
+ * computes `shares` with a fixed initial_cash of 100000; for a user-chosen
+ * capital the client recomputes with the same formula (see issue #6).
+ * `coverage_pct`/`cash_pct` arrive as fractions 0-1.
+ */
+export interface HoldingsPreviewResponse extends WarningsCarrier {
+  as_of?: string | null;
+  eligible_count?: number;
+  coverage_pct?: ApiNumber;
+  initial_cash?: ApiNumber;
+  cash_pct?: ApiNumber;
+  holdings?: HoldingPreview[];
+  sector_breakdown?: SectorBreakdownItem[];
+}
+
+/** POST /strategies/{id}/tracker → 201. */
+export interface TrackerCreateResponse extends TrackerResponse {
+  positions_count?: number;
+}
+
+export function hasEmptyUniverseWarning(
+  warnings: string[] | null | undefined,
+): boolean {
+  return Boolean(warnings?.some((w) => w.toLowerCase().includes('empty')));
+}
+
+/** Per-position price provenance in intraday (`?mark=live`) mode. */
+export type PriceSource = 'fmp_intraday' | 'nightly_close';
+
+/** One row of GET /portfolios/{portfolio_id}/positions. */
+export interface PositionItem {
+  symbol_id?: string;
+  ticker: string;
+  name: string;
+  sector: string | null;
+  country: string | null;
+  quantity: ApiNumber;
+  average_cost: ApiNumber;
+  weight_pct: ApiNumber;
+  entry_date: string;
+  entry_rating: number | null;
+  current_price: ApiNumber;
+  current_value: ApiNumber;
+  unrealized_pnl: ApiNumber;
+  unrealized_pnl_pct: ApiNumber;
+  current_rating: number | null;
+  rating_changed: boolean;
+  price_source?: PriceSource;
+}
+
+export interface PositionsResponse {
+  items: PositionItem[];
+  total: number;
+  limit: number;
+  offset: number;
+  quoted_at?: string | null;
+  warnings?: string[] | null;
+}
+
+/** Entra al libro si la estrategia rebalanceara hoy. */
+export interface DriftEntry {
+  symbol_id: string;
+  ticker: string;
+  sector: string | null;
+  /** Valor del campo `sort_by` de la estrategia — NO un score 0-100. */
+  score: ApiNumber | null;
+  target_weight_pct: ApiNumber;
+}
+
+/** Sale del libro si la estrategia rebalanceara hoy. */
+export interface DriftExit {
+  symbol_id: string;
+  ticker: string;
+  shares: ApiNumber;
+  current_weight_pct: ApiNumber;
+  /** true → "posible deslistada" (sin datos recientes). */
+  stale: boolean;
+  /** Razón textual — llega con backend#52; antes, copy genérico. */
+  reason?: string | null;
+}
+
+export interface WeightDriftItem {
+  symbol_id: string;
+  ticker: string;
+  current_weight_pct: ApiNumber;
+  target_weight_pct: ApiNumber;
+  delta_pct: ApiNumber;
+}
+
+/** GET /strategies/{id}/tracker/drift — ya ordenado por |delta|. */
+export interface DriftResponse extends WarningsCarrier {
+  as_of?: string | null;
+  next_rebalance_date?: string | null;
+  /** Fracción 0-1. */
+  coverage_pct?: ApiNumber;
+  total_value?: ApiNumber;
+  cash?: ApiNumber;
+  entries?: DriftEntry[];
+  exits?: DriftExit[];
+  weight_drift?: WeightDriftItem[];
+  /** Nombre del campo de ordenamiento — llega con backend#52. */
+  sort_by?: string;
+}
+
+/** Punto de una serie del overlay vs-backtest; graficar con `rebased` (base 100). */
+export interface SeriesPoint {
+  date: string;
+  value: ApiNumber;
+  rebased: ApiNumber;
+}
+
+export interface Divergence {
+  common_days: number;
+  window_start: string;
+  window_end: string;
+  live_return_pct: ApiNumber;
+  backtest_return_pct: ApiNumber;
+  delta_pct: ApiNumber;
+}
+
+/** GET /strategies/{id}/tracker/vs-backtest */
+export interface VsBacktestResponse {
+  started_at?: string | null;
+  /** Claves de convención por serie — el disclaimer se construye de aquí. */
+  conventions?: Record<string, string>;
+  live: SeriesPoint[];
+  backtest: SeriesPoint[] | null;
+  benchmark: SeriesPoint[] | null;
+  backtest_job_id?: string | null;
+  backtest_missing_reason?: string | null;
+  /** null cuando las ventanas no comparten fechas (ver warnings). */
+  divergence: Divergence | null;
+  warnings?: string[] | null;
+}
+
+/** POST /strategies/{id}/backtest → job async. */
+export interface BacktestJob {
+  job_id: string;
+  status: string;
+}
+
+/**
+ * Tipos de evento del journal. `trade_state_exit` existe en el enum del
+ * backend pero v1 nunca lo emite — no tiene chip de filtro.
+ */
+export type TrackerEventType =
+  | 'rebalance'
+  | 'enter'
+  | 'exit'
+  | 'skip'
+  | 'error'
+  | 'trade_state_exit';
+
+/** Un evento del journal; `payload` es JSONB por tipo — renderizar defensivo. */
+export interface TrackerEvent {
+  event_id: string;
+  event_date: string;
+  event_type: TrackerEventType;
+  symbol_id: string | null;
+  ticker: string | null;
+  symbol_name: string | null;
+  payload: Record<string, unknown>;
+  created_at: string;
+}
+
+/** GET /strategies/{id}/tracker/events */
+export interface EventsResponse {
+  events: TrackerEvent[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+/**
+ * Ítem de GET /trackers (backend#50). La misma lista trae las estrategias
+ * sin tracker (`tracked: false`) — para esas solo strategy_id/strategy_name.
+ */
+export interface TrackerListItem {
+  tracked?: boolean;
+  tracker_id?: string;
+  strategy_id: string;
+  strategy_name: string;
+  version?: number;
+  status?: TrackerStatus;
+  next_rebalance_date?: string | null;
+  last_rebalance_date?: string | null;
+  total_value?: ApiNumber;
+  cash?: ApiNumber;
+  pnl_total?: ApiNumber;
+  pnl_total_pct?: ApiNumber;
+  pnl_day?: ApiNumber;
+  pnl_day_pct?: ApiNumber;
+  holdings_count?: number;
+  sparkline?: ApiNumber[];
+}
+
+export interface TrackersListResponse {
+  items: TrackerListItem[];
+  data_as_of?: string | null;
+}
+
+export function hasInertWarning(warnings: string[] | null | undefined): string | null {
+  if (!warnings) return null;
+  return warnings.find((w) => w.toLowerCase().includes('inert')) ?? null;
+}

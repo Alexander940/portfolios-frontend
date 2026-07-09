@@ -1,6 +1,7 @@
 export { OverviewPage } from './OverviewPage';
 export { AlertsPage } from './AlertsPage';
 export { StrategyTrackerPage } from './StrategyTrackerPage';
+export { StrategyTrackerDetailPage } from './StrategyTrackerDetailPage';
 export { MarketsPage } from './MarketsPage';
 export { ScreeningPage } from './ScreeningPage';
 export { PortfolioAnalysisPage } from './PortfolioAnalysisPage';
