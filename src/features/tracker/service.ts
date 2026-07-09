@@ -1,6 +1,7 @@
 import { apiClient } from '@/lib/axios';
 import type {
   HoldingsPreviewResponse,
+  PositionsResponse,
   TrackerCreateResponse,
   TrackerRebaseRequest,
   TrackerResponse,
@@ -60,6 +61,29 @@ export async function getStrategyHoldings(
   const res = await apiClient.get<HoldingsPreviewResponse>(
     `/strategies/${strategyId}/holdings`,
     { signal },
+  );
+  return res.data;
+}
+
+/**
+ * Tracker book. With `live` the endpoint re-marks with intraday quotes
+ * (`?mark=live`) — read-only, never persisted; the rest of the page stays at
+ * the nightly close.
+ */
+export async function getPositions(
+  portfolioId: string,
+  live: boolean,
+  signal?: AbortSignal,
+): Promise<PositionsResponse> {
+  const params: Record<string, string | number> = {
+    sort_by: 'weight',
+    sort_order: 'desc',
+    limit: 200,
+  };
+  if (live) params.mark = 'live';
+  const res = await apiClient.get<PositionsResponse>(
+    `/portfolios/${portfolioId}/positions`,
+    { params, signal },
   );
   return res.data;
 }

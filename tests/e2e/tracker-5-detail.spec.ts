@@ -93,6 +93,11 @@ async function mockTrackerApi(page: Page, opts: MockOptions = {}): Promise<Recor
   const calls: RecordedCall[] = [];
   let tracker = { ...(opts.tracker ?? TRACKER) };
 
+  // El detalle también carga posiciones (#7); aquí basta un libro vacío.
+  await page.route('**/portfolios/*/positions*', (route) =>
+    route.fulfill({ json: { items: [], total: 0, limit: 200, offset: 0 } }),
+  );
+
   await page.route('**/strategies/**', async (route) => {
     const req = route.request();
     const url = new URL(req.url());

@@ -3,12 +3,13 @@ import { getErrorMessage, isApiError } from '@/lib/apiErrors';
 import { toast } from '@/components/ui';
 import {
   deleteTracker,
+  getPositions,
   getStrategyHoldings,
   getTracker,
   rebaseTracker,
   updateTracker,
 } from './service';
-import type { TrackerResponse, TrackerStatus } from './types';
+import type { PositionItem, TrackerResponse, TrackerStatus } from './types';
 
 interface TrackerDetailState {
   strategyId: string | null;
@@ -20,10 +21,16 @@ interface TrackerDetailState {
   /** From holdings/drift responses — inert-clause banner + freshness badge. */
   warnings: string[];
   dataAsOf: string | null;
-  /** Intraday mark mode; fully wired in issue #7. */
+  /** Intraday mark mode (?mark=live) — solo re-valúa posiciones, nunca persiste. */
   intraday: boolean;
   /** True while a modal action (rebase/delete) is in flight. */
   actionBusy: boolean;
+  positions: PositionItem[];
+  positionsLoading: boolean;
+  positionsError: string | null;
+  positionsWarnings: string[];
+  /** Timestamp de las quotes en modo intradía. */
+  quotedAt: string | null;
 }
 
 interface TrackerDetailActions {
@@ -32,6 +39,9 @@ interface TrackerDetailActions {
   setNotifications: (enabled: boolean) => Promise<void>;
   rebase: (version: number) => Promise<boolean>;
   remove: (keepPortfolio: boolean) => Promise<boolean>;
+  loadPositions: (live: boolean) => Promise<void>;
+  /** Cambia entre marca intradía y cierre re-consultando posiciones. */
+  setIntraday: (live: boolean) => Promise<void>;
   reset: () => void;
 }
 
@@ -45,6 +55,11 @@ const initialState: TrackerDetailState = {
   dataAsOf: null,
   intraday: false,
   actionBusy: false,
+  positions: [],
+  positionsLoading: false,
+  positionsError: null,
+  positionsWarnings: [],
+  quotedAt: null,
 };
 
 export const useTrackerStore = create<TrackerDetailState & TrackerDetailActions>()(
@@ -56,6 +71,7 @@ export const useTrackerStore = create<TrackerDetailState & TrackerDetailActions>
       try {
         const tracker = await getTracker(strategyId);
         set({ tracker, isLoading: false });
+        void get().loadPositions(false);
         // Best-effort: warnings + data_as_of; the banner simply stays hidden
         // if holdings are unavailable.
         getStrategyHoldings(strategyId)
@@ -132,6 +148,28 @@ export const useTrackerStore = create<TrackerDetailState & TrackerDetailActions>
         toast('error', getErrorMessage(err));
         return false;
       }
+    },
+
+    loadPositions: async (live) => {
+      const portfolioId = get().tracker?.portfolio_id;
+      if (!portfolioId) return;
+      set({ positionsLoading: true, positionsError: null });
+      try {
+        const res = await getPositions(portfolioId, live);
+        set({
+          positions: res.items,
+          positionsWarnings: res.warnings ?? [],
+          quotedAt: res.quoted_at ?? null,
+          positionsLoading: false,
+        });
+      } catch (err) {
+        set({ positionsLoading: false, positionsError: getErrorMessage(err) });
+      }
+    },
+
+    setIntraday: async (live) => {
+      set({ intraday: live });
+      await get().loadPositions(live);
     },
 
     reset: () => set({ ...initialState }),

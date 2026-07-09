@@ -7,6 +7,7 @@ import { TrackerHeader } from './components/TrackerHeader';
 import { TrackerBanners } from './components/TrackerBanners';
 import { TrackerActions } from './components/TrackerActions';
 import { ActivationFlow } from './components/ActivationFlow';
+import { PositionsSection } from './components/PositionsSection';
 import './tracker.css';
 
 /**
@@ -62,6 +63,7 @@ export function TrackerDetail() {
       <TrackerHeader />
       <TrackerBanners />
       <TrackerActions />
+      <PositionsSection />
     </div>
   );
 }

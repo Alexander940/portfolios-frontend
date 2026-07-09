@@ -101,6 +101,39 @@ export function hasEmptyUniverseWarning(
   return Boolean(warnings?.some((w) => w.toLowerCase().includes('empty')));
 }
 
+/** Per-position price provenance in intraday (`?mark=live`) mode. */
+export type PriceSource = 'fmp_intraday' | 'nightly_close';
+
+/** One row of GET /portfolios/{portfolio_id}/positions. */
+export interface PositionItem {
+  symbol_id?: string;
+  ticker: string;
+  name: string;
+  sector: string | null;
+  country: string | null;
+  quantity: ApiNumber;
+  average_cost: ApiNumber;
+  weight_pct: ApiNumber;
+  entry_date: string;
+  entry_rating: number | null;
+  current_price: ApiNumber;
+  current_value: ApiNumber;
+  unrealized_pnl: ApiNumber;
+  unrealized_pnl_pct: ApiNumber;
+  current_rating: number | null;
+  rating_changed: boolean;
+  price_source?: PriceSource;
+}
+
+export interface PositionsResponse {
+  items: PositionItem[];
+  total: number;
+  limit: number;
+  offset: number;
+  quoted_at?: string | null;
+  warnings?: string[] | null;
+}
+
 export function hasInertWarning(warnings: string[] | null | undefined): string | null {
   if (!warnings) return null;
   return warnings.find((w) => w.toLowerCase().includes('inert')) ?? null;
