@@ -572,3 +572,28 @@
   border-top: 1px solid var(--c-border);
   font-size: 12px;
 }
+
+/* Vista índice (#4) */
+.trk-untracked-list {
+  padding: 6px 0;
+}
+.trk-untracked-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--c-border);
+  font-size: 13px;
+}
+.trk-untracked-row:last-child {
+  border-bottom: none;
+}
+.trk-index-card {
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+}
+.trk-index-card:hover {
+  border-color: var(--c-border-strong);
+}

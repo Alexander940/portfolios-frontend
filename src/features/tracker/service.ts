@@ -8,10 +8,31 @@ import type {
   TrackerCreateResponse,
   TrackerRebaseRequest,
   TrackerEventType,
+  TrackerListItem,
   TrackerResponse,
+  TrackersListResponse,
   TrackerUpdateRequest,
   VsBacktestResponse,
 } from './types';
+
+/**
+ * Listado de trackers + estrategias sin tracker en UNA llamada (backend#50,
+ * aún no desplegado). Normaliza defensivamente: el backend puede responder
+ * un array pelado o un objeto {items|trackers, data_as_of}.
+ */
+export async function getTrackers(
+  signal?: AbortSignal,
+): Promise<TrackersListResponse> {
+  const res = await apiClient.get<unknown>('/trackers', { signal });
+  const data = res.data as
+    | TrackerListItem[]
+    | { items?: TrackerListItem[]; trackers?: TrackerListItem[]; data_as_of?: string | null };
+  if (Array.isArray(data)) return { items: data };
+  return {
+    items: data.items ?? data.trackers ?? [],
+    data_as_of: data.data_as_of ?? null,
+  };
+}
 
 export async function getTracker(
   strategyId: string,

@@ -256,6 +256,34 @@ export interface EventsResponse {
   offset: number;
 }
 
+/**
+ * Ítem de GET /trackers (backend#50). La misma lista trae las estrategias
+ * sin tracker (`tracked: false`) — para esas solo strategy_id/strategy_name.
+ */
+export interface TrackerListItem {
+  tracked?: boolean;
+  tracker_id?: string;
+  strategy_id: string;
+  strategy_name: string;
+  version?: number;
+  status?: TrackerStatus;
+  next_rebalance_date?: string | null;
+  last_rebalance_date?: string | null;
+  total_value?: ApiNumber;
+  cash?: ApiNumber;
+  pnl_total?: ApiNumber;
+  pnl_total_pct?: ApiNumber;
+  pnl_day?: ApiNumber;
+  pnl_day_pct?: ApiNumber;
+  holdings_count?: number;
+  sparkline?: ApiNumber[];
+}
+
+export interface TrackersListResponse {
+  items: TrackerListItem[];
+  data_as_of?: string | null;
+}
+
 export function hasInertWarning(warnings: string[] | null | undefined): string | null {
   if (!warnings) return null;
   return warnings.find((w) => w.toLowerCase().includes('inert')) ?? null;
