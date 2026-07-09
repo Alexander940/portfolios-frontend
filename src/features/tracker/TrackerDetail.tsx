@@ -8,6 +8,7 @@ import { TrackerBanners } from './components/TrackerBanners';
 import { TrackerActions } from './components/TrackerActions';
 import { ActivationFlow } from './components/ActivationFlow';
 import { PositionsSection } from './components/PositionsSection';
+import { DriftPanel } from './components/DriftPanel';
 import './tracker.css';
 
 /**
@@ -64,6 +65,7 @@ export function TrackerDetail() {
       <TrackerBanners />
       <TrackerActions />
       <PositionsSection />
+      <DriftPanel />
     </div>
   );
 }

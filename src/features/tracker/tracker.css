@@ -254,3 +254,123 @@
     grid-template-columns: repeat(2, 1fr);
   }
 }
+
+/* Panel de drift (#8) */
+.trk-drift-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  padding: 14px;
+}
+.trk-drift-box {
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius);
+  padding: 12px;
+  background: var(--c-bg);
+  min-height: 120px;
+}
+.trk-drift-box-title {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--c-text-soft);
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.trk-drift-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--c-bg-soft);
+  border: 1px solid var(--c-border);
+  font-size: 11px;
+  color: var(--c-text-dim);
+}
+.trk-drift-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--c-border);
+  font-size: 13px;
+}
+.trk-drift-row:last-child {
+  border-bottom: none;
+}
+.trk-drift-none {
+  color: var(--c-text-dim);
+  font-size: 12px;
+  padding: 8px 0;
+}
+.trk-drift-track {
+  flex: 1;
+  display: flex;
+  height: 10px;
+  border-radius: 5px;
+  background: var(--c-bg-soft);
+  overflow: hidden;
+}
+.trk-drift-half {
+  flex: 1;
+  position: relative;
+}
+.trk-drift-half:first-child {
+  border-right: 1px solid var(--c-border-strong);
+  display: flex;
+  justify-content: flex-end;
+}
+.trk-drift-bar {
+  height: 100%;
+}
+.trk-drift-bar.over {
+  background: var(--c-accent);
+  border-radius: 0 5px 5px 0;
+}
+.trk-drift-bar.under {
+  background: var(--c-warn);
+  border-radius: 5px 0 0 5px;
+}
+.trk-drift-over {
+  color: var(--c-accent);
+}
+.trk-drift-under {
+  color: var(--c-warn);
+}
+.trk-drift-tabs {
+  display: none;
+  padding: 10px 14px 0;
+}
+.trk-drift-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--c-border);
+  font-size: 12px;
+  color: var(--c-text-soft);
+}
+.trk-drift-warning {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--c-warn);
+}
+@media (max-width: 900px) {
+  .trk-drift-tabs {
+    display: flex;
+  }
+  .trk-drift-grid {
+    grid-template-columns: 1fr;
+  }
+  .trk-drift-box:not(.active) {
+    display: none;
+  }
+}

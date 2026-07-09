@@ -1,5 +1,6 @@
 import { apiClient } from '@/lib/axios';
 import type {
+  DriftResponse,
   HoldingsPreviewResponse,
   PositionsResponse,
   TrackerCreateResponse,
@@ -84,6 +85,18 @@ export async function getPositions(
   const res = await apiClient.get<PositionsResponse>(
     `/portfolios/${portfolioId}/positions`,
     { params, signal },
+  );
+  return res.data;
+}
+
+/** Qué cambiaría si la estrategia rebalanceara hoy. */
+export async function getDrift(
+  strategyId: string,
+  signal?: AbortSignal,
+): Promise<DriftResponse> {
+  const res = await apiClient.get<DriftResponse>(
+    `/strategies/${strategyId}/tracker/drift`,
+    { signal },
   );
   return res.data;
 }

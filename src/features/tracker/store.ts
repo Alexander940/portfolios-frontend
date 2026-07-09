@@ -3,13 +3,19 @@ import { getErrorMessage, isApiError } from '@/lib/apiErrors';
 import { toast } from '@/components/ui';
 import {
   deleteTracker,
+  getDrift,
   getPositions,
   getStrategyHoldings,
   getTracker,
   rebaseTracker,
   updateTracker,
 } from './service';
-import type { PositionItem, TrackerResponse, TrackerStatus } from './types';
+import type {
+  DriftResponse,
+  PositionItem,
+  TrackerResponse,
+  TrackerStatus,
+} from './types';
 
 interface TrackerDetailState {
   strategyId: string | null;
@@ -31,6 +37,9 @@ interface TrackerDetailState {
   positionsWarnings: string[];
   /** Timestamp de las quotes en modo intradía. */
   quotedAt: string | null;
+  drift: DriftResponse | null;
+  driftLoading: boolean;
+  driftError: string | null;
 }
 
 interface TrackerDetailActions {
@@ -42,6 +51,7 @@ interface TrackerDetailActions {
   loadPositions: (live: boolean) => Promise<void>;
   /** Cambia entre marca intradía y cierre re-consultando posiciones. */
   setIntraday: (live: boolean) => Promise<void>;
+  loadDrift: () => Promise<void>;
   reset: () => void;
 }
 
@@ -60,6 +70,9 @@ const initialState: TrackerDetailState = {
   positionsError: null,
   positionsWarnings: [],
   quotedAt: null,
+  drift: null,
+  driftLoading: false,
+  driftError: null,
 };
 
 export const useTrackerStore = create<TrackerDetailState & TrackerDetailActions>()(
@@ -72,6 +85,7 @@ export const useTrackerStore = create<TrackerDetailState & TrackerDetailActions>
         const tracker = await getTracker(strategyId);
         set({ tracker, isLoading: false });
         void get().loadPositions(false);
+        void get().loadDrift();
         // Best-effort: warnings + data_as_of; the banner simply stays hidden
         // if holdings are unavailable.
         getStrategyHoldings(strategyId)
@@ -170,6 +184,26 @@ export const useTrackerStore = create<TrackerDetailState & TrackerDetailActions>
     setIntraday: async (live) => {
       set({ intraday: live });
       await get().loadPositions(live);
+    },
+
+    loadDrift: async () => {
+      const strategyId = get().strategyId;
+      if (!strategyId) return;
+      set({ driftLoading: true, driftError: null });
+      try {
+        const drift = await getDrift(strategyId);
+        // El drift también trae warnings (cláusula inerte, datos stale):
+        // se fusionan con los de holdings para los banners del detalle.
+        const merged = new Set([...get().warnings, ...(drift.warnings ?? [])]);
+        set({
+          drift,
+          driftLoading: false,
+          warnings: [...merged],
+          dataAsOf: get().dataAsOf ?? drift.data_as_of ?? null,
+        });
+      } catch (err) {
+        set({ driftLoading: false, driftError: getErrorMessage(err) });
+      }
     },
 
     reset: () => set({ ...initialState }),

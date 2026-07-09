@@ -134,6 +134,51 @@ export interface PositionsResponse {
   warnings?: string[] | null;
 }
 
+/** Entra al libro si la estrategia rebalanceara hoy. */
+export interface DriftEntry {
+  symbol_id: string;
+  ticker: string;
+  sector: string | null;
+  /** Valor del campo `sort_by` de la estrategia — NO un score 0-100. */
+  score: ApiNumber | null;
+  target_weight_pct: ApiNumber;
+}
+
+/** Sale del libro si la estrategia rebalanceara hoy. */
+export interface DriftExit {
+  symbol_id: string;
+  ticker: string;
+  shares: ApiNumber;
+  current_weight_pct: ApiNumber;
+  /** true → "posible deslistada" (sin datos recientes). */
+  stale: boolean;
+  /** Razón textual — llega con backend#52; antes, copy genérico. */
+  reason?: string | null;
+}
+
+export interface WeightDriftItem {
+  symbol_id: string;
+  ticker: string;
+  current_weight_pct: ApiNumber;
+  target_weight_pct: ApiNumber;
+  delta_pct: ApiNumber;
+}
+
+/** GET /strategies/{id}/tracker/drift — ya ordenado por |delta|. */
+export interface DriftResponse extends WarningsCarrier {
+  as_of?: string | null;
+  next_rebalance_date?: string | null;
+  /** Fracción 0-1. */
+  coverage_pct?: ApiNumber;
+  total_value?: ApiNumber;
+  cash?: ApiNumber;
+  entries?: DriftEntry[];
+  exits?: DriftExit[];
+  weight_drift?: WeightDriftItem[];
+  /** Nombre del campo de ordenamiento — llega con backend#52. */
+  sort_by?: string;
+}
+
 export function hasInertWarning(warnings: string[] | null | undefined): string | null {
   if (!warnings) return null;
   return warnings.find((w) => w.toLowerCase().includes('inert')) ?? null;
