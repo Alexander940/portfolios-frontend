@@ -1,5 +1,6 @@
 import { apiClient } from '@/lib/axios';
 import type {
+  BacktestJob,
   DriftResponse,
   HoldingsPreviewResponse,
   PositionsResponse,
@@ -7,6 +8,7 @@ import type {
   TrackerRebaseRequest,
   TrackerResponse,
   TrackerUpdateRequest,
+  VsBacktestResponse,
 } from './types';
 
 export async function getTracker(
@@ -98,6 +100,27 @@ export async function getDrift(
     `/strategies/${strategyId}/tracker/drift`,
     { signal },
   );
+  return res.data;
+}
+
+export async function getVsBacktest(
+  strategyId: string,
+  signal?: AbortSignal,
+): Promise<VsBacktestResponse> {
+  const res = await apiClient.get<VsBacktestResponse>(
+    `/strategies/${strategyId}/tracker/vs-backtest`,
+    { signal },
+  );
+  return res.data;
+}
+
+export async function runBacktest(strategyId: string): Promise<BacktestJob> {
+  const res = await apiClient.post<BacktestJob>(`/strategies/${strategyId}/backtest`);
+  return res.data;
+}
+
+export async function getBacktestJob(jobId: string): Promise<BacktestJob> {
+  const res = await apiClient.get<BacktestJob>(`/backtests/${jobId}`);
   return res.data;
 }
 

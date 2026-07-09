@@ -181,6 +181,23 @@ async function mockApi(
     await route.fulfill({ json: mark === 'live' ? livePayload : POSITIONS_CLOSE });
   });
 
+  // Curva (#9): stub vacío — sin él la request sale a la API real (401 → logout).
+  await page.route('**/portfolios/*/performance/curve*', (route) =>
+    route.fulfill({
+      json: {
+        portfolio_id: 'x',
+        benchmark: 'SPY',
+        return_basis: 'total_return',
+        base_mode: 'index_100',
+        base: 100,
+        benchmark_available: false,
+        start_date: null,
+        end_date: null,
+        points: [],
+      },
+    }),
+  );
+
   return calls;
 }
 

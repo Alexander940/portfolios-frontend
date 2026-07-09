@@ -374,3 +374,41 @@
     display: none;
   }
 }
+
+/* Performance (#9) */
+.trk-divergence {
+  display: grid;
+  grid-template-columns: repeat(3, auto) 1fr;
+  gap: 20px;
+  align-items: center;
+  margin: 10px 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius);
+  background: var(--c-bg-soft);
+}
+.trk-divergence .trk-date-value.pos {
+  color: var(--c-pos);
+}
+.trk-divergence .trk-date-value.neg {
+  color: var(--c-neg);
+}
+.trk-divergence-window {
+  font-size: 12px;
+  color: var(--c-text-dim);
+  text-align: right;
+}
+.trk-conventions {
+  padding: 8px 14px 12px;
+  font-size: 11px;
+  color: var(--c-text-dim);
+}
+@media (max-width: 900px) {
+  .trk-divergence {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .trk-divergence-window {
+    grid-column: 1 / -1;
+    text-align: left;
+  }
+}

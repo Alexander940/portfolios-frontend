@@ -179,6 +179,43 @@ export interface DriftResponse extends WarningsCarrier {
   sort_by?: string;
 }
 
+/** Punto de una serie del overlay vs-backtest; graficar con `rebased` (base 100). */
+export interface SeriesPoint {
+  date: string;
+  value: ApiNumber;
+  rebased: ApiNumber;
+}
+
+export interface Divergence {
+  common_days: number;
+  window_start: string;
+  window_end: string;
+  live_return_pct: ApiNumber;
+  backtest_return_pct: ApiNumber;
+  delta_pct: ApiNumber;
+}
+
+/** GET /strategies/{id}/tracker/vs-backtest */
+export interface VsBacktestResponse {
+  started_at?: string | null;
+  /** Claves de convención por serie — el disclaimer se construye de aquí. */
+  conventions?: Record<string, string>;
+  live: SeriesPoint[];
+  backtest: SeriesPoint[] | null;
+  benchmark: SeriesPoint[] | null;
+  backtest_job_id?: string | null;
+  backtest_missing_reason?: string | null;
+  /** null cuando las ventanas no comparten fechas (ver warnings). */
+  divergence: Divergence | null;
+  warnings?: string[] | null;
+}
+
+/** POST /strategies/{id}/backtest → job async. */
+export interface BacktestJob {
+  job_id: string;
+  status: string;
+}
+
 export function hasInertWarning(warnings: string[] | null | undefined): string | null {
   if (!warnings) return null;
   return warnings.find((w) => w.toLowerCase().includes('inert')) ?? null;

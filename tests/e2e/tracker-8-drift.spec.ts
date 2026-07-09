@@ -112,6 +112,22 @@ async function mockApi(page: Page, drift: Record<string, unknown> = DRIFT): Prom
   await page.route('**/portfolios/*/positions*', (route) =>
     route.fulfill({ json: { items: [], total: 0, limit: 200, offset: 0 } }),
   );
+  // Curva (#9): stub vacío — sin él la request sale a la API real (401 → logout).
+  await page.route('**/portfolios/*/performance/curve*', (route) =>
+    route.fulfill({
+      json: {
+        portfolio_id: 'x',
+        benchmark: 'SPY',
+        return_basis: 'total_return',
+        base_mode: 'index_100',
+        base: 100,
+        benchmark_available: false,
+        start_date: null,
+        end_date: null,
+        points: [],
+      },
+    }),
+  );
   await page.route('**/strategies/**', async (route) => {
     const url = new URL(route.request().url());
     if (url.pathname.endsWith('/tracker/drift')) {

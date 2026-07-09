@@ -93,9 +93,26 @@ async function mockTrackerApi(page: Page, opts: MockOptions = {}): Promise<Recor
   const calls: RecordedCall[] = [];
   let tracker = { ...(opts.tracker ?? TRACKER) };
 
-  // El detalle también carga posiciones (#7); aquí basta un libro vacío.
+  // El detalle también carga posiciones (#7) y la curva (#9); basta con
+  // payloads vacíos, pero DEBEN estar stubbeados: VITE_API_URL apunta a la
+  // API real y una request sin mock dispara un 401 → logout a mitad del test.
   await page.route('**/portfolios/*/positions*', (route) =>
     route.fulfill({ json: { items: [], total: 0, limit: 200, offset: 0 } }),
+  );
+  await page.route('**/portfolios/*/performance/curve*', (route) =>
+    route.fulfill({
+      json: {
+        portfolio_id: 'x',
+        benchmark: 'SPY',
+        return_basis: 'total_return',
+        base_mode: 'index_100',
+        base: 100,
+        benchmark_available: false,
+        start_date: null,
+        end_date: null,
+        points: [],
+      },
+    }),
   );
 
   await page.route('**/strategies/**', async (route) => {

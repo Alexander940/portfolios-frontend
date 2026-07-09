@@ -129,6 +129,27 @@ async function mockActivationApi(
   let created = false;
   let trackerGets = 0;
 
+  // Stubs del detalle post-activación (posiciones #7, curva #9): VITE_API_URL
+  // apunta a la API real y una request sin mock dispara 401 → logout.
+  await page.route('**/portfolios/*/positions*', (route) =>
+    route.fulfill({ json: { items: [], total: 0, limit: 200, offset: 0 } }),
+  );
+  await page.route('**/portfolios/*/performance/curve*', (route) =>
+    route.fulfill({
+      json: {
+        portfolio_id: 'x',
+        benchmark: 'SPY',
+        return_basis: 'total_return',
+        base_mode: 'index_100',
+        base: 100,
+        benchmark_available: false,
+        start_date: null,
+        end_date: null,
+        points: [],
+      },
+    }),
+  );
+
   await page.route('**/strategies/**', async (route) => {
     const req = route.request();
     const url = new URL(req.url());
