@@ -401,6 +401,13 @@ export interface StrategySpec {
    *  uncapped so the backend content_hash of pre-existing specs is unchanged (the
    *  backend pops a null `max_position_weight` from canonical_json). */
   max_position_weight?: number | null;
+  /** Optional per-name MIN weight (a fraction in (0, 1)): positions that do not
+   *  reach this share of the portfolio are dropped and their weight is
+   *  redistributed among the remaining names — the book may end up with fewer
+   *  positions than the top-N. Must be below max_position_weight when both are
+   *  set (backend 422s otherwise). Omitted (kept undefined) when no floor so the
+   *  backend content_hash of pre-existing specs is unchanged. */
+  min_position_weight?: number | null;
   /** Optional post-universe selection filters (same screen vocabulary as the
    *  universe). When present the backtester narrows the ranked set by them AFTER
    *  resolving the universe and computing the Layer-1 base — so they never bias
@@ -541,6 +548,9 @@ export interface BuilderConfig {
   // Per-name max weight in PERCENT (10 = cap every position at 10%); '' = uncapped.
   // Applies to any strategy (both paths); divided by 100 into spec.max_position_weight.
   maxPositionWeight: number | '';
+  // Per-name min weight in PERCENT (5 = drop positions under 5%); '' = no floor.
+  // Divided by 100 into spec.min_position_weight; must stay below maxPositionWeight.
+  minPositionWeight: number | '';
   // rebalance
   rebalance: Cadence;
   // costs

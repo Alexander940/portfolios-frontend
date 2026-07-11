@@ -326,6 +326,7 @@ export const DEFAULT_CONFIG: BuilderConfig = {
   sectorDeltas: {},
   sectorCaps: {},
   maxPositionWeight: '',
+  minPositionWeight: '',
   rebalance: 'monthly',
   commission: 5,
   slippage: 8,
@@ -458,6 +459,10 @@ export function cfgToSpec(cfg: BuilderConfig): StrategySpec {
   // strategy keeps the legacy content_hash (the backend pops a null value).
   const maxPos =
     cfg.maxPositionWeight !== '' && cfg.maxPositionWeight > 0 ? cfg.maxPositionWeight / 100 : null;
+  // Per-name floor: % (UI) → fraction (spec). Omitted when empty/≤0 so a
+  // floor-less strategy keeps the legacy content_hash.
+  const minPos =
+    cfg.minPositionWeight !== '' && cfg.minPositionWeight > 0 ? cfg.minPositionWeight / 100 : null;
 
   return {
     general: {
@@ -491,6 +496,7 @@ export function cfgToSpec(cfg: BuilderConfig): StrategySpec {
     ...(layered ? { layered } : {}),
     // Omitted when uncapped so an uncapped strategy keeps the legacy content_hash.
     ...(maxPos != null ? { max_position_weight: maxPos } : {}),
+    ...(minPos != null ? { min_position_weight: minPos } : {}),
     // Omitted when empty so a strategy without selection filters keeps the legacy
     // content_hash (the backend pops a null `selection_filters` from canonical_json).
     ...(selectionFilters ? { selection_filters: selectionFilters } : {}),
@@ -607,6 +613,7 @@ export function specToConfig(spec: StrategySpec, name: string): BuilderConfig {
       : {},
     // fraction (spec) → % (UI); uncapped specs load as '' (empty input).
     maxPositionWeight: spec.max_position_weight != null ? spec.max_position_weight * 100 : '',
+    minPositionWeight: spec.min_position_weight != null ? spec.min_position_weight * 100 : '',
     rebalance: spec.rebalance?.cadence ?? DEFAULT_CONFIG.rebalance,
     commission: spec.costs?.commission_bps ?? DEFAULT_CONFIG.commission,
     slippage: spec.costs?.slippage_bps ?? DEFAULT_CONFIG.slippage,

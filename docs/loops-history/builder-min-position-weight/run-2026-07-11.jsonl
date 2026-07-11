@@ -1,0 +1,4 @@
+{"ts":"2026-07-11T00:00:00Z","run_id":"run-2026-07-11","item":"run","phase":"intent","action":"start run: issue #13 en feature/builder-min-weight desde master"}
+{"ts":"2026-07-11T00:00:01Z","run_id":"run-2026-07-11","item":"#13","phase":"intent","action":"leer patrón max_position_weight (fe58481) e implementar min_position_weight"}
+{"ts":"2026-07-11T01:00:00Z","run_id":"run-2026-07-11","item":"#13","phase":"outcome","action":"commit","verdict":"done","evidence":"oracle verde: build OK, lint baseline (10), e2e builder-13 4/4 + regresión tracker 44/44. 3 intentos del nivel 3 (dos bugs de locators del spec: strict mode en 'New strategy' duplicado y colisión tooltip/error), dentro del presupuesto","artifacts":"commit en feature/builder-min-weight"}
+{"ts":"2026-07-11T01:00:01Z","run_id":"run-2026-07-11","item":"run","phase":"outcome","action":"end run","verdict":"success","evidence":"1/1 issues done"}
