@@ -43,6 +43,18 @@ export function BuilderForm({ initialCfg, busy, onCancel, onSave, onSaveBacktest
     if (new Date(cfg.endDate) <= new Date(cfg.startDate)) e.endDate = 'End must be after start';
     if (cfg.oosSplit < 0 || cfg.oosSplit > 50) e.oosSplit = 'Must be 0–50%';
     if (cfg.minTrades < 1) e.minTrades = 'Must be ≥ 1';
+    // Mirrors the backend validation for min_position_weight: fraction in
+    // (0, 1) and strictly below the max when both are set (422 otherwise).
+    if (cfg.minPositionWeight !== '') {
+      if (cfg.minPositionWeight <= 0 || cfg.minPositionWeight >= 100) {
+        e.minPositionWeight = 'Must be between 0 and 100';
+      } else if (
+        cfg.maxPositionWeight !== '' &&
+        cfg.minPositionWeight >= cfg.maxPositionWeight
+      ) {
+        e.minPositionWeight = 'Must be below the max weight';
+      }
+    }
     return e;
   }, [cfg]);
 
@@ -316,18 +328,34 @@ export function BuilderForm({ initialCfg, busy, onCancel, onSave, onSaveBacktest
             sectorCaps={cfg.sectorCaps}
             onChange={set}
           />
-          <div style={{ marginTop: 18, maxWidth: 240 }}>
-            <NumField
-              label="Max weight per stock"
-              tip="No single position may exceed this share of the portfolio. The excess is redistributed to the other names; if the cap is too small to fill the book (e.g. 5 names at 10%) the remainder stays in cash. Leave empty for no per-stock limit."
-              value={cfg.maxPositionWeight}
-              onChange={(v) => set({ maxPositionWeight: v })}
-              min={0}
-              max={100}
-              step={0.5}
-              suffix="%"
-              hint="Empty = uncapped"
-            />
+          <div style={{ marginTop: 18, display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+            <div style={{ width: 240 }}>
+              <NumField
+                label="Max weight per stock"
+                tip="No single position may exceed this share of the portfolio. The excess is redistributed to the other names; if the cap is too small to fill the book (e.g. 5 names at 10%) the remainder stays in cash. Leave empty for no per-stock limit."
+                value={cfg.maxPositionWeight}
+                onChange={(v) => set({ maxPositionWeight: v })}
+                min={0}
+                max={100}
+                step={0.5}
+                suffix="%"
+                hint="Empty = uncapped"
+              />
+            </div>
+            <div style={{ width: 240 }}>
+              <NumField
+                label="Min weight per stock"
+                tip="Positions that do not reach this share of the portfolio are dropped and their weight is redistributed among the remaining names — the book may end up with fewer positions than the top-N. Must be below the max weight. Leave empty for no minimum."
+                value={cfg.minPositionWeight}
+                onChange={(v) => set({ minPositionWeight: v })}
+                min={0}
+                max={100}
+                step={0.5}
+                suffix="%"
+                hint="Empty = no minimum"
+                error={errors.minPositionWeight}
+              />
+            </div>
           </div>
         </Section>
 
