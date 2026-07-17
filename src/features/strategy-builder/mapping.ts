@@ -691,3 +691,35 @@ export function sparkFromResult(r: BacktestResultOut, points = 16): number[] {
   for (let i = 0; i < eq.length; i += step) out.push((eq[i].total_value / base) * 100);
   return out;
 }
+
+/** Deep-merge the form-produced spec over the ORIGINAL server spec so filters
+ *  the form does not expose (live-only: dividend_yield, vol caps, FCF yield…)
+ *  survive a round-trip edit instead of being silently dropped (the
+ *  specToConfig gap documented in #34). Form-managed clauses win key-by-key;
+ *  a field the form cannot clear keeps its original value (documented v1
+ *  caveat). Used whenever an edit of a server-persisted strategy is saved. */
+export function mergeSpecPreserving(original: StrategySpec, formSpec: StrategySpec): StrategySpec {
+  const universe = { ...original.universe, ...formSpec.universe };
+  const selectionFilters =
+    original.selection_filters || formSpec.selection_filters
+      ? { ...(original.selection_filters ?? {}), ...(formSpec.selection_filters ?? {}) }
+      : undefined;
+  return {
+    ...original,
+    ...formSpec,
+    universe,
+    ...(selectionFilters ? { selection_filters: selectionFilters } : {}),
+  };
+}
+
+/** Universe filters present in a server spec that the builder form does NOT
+ *  expose — computed by construction: whatever does not survive the
+ *  specToConfig → cfgToSpec round-trip is unsupported. Feeds the read-only
+ *  "live-only filters" banner (issue #59). */
+export function unsupportedUniverseFilters(spec: StrategySpec): string[] {
+  const rt = cfgToSpec(specToConfig(spec, spec ? 'x' : 'x')).universe as Record<string, unknown>;
+  const orig = spec.universe as Record<string, unknown>;
+  return Object.keys(orig)
+    .filter((k) => orig[k] !== null && orig[k] !== undefined && (rt[k] === null || rt[k] === undefined))
+    .sort();
+}

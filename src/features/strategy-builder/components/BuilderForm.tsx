@@ -17,12 +17,16 @@ import { SectorWeighting } from './SectorWeighting';
 interface Props {
   initialCfg: BuilderConfig;
   busy?: boolean;
+  /** Universe filters the strategy carries that this form does NOT expose
+   *  (live-only: dividend_yield, vol caps…). Shown read-only; they are
+   *  preserved on save via the spec merge (issue #59, #34 gap). */
+  preservedFilters?: string[];
   onCancel: () => void;
   onSave: (cfg: BuilderConfig) => void;
   onSaveBacktest: (cfg: BuilderConfig) => void;
 }
 
-export function BuilderForm({ initialCfg, busy, onCancel, onSave, onSaveBacktest }: Props) {
+export function BuilderForm({ initialCfg, busy, preservedFilters, onCancel, onSave, onSaveBacktest }: Props) {
   const [cfg, setCfg] = useState<BuilderConfig>(initialCfg);
   const [open, setOpen] = useState<Record<number, boolean>>({
     1: true,
@@ -78,6 +82,17 @@ export function BuilderForm({ initialCfg, busy, onCancel, onSave, onSaveBacktest
   return (
     <div className="sb-build-grid">
       <div className="sb-form">
+        {preservedFilters && preservedFilters.length > 0 && (
+          <div className="sb-preserved-note">
+            <Icon name="warn" size={13} />
+            <span>
+              This strategy carries {preservedFilters.length} live-only filter
+              {preservedFilters.length > 1 ? 's' : ''} this form does not show (
+              {preservedFilters.join(', ')}). They are preserved when you save or
+              backtest — only the fields below are editable here.
+            </span>
+          </div>
+        )}
         {/* 1. General parameters */}
         <Section
           num="1"

@@ -9,6 +9,7 @@ import type {
   StrategyCreatedResponse,
   StrategyListItem,
   StrategySpec,
+  TemplateListItem,
   UniverseSpec,
 } from './types';
 
@@ -29,6 +30,30 @@ export async function createStrategy(
     name,
     description,
     spec,
+  });
+  return res.data;
+}
+
+/** The template catalog for the gallery (`GET /templates/` — issue #57). */
+export async function listTemplates(): Promise<TemplateListItem[]> {
+  const res = await apiClient.get<TemplateListItem[]>('/templates/');
+  return res.data;
+}
+
+/** Create a strategy FROM a catalog template, server-side (issue #58): the
+ *  canonical spec is loaded from the DB's latest version and the provenance is
+ *  stamped — the client never copies the spec, so no filter can be lost. */
+export async function createStrategyFromTemplate(
+  template: string,
+  name: string,
+  opts: { description?: string; overrides?: Record<string, unknown>; allowPaused?: boolean } = {},
+): Promise<StrategyCreatedResponse> {
+  const res = await apiClient.post<StrategyCreatedResponse>('/strategies/', {
+    template,
+    name,
+    ...(opts.description ? { description: opts.description } : {}),
+    ...(opts.overrides ? { overrides: opts.overrides } : {}),
+    ...(opts.allowPaused ? { allow_paused: true } : {}),
   });
   return res.data;
 }
