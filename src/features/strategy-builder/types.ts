@@ -438,6 +438,31 @@ export interface StrategyListItem {
   created_at: string; // ISO
   updated_at: string; // ISO
   spec: StrategySpec;
+  /** Provenance (issue #58): which catalog template/version this strategy was
+   *  instantiated from; null for from-scratch strategies. */
+  template_slug: string | null;
+  template_version: number | null;
+}
+
+// ---- Strategy Templates (Fase 2, issues #57/#58/#59) ----
+
+/** Readable chips for a template card in the gallery (`GET /templates/`). */
+export interface TemplateSummary {
+  filters_count: number;
+  top_n: number | null;
+  cadence: string | null;
+  weighting: string | null;
+  objective_metric: string | null;
+}
+
+export interface TemplateListItem {
+  slug: string;
+  title: string;
+  description: string | null;
+  status: 'active' | 'paused';
+  latest_version: number;
+  updated_at: string | null;
+  summary: TemplateSummary;
 }
 
 export interface BacktestSubmitResponse {
@@ -572,6 +597,13 @@ export interface SavedStrategy {
   status: 'draft' | 'backtested' | 'saved';
   updated: number; // epoch ms
   cfg: BuilderConfig;
+  /** Raw server spec (server-persisted strategies only). Carried so an EDIT can
+   *  round-trip WITHOUT losing the filters the form does not expose (the lossy
+   *  specToConfig gap of #34): saving merges the form output over this spec. */
+  spec?: StrategySpec;
+  /** Provenance (issue #58): template slug/version this strategy came from. */
+  templateSlug?: string | null;
+  templateVersion?: number | null;
   jobId?: string;
   summary?: {
     totalReturn: number;

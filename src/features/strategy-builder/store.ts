@@ -69,6 +69,12 @@ export const useStrategyStore = create<StrategyStore>()(
               status: 'saved' as const,
               updated: Date.parse(it.updated_at) || Date.parse(it.created_at) || Date.now(),
               cfg: specToConfig(it.spec, it.name),
+              // Raw spec + provenance (issue #59): the spec lets an edit
+              // round-trip without dropping live-only filters; the provenance
+              // renders "desde <template> vN" en la lista.
+              spec: it.spec,
+              templateSlug: it.template_slug,
+              templateVersion: it.template_version,
             })),
           });
         } catch {

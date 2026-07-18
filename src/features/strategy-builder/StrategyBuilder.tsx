@@ -4,37 +4,63 @@ import './builder.css';
 import { BuilderForm } from './components/BuilderForm';
 import { ListView } from './components/ListView';
 import { ResultsView } from './components/ResultsView';
+import { TemplateGallery } from './components/TemplateGallery';
 import { Icon } from './icons';
 import {
   adaptResult,
   cfgToSpec,
   DEFAULT_CONFIG,
   type DisplayResult,
+  mergeSpecPreserving,
   normalizeCfg,
   sparkFromResult,
+  unsupportedUniverseFilters,
 } from './mapping';
-import { createStrategy, getBacktest, runBacktest } from './service';
+import { createStrategy, getBacktest, listTemplates, runBacktest } from './service';
 import { useStrategyStore } from './store';
-import type { BacktestStatusResponse, BuilderConfig, SavedStrategy } from './types';
+import type {
+  BacktestStatusResponse,
+  BuilderConfig,
+  SavedStrategy,
+  StrategySpec,
+  TemplateListItem,
+} from './types';
 
-type View = 'list' | 'build' | 'results';
+type View = 'list' | 'build' | 'results' | 'templates';
 type RunStatus = 'idle' | 'running' | 'done' | 'error';
 
 function errMessage(e: unknown): string {
-  if (e && typeof e === 'object' && 'message' in e) {
-    const m = (e as { message?: unknown }).message;
-    if (typeof m === 'string') return m;
+  if (e && typeof e === 'object') {
+    const err = e as { status?: number; response?: { status?: number }; message?: unknown };
+    if ((err.status ?? err.response?.status) === 409) {
+      return 'You already have a strategy with this name — rename it to save this run as a new strategy.';
+    }
+    if (typeof err.message === 'string') return err.message;
   }
   return 'Backtest failed';
 }
 
 /** Merge local entries (drafts + this client's backtested runs) with the ones
  *  fetched from the backend; local wins on id collision (it carries the backtest
- *  summary/sparkline). Newest first. */
+ *  summary/sparkline) but inherits the server row's spec + template provenance
+ *  (the local copy never has them). Newest first. */
 function mergeStrategies(local: SavedStrategy[], server: SavedStrategy[]): SavedStrategy[] {
   const byId = new Map<string, SavedStrategy>();
   for (const s of server) byId.set(s.id, s);
-  for (const s of local) byId.set(s.id, s);
+  for (const s of local) {
+    const srv = byId.get(s.id);
+    byId.set(
+      s.id,
+      srv
+        ? {
+            ...s,
+            spec: s.spec ?? srv.spec,
+            templateSlug: s.templateSlug ?? srv.templateSlug,
+            templateVersion: s.templateVersion ?? srv.templateVersion,
+          }
+        : s,
+    );
+  }
   return [...byId.values()].sort((a, b) => b.updated - a.updated);
 }
 
@@ -49,6 +75,16 @@ async function pollBacktest(jobId: string, tries = 240): Promise<BacktestStatusR
   throw new Error('Backtest is taking longer than expected — check back shortly.');
 }
 
+interface RunOpts {
+  /** Original server spec: form output is merged over it so live-only filters
+   *  survive the edit round-trip (issue #59 / the #34 lossy-mapping gap). */
+  baseSpec?: StrategySpec;
+  /** Backtest an ALREADY-persisted strategy without re-creating it (the old
+   *  flow created a duplicate row per run — and now the server 409s duplicate
+   *  names, issue #58). */
+  existingId?: string;
+}
+
 export function StrategyBuilder() {
   const local = useStrategyStore((s) => s.strategies);
   const server = useStrategyStore((s) => s.server);
@@ -58,16 +94,19 @@ export function StrategyBuilder() {
   const strategies = useMemo(() => mergeStrategies(local, server), [local, server]);
 
   const [view, setView] = useState<View>('list');
-  const [editing, setEditing] = useState<{ id: string | null; cfg: BuilderConfig }>({
-    id: null,
-    cfg: DEFAULT_CONFIG,
-  });
+  const [editing, setEditing] = useState<{
+    id: string | null;
+    cfg: BuilderConfig;
+    baseSpec?: StrategySpec;
+  }>({ id: null, cfg: DEFAULT_CONFIG });
   const [editKey, setEditKey] = useState(0);
   const [status, setStatus] = useState<RunStatus>('idle');
   const [result, setResult] = useState<DisplayResult | null>(null);
   const [activeName, setActiveName] = useState('');
   const [activeCfg, setActiveCfg] = useState<BuilderConfig>(DEFAULT_CONFIG);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [templates, setTemplates] = useState<TemplateListItem[] | null>(null);
+  const [templatesError, setTemplatesError] = useState<string | null>(null);
 
   // Hydrate server-persisted strategies (incl. ones the AI assistant created)
   // whenever the list is shown, so they appear next to local drafts/backtests.
@@ -75,8 +114,22 @@ export function StrategyBuilder() {
     if (view === 'list') void loadServer();
   }, [view, loadServer]);
 
+  // Template catalog: fetched once — feeds the gallery AND the "vN available"
+  // upgrade notice on the list cards.
+  useEffect(() => {
+    listTemplates()
+      .then((ts) => setTemplates(ts))
+      .catch(() => setTemplatesError('Could not load the template catalog.'));
+  }, []);
+
+  const templateLatest = useMemo(() => {
+    const out: Record<string, number> = {};
+    for (const t of templates ?? []) out[t.slug] = t.latest_version;
+    return out;
+  }, [templates]);
+
   const runFlow = useCallback(
-    async (rawCfg: BuilderConfig) => {
+    async (rawCfg: BuilderConfig, opts: RunOpts = {}) => {
       const cfg = normalizeCfg(rawCfg);
       setView('results');
       setStatus('running');
@@ -85,8 +138,13 @@ export function StrategyBuilder() {
       setErrorMsg(null);
       setResult(null);
       try {
-        const created = await createStrategy(cfg.name, cfgToSpec(cfg));
-        const submit = await runBacktest(created.strategy_id);
+        // Preserve live-only filters: merge the form output over the original
+        // server spec when editing a persisted strategy.
+        const spec = opts.baseSpec
+          ? mergeSpecPreserving(opts.baseSpec, cfgToSpec(cfg))
+          : cfgToSpec(cfg);
+        const strategyId = opts.existingId ?? (await createStrategy(cfg.name, spec)).strategy_id;
+        const submit = await runBacktest(strategyId);
         const final =
           submit.status === 'done' || submit.status === 'error'
             ? await getBacktest(submit.job_id)
@@ -95,14 +153,14 @@ export function StrategyBuilder() {
         if (final.status !== 'done' || !final.result) {
           setStatus('error');
           setErrorMsg(final.error ?? 'Backtest failed');
-          upsert({ id: created.strategy_id, name: cfg.name, status: 'draft', cfg, updated: Date.now() });
+          upsert({ id: strategyId, name: cfg.name, status: 'draft', cfg, updated: Date.now() });
           return;
         }
         const display = adaptResult(final.result);
         setResult(display);
         setStatus('done');
         upsert({
-          id: created.strategy_id,
+          id: strategyId,
           name: cfg.name,
           status: 'backtested',
           cfg,
@@ -131,7 +189,7 @@ export function StrategyBuilder() {
     setView('build');
   };
   const goEdit = (s: SavedStrategy) => {
-    setEditing({ id: s.id, cfg: normalizeCfg(s.cfg) });
+    setEditing({ id: s.id, cfg: normalizeCfg(s.cfg), baseSpec: s.spec });
     setEditKey((k) => k + 1);
     setView('build');
   };
@@ -144,6 +202,12 @@ export function StrategyBuilder() {
     const id = editing.id ?? `draft-${Date.now()}`;
     upsert({ id, name: cfg.name, status: 'draft', cfg, updated: Date.now() });
     setView('list');
+  };
+  const goBacktest = (s: SavedStrategy) => {
+    // A persisted strategy is backtested AS SAVED (no duplicate row, no lossy
+    // re-mapping); only local drafts go through create-from-config.
+    const isServer = !s.id.startsWith('draft-');
+    void runFlow(s.cfg, isServer ? { existingId: s.id, baseSpec: s.spec } : {});
   };
   const goOpen = async (s: SavedStrategy) => {
     if (!s.jobId) {
@@ -189,14 +253,27 @@ export function StrategyBuilder() {
     [remove],
   );
 
+  const preservedFilters = useMemo(
+    () => (editing.baseSpec ? unsupportedUniverseFilters(editing.baseSpec) : undefined),
+    [editing.baseSpec],
+  );
+
   const headerTitle =
-    view === 'list' ? 'Strategy Builder' : view === 'build' ? editing.cfg.name : activeName;
+    view === 'list'
+      ? 'Strategy Builder'
+      : view === 'templates'
+        ? 'Templates'
+        : view === 'build'
+          ? editing.cfg.name
+          : activeName;
   const headerSub =
     view === 'list'
       ? 'Build, backtest and compare rules-based strategies against the S&P 500.'
-      : view === 'build'
-        ? 'Define rules, validate, then backtest.'
-        : 'Backtest results';
+      : view === 'templates'
+        ? 'Curated strategy profiles — create a ready-made strategy in one click.'
+        : view === 'build'
+          ? 'Define rules, validate, then backtest.'
+          : 'Backtest results';
 
   return (
     <div className="sb">
@@ -206,9 +283,14 @@ export function StrategyBuilder() {
             <h1 className="page-title">{headerTitle}</h1>
             <div className="page-sub">{headerSub}</div>
           </div>
-          <button className="sb-btn primary" style={{ width: 'auto' }} onClick={goNew}>
-            <Icon name="plus" size={13} /> New strategy
-          </button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="sb-btn" style={{ width: 'auto' }} onClick={() => setView('templates')}>
+              <Icon name="blocks" size={13} /> From template
+            </button>
+            <button className="sb-btn primary" style={{ width: 'auto' }} onClick={goNew}>
+              <Icon name="plus" size={13} /> New strategy
+            </button>
+          </div>
         </div>
       ) : (
         <>
@@ -235,11 +317,20 @@ export function StrategyBuilder() {
       {view === 'list' && (
         <ListView
           strategies={strategies}
+          templateLatest={templateLatest}
           onNew={goNew}
           onOpen={goOpen}
           onEdit={goEdit}
-          onBacktest={(s) => runFlow(s.cfg)}
+          onBacktest={goBacktest}
           onDelete={handleDelete}
+        />
+      )}
+
+      {view === 'templates' && (
+        <TemplateGallery
+          templates={templates}
+          loadError={templatesError}
+          onCreated={() => setView('list')}
         />
       )}
 
@@ -248,9 +339,10 @@ export function StrategyBuilder() {
           key={editKey}
           initialCfg={editing.cfg}
           busy={false}
+          preservedFilters={preservedFilters}
           onCancel={() => setView('list')}
           onSave={saveDraft}
-          onSaveBacktest={runFlow}
+          onSaveBacktest={(cfg) => void runFlow(cfg, { baseSpec: editing.baseSpec })}
         />
       )}
 

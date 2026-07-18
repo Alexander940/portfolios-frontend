@@ -6,6 +6,9 @@ const fmtPct = (v: number, d = 1) => `${v > 0 ? '+' : ''}${v.toFixed(d)}%`;
 
 interface Props {
   strategies: SavedStrategy[];
+  /** slug → latest promoted version of each template (for the "vN available"
+   *  upgrade notice on strategies created from an older version). */
+  templateLatest?: Record<string, number>;
   onNew: () => void;
   onOpen: (s: SavedStrategy) => void;
   onEdit: (s: SavedStrategy) => void;
@@ -21,7 +24,7 @@ function ago(ms: number): string {
   return `${Math.floor(s / 86400)}d ago`;
 }
 
-export function ListView({ strategies, onNew, onOpen, onEdit, onBacktest, onDelete }: Props) {
+export function ListView({ strategies, templateLatest, onNew, onOpen, onEdit, onBacktest, onDelete }: Props) {
   if (strategies.length === 0) {
     return (
       <div className="sb-empty">
@@ -59,6 +62,19 @@ export function ListView({ strategies, onNew, onOpen, onEdit, onBacktest, onDele
                 {r?.lowConf && (
                   <span className="sb-lowconf-tag">
                     <Icon name="warn" size={10} /> Low conf.
+                  </span>
+                )}
+                {s.templateSlug && s.templateVersion != null && (
+                  <span
+                    className="sb-tpl-tag"
+                    title={`Created from the "${s.templateSlug}" template, version ${s.templateVersion}`}
+                  >
+                    from {s.templateSlug} v{s.templateVersion}
+                    {templateLatest &&
+                      templateLatest[s.templateSlug] != null &&
+                      templateLatest[s.templateSlug] > s.templateVersion && (
+                        <span className="upgrade"> · v{templateLatest[s.templateSlug]} available</span>
+                      )}
                   </span>
                 )}
               </div>
