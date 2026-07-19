@@ -9,6 +9,7 @@ import type {
   StrategyCreatedResponse,
   StrategyListItem,
   StrategySpec,
+  StrategyUpdatedResponse,
   TemplateListItem,
   UniverseSpec,
 } from './types';
@@ -54,6 +55,22 @@ export async function createStrategyFromTemplate(
     ...(opts.description ? { description: opts.description } : {}),
     ...(opts.overrides ? { overrides: opts.overrides } : {}),
     ...(opts.allowPaused ? { allow_paused: true } : {}),
+  });
+  return res.data;
+}
+
+/** Update a persisted strategy IN PLACE: rename and/or append a new immutable
+ *  spec version to the same strategy row. This is the re-run path for existing
+ *  strategies — the old flow re-POSTed `/strategies/` and duplicated the row
+ *  (or 409'd once the backend added the duplicate-name guard). */
+export async function updateStrategy(
+  strategyId: string,
+  name: string,
+  spec: StrategySpec,
+): Promise<StrategyUpdatedResponse> {
+  const res = await apiClient.put<StrategyUpdatedResponse>(`/strategies/${strategyId}`, {
+    name,
+    spec,
   });
   return res.data;
 }

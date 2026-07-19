@@ -15,6 +15,9 @@ interface Props {
   result: DisplayResult | null;
   strategyName: string;
   errorMsg?: string | null;
+  /** Informational banner over the results — e.g. "dates haven't changed,
+   *  showing the existing result" when the run deduped to a cached backtest. */
+  notice?: string | null;
   progressStep?: string;
   onRetry: () => void;
   onEdit: () => void;
@@ -107,7 +110,7 @@ function FillsTable({ fills }: { fills: DisplayResult['fills'] }) {
   );
 }
 
-export function ResultsView({ status, result, strategyName, errorMsg, progressStep, onRetry, onEdit }: Props) {
+export function ResultsView({ status, result, strategyName, errorMsg, notice, progressStep, onRetry, onEdit }: Props) {
   if (status === 'running') {
     return (
       <div className="sb-running">
@@ -149,6 +152,15 @@ export function ResultsView({ status, result, strategyName, errorMsg, progressSt
 
   return (
     <div className="sb-results" data-testid="sb-results">
+      {notice && (
+        <div className="sb-lowconf-banner" data-testid="sb-cached-notice">
+          <span className="ic">
+            <Icon name="warn" size={18} />
+          </span>
+          <span>{notice}</span>
+        </div>
+      )}
+
       {m.lowConf && (
         <div className="sb-lowconf-banner">
           <span className="ic">

@@ -104,6 +104,19 @@ async function mockApi(
       });
       return;
     }
+    if (method === 'PUT') {
+      // editar una estrategia persistida actualiza en su lugar (nueva versión)
+      posts.push({ path: url.pathname, body: route.request().postDataJSON() });
+      await route.fulfill({
+        json: {
+          strategy_id: url.pathname.split('/').pop(),
+          version: 2,
+          content_hash: 'cafe'.repeat(16),
+          spec_changed: true,
+        },
+      });
+      return;
+    }
     await route.fulfill({ json: opts.strategies ?? [] });
   });
 
@@ -199,14 +212,17 @@ test.describe('Builder — template gallery (#59)', () => {
     await expect(page.locator('.sb-preserved-note')).toBeVisible();
     await expect(page.locator('.sb-preserved-note')).toContainText('dividend_yield');
 
-    // Guardar → el POST lleva el spec MERGEADO: dividend_yield sobrevive (#34)
+    // Guardar → el PUT (update in place, nunca un create duplicado) lleva el
+    // spec MERGEADO: dividend_yield sobrevive (#34)
     await page.getByRole('button', { name: /Save & backtest/i }).click();
     await expect
-      .poll(() => posts.filter((p) => p.path.endsWith('/strategies/')).length)
+      .poll(() => posts.filter((p) => p.path.includes('/strategies/33333333')).length)
       .toBeGreaterThan(0);
-    const created = posts.find((p) => p.path.endsWith('/strategies/'));
-    const spec = created?.body.spec as { universe: Record<string, unknown> };
+    const updated = posts.find((p) => p.path.includes('/strategies/33333333'));
+    const spec = updated?.body.spec as { universe: Record<string, unknown> };
     expect(spec.universe.dividend_yield).toEqual({ min: 0.02 });
-    expect(created?.body.template).toBeUndefined();
+    expect(updated?.body.template).toBeUndefined();
+    // el flujo viejo re-POSTeaba /strategies/ al editar — eso duplicaba la fila
+    expect(posts.filter((p) => p.path.endsWith('/strategies/'))).toHaveLength(0);
   });
 });

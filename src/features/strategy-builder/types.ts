@@ -427,6 +427,16 @@ export interface StrategyCreatedResponse {
   content_hash: string;
 }
 
+/** `PUT /strategies/{id}` — update in place (rename and/or a new spec version).
+ *  `spec_changed: false` = same canonical hash as the latest version, nothing
+ *  was created — the builder turns that into the "dates haven't changed" notice. */
+export interface StrategyUpdatedResponse {
+  strategy_id: string;
+  version: number;
+  content_hash: string;
+  spec_changed: boolean;
+}
+
 /** One row of `GET /strategies/` — the current user's saved strategies (head +
  *  the latest version's spec). Lets the builder list + open server-persisted
  *  strategies (incl. ones the AI assistant created), not just local ones. */

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import './builder.css';
 import { BuilderForm } from './components/BuilderForm';
@@ -16,7 +16,7 @@ import {
   sparkFromResult,
   unsupportedUniverseFilters,
 } from './mapping';
-import { createStrategy, getBacktest, listTemplates, runBacktest } from './service';
+import { createStrategy, getBacktest, listTemplates, runBacktest, updateStrategy } from './service';
 import { useStrategyStore } from './store';
 import type {
   BacktestStatusResponse,
@@ -83,6 +83,13 @@ interface RunOpts {
    *  flow created a duplicate row per run — and now the server 409s duplicate
    *  names, issue #58). */
   existingId?: string;
+  /** With `existingId`: PUT the (possibly edited) spec first, so date changes
+   *  land as a NEW VERSION of the same strategy before the run. Only the edit
+   *  flow sets this — the list's play button backtests the strategy as saved. */
+  update?: boolean;
+  /** Local draft card that this run persists server-side: drop it from the
+   *  local store on success so the list doesn't show draft + backtested twins. */
+  draftId?: string;
 }
 
 export function StrategyBuilder() {
@@ -105,6 +112,15 @@ export function StrategyBuilder() {
   const [activeName, setActiveName] = useState('');
   const [activeCfg, setActiveCfg] = useState<BuilderConfig>(DEFAULT_CONFIG);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  // Last run's (cfg, opts) so Retry replays the SAME flow — retrying an edit of
+  // a persisted strategy must not fall back to create (that duplicated/409'd).
+  const lastRunRef = useRef<{ cfg: BuilderConfig; opts: RunOpts } | null>(null);
+  // The persisted id + merged spec behind the results view, so "Edit" from
+  // results keeps targeting the SAME strategy (id: null there meant the next
+  // run created a duplicate).
+  const activeIdRef = useRef<string | null>(null);
+  const activeSpecRef = useRef<StrategySpec | null>(null);
   const [templates, setTemplates] = useState<TemplateListItem[] | null>(null);
   const [templatesError, setTemplatesError] = useState<string | null>(null);
 
@@ -131,20 +147,40 @@ export function StrategyBuilder() {
   const runFlow = useCallback(
     async (rawCfg: BuilderConfig, opts: RunOpts = {}) => {
       const cfg = normalizeCfg(rawCfg);
+      lastRunRef.current = { cfg: rawCfg, opts };
+      activeIdRef.current = opts.existingId ?? null;
+      activeSpecRef.current = opts.baseSpec ?? null;
       setView('results');
       setStatus('running');
       setActiveName(cfg.name);
       setActiveCfg(cfg);
       setErrorMsg(null);
       setResult(null);
+      setNotice(null);
       try {
         // Preserve live-only filters: merge the form output over the original
         // server spec when editing a persisted strategy.
         const spec = opts.baseSpec
           ? mergeSpecPreserving(opts.baseSpec, cfgToSpec(cfg))
           : cfgToSpec(cfg);
-        const strategyId = opts.existingId ?? (await createStrategy(cfg.name, spec)).strategy_id;
+        activeSpecRef.current = spec;
+        let strategyId: string;
+        if (opts.existingId) {
+          strategyId = opts.existingId;
+          // Edit flow: save the changed spec as a new version of the SAME
+          // strategy — never a second row.
+          if (opts.update) await updateStrategy(strategyId, cfg.name, spec);
+        } else {
+          strategyId = (await createStrategy(cfg.name, spec)).strategy_id;
+          if (opts.draftId) void remove(opts.draftId);
+        }
+        activeIdRef.current = strategyId;
         const submit = await runBacktest(strategyId);
+        if (submit.cached && opts.existingId) {
+          setNotice(
+            "The backtest dates haven't changed since the last run — showing the existing result (nothing was re-run).",
+          );
+        }
         const final =
           submit.status === 'done' || submit.status === 'error'
             ? await getBacktest(submit.job_id)
@@ -153,7 +189,7 @@ export function StrategyBuilder() {
         if (final.status !== 'done' || !final.result) {
           setStatus('error');
           setErrorMsg(final.error ?? 'Backtest failed');
-          upsert({ id: strategyId, name: cfg.name, status: 'draft', cfg, updated: Date.now() });
+          upsert({ id: strategyId, name: cfg.name, status: 'draft', cfg, spec, updated: Date.now() });
           return;
         }
         const display = adaptResult(final.result);
@@ -164,6 +200,7 @@ export function StrategyBuilder() {
           name: cfg.name,
           status: 'backtested',
           cfg,
+          spec,
           updated: Date.now(),
           jobId: final.job_id,
           summary: {
@@ -180,7 +217,7 @@ export function StrategyBuilder() {
         setErrorMsg(errMessage(e));
       }
     },
-    [upsert],
+    [upsert, remove],
   );
 
   const goNew = () => {
@@ -194,7 +231,13 @@ export function StrategyBuilder() {
     setView('build');
   };
   const editFromResults = () => {
-    setEditing({ id: null, cfg: activeCfg });
+    // Keep the persisted identity: editing from results must update the SAME
+    // strategy on the next run, not create a duplicate (id: null did that).
+    setEditing({
+      id: activeIdRef.current,
+      cfg: activeCfg,
+      baseSpec: activeSpecRef.current ?? undefined,
+    });
     setEditKey((k) => k + 1);
     setView('build');
   };
@@ -205,21 +248,28 @@ export function StrategyBuilder() {
   };
   const goBacktest = (s: SavedStrategy) => {
     // A persisted strategy is backtested AS SAVED (no duplicate row, no lossy
-    // re-mapping); only local drafts go through create-from-config.
+    // re-mapping); only local drafts go through create-from-config. An unchanged
+    // spec dedupes server-side (cached) → the "dates haven't changed" notice.
     const isServer = !s.id.startsWith('draft-');
-    void runFlow(s.cfg, isServer ? { existingId: s.id, baseSpec: s.spec } : {});
+    void runFlow(s.cfg, isServer ? { existingId: s.id, baseSpec: s.spec } : { draftId: s.id });
   };
   const goOpen = async (s: SavedStrategy) => {
     if (!s.jobId) {
       goEdit(s);
       return;
     }
+    // Opening stored results: point the active refs at THIS strategy so an
+    // Edit → re-run from here updates it instead of creating a duplicate.
+    activeIdRef.current = s.id.startsWith('draft-') ? null : s.id;
+    activeSpecRef.current = s.spec ?? null;
+    lastRunRef.current = null;
     setView('results');
     setStatus('running');
     setActiveName(s.name);
     setActiveCfg(normalizeCfg(s.cfg));
     setResult(null);
     setErrorMsg(null);
+    setNotice(null);
     try {
       const res = await getBacktest(s.jobId);
       if (res.status === 'done' && res.result) {
@@ -342,7 +392,19 @@ export function StrategyBuilder() {
           preservedFilters={preservedFilters}
           onCancel={() => setView('list')}
           onSave={saveDraft}
-          onSaveBacktest={(cfg) => void runFlow(cfg, { baseSpec: editing.baseSpec })}
+          onSaveBacktest={(cfg) => {
+            // Editing a persisted strategy → update it in place (new version of
+            // the SAME row) and run; a draft/new config → create, replacing the
+            // local draft card. The old flow always created → duplicates/409s.
+            const id = editing.id;
+            const isServer = id !== null && !id.startsWith('draft-');
+            void runFlow(
+              cfg,
+              isServer
+                ? { existingId: id, baseSpec: editing.baseSpec, update: true }
+                : { baseSpec: editing.baseSpec, draftId: id ?? undefined },
+            );
+          }}
         />
       )}
 
@@ -352,7 +414,13 @@ export function StrategyBuilder() {
           result={result}
           strategyName={activeName}
           errorMsg={errorMsg}
-          onRetry={() => runFlow(activeCfg)}
+          notice={notice}
+          onRetry={() => {
+            // Replay the SAME flow (incl. existingId/update) — retrying an edit
+            // of a persisted strategy must never fall back to create.
+            const last = lastRunRef.current;
+            void (last ? runFlow(last.cfg, last.opts) : runFlow(activeCfg));
+          }}
           onEdit={editFromResults}
         />
       )}
