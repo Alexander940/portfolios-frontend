@@ -9,7 +9,8 @@ import {
   updateAlert,
 } from './service';
 import { STATUS_STYLES, alertStatus, formatDate, formatInUnit, rulePhrase } from './lib';
-import type { Alert, AlertEvent, AlertField, AlertStatusKey } from './types';
+import { AlertBuilderModal } from './AlertBuilderModal';
+import type { Alert, AlertEvent, AlertField, AlertStatusKey, AlertWithValue } from './types';
 
 const MAX_ACTIVE = 200;
 
@@ -25,6 +26,7 @@ export function AlertsIndex() {
   const tab: Tab = searchParams.get('tab') === 'historial' ? 'historial' : 'alertas';
 
   const [fields, setFields] = useState<Map<string, AlertField>>(new Map());
+  const [fieldsList, setFieldsList] = useState<AlertField[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [events, setEvents] = useState<AlertEvent[]>([]);
   const [eventsLoaded, setEventsLoaded] = useState(false);
@@ -32,6 +34,9 @@ export function AlertsIndex() {
   const [error, setError] = useState<string | null>(null);
   const [tickerFilter, setTickerFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState<'todas' | AlertStatusKey>('todas');
+  const [builderOpen, setBuilderOpen] = useState(false);
+  const [editingAlert, setEditingAlert] = useState<Alert | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -44,6 +49,7 @@ export function AlertsIndex() {
         ]);
         if (cancelled) return;
         setFields(new Map(fieldList.map((f) => [f.key, f])));
+        setFieldsList(fieldList);
         setAlerts(alertList.items);
         setError(null);
       } catch {
@@ -115,6 +121,34 @@ export function AlertsIndex() {
     setSearchParams(next === 'historial' ? { tab: 'historial' } : {});
   }
 
+  function openBuilder(alert: Alert | null) {
+    setEditingAlert(alert);
+    setBuilderOpen(true);
+  }
+
+  function onSaved(saved: AlertWithValue) {
+    setAlerts((prev) => {
+      const exists = prev.some((a) => a.alert_id === saved.alert_id);
+      return exists
+        ? prev.map((a) => (a.alert_id === saved.alert_id ? { ...a, ...saved } : a))
+        : [saved, ...prev];
+    });
+    if (!saved.armed && saved.current_value !== null && saved.current_value !== undefined) {
+      const field = fields.get(saved.field);
+      const current =
+        typeof saved.current_value === 'boolean'
+          ? saved.current_value
+            ? 'sí'
+            : 'no'
+          : formatInUnit(field, saved.current_value);
+      setNotice(
+        `${saved.ticker ?? 'El símbolo'}: la condición ya se cumple hoy (valor actual ${current}) — la alerta disparará en el próximo cruce.`,
+      );
+    } else {
+      setNotice(null);
+    }
+  }
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
@@ -128,13 +162,28 @@ export function AlertsIndex() {
         <button
           type="button"
           data-testid="new-alert"
-          disabled
-          title="Disponible próximamente"
-          className="inline-flex items-center gap-2 rounded-lg bg-[#1e3a5f] px-4 py-2 text-sm font-semibold text-white opacity-50 cursor-not-allowed"
+          onClick={() => openBuilder(null)}
+          className="inline-flex items-center gap-2 rounded-lg bg-[#1e3a5f] px-4 py-2 text-sm font-semibold text-white hover:bg-[#16304f]"
         >
           <Plus size={16} /> Nueva alerta
         </button>
       </div>
+
+      {notice && (
+        <div
+          data-testid="already-met"
+          className="mb-4 flex items-start justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800"
+        >
+          <span>{notice}</span>
+          <button
+            type="button"
+            className="text-amber-600 font-semibold"
+            onClick={() => setNotice(null)}
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       <div className="mb-4 flex items-center gap-1 border-b border-gray-200">
         {(
@@ -183,10 +232,20 @@ export function AlertsIndex() {
           onStatusFilter={setStatusFilter}
           onToggle={toggle}
           onDelete={remove}
+          onNew={() => openBuilder(null)}
+          onEdit={(a) => openBuilder(a)}
         />
       ) : (
         <HistoryTab events={events} fields={fields} />
       )}
+
+      <AlertBuilderModal
+        isOpen={builderOpen}
+        onClose={() => setBuilderOpen(false)}
+        fields={fieldsList}
+        editing={editingAlert}
+        onSaved={onSaved}
+      />
     </div>
   );
 }
@@ -201,6 +260,8 @@ function AlertsTab(props: {
   onStatusFilter: (v: 'todas' | AlertStatusKey) => void;
   onToggle: (a: Alert) => void;
   onDelete: (a: Alert) => void;
+  onNew: () => void;
+  onEdit: (a: Alert) => void;
 }) {
   const { alerts, allCount, fields } = props;
 
@@ -220,9 +281,8 @@ function AlertsTab(props: {
         </p>
         <button
           type="button"
-          disabled
-          title="Disponible próximamente"
-          className="inline-flex items-center gap-2 rounded-lg bg-[#1e3a5f] px-4 py-2 text-sm font-semibold text-white opacity-50 cursor-not-allowed"
+          onClick={props.onNew}
+          className="inline-flex items-center gap-2 rounded-lg bg-[#1e3a5f] px-4 py-2 text-sm font-semibold text-white hover:bg-[#16304f]"
         >
           <Plus size={16} /> Crear mi primera alerta
         </button>
@@ -307,9 +367,9 @@ function AlertsTab(props: {
                 <button
                   type="button"
                   data-testid="alert-edit"
-                  disabled
-                  title="Disponible próximamente"
-                  className="rounded-lg border border-gray-200 p-1.5 text-gray-300 cursor-not-allowed"
+                  onClick={() => props.onEdit(a)}
+                  title="Editar"
+                  className="rounded-lg border border-gray-200 p-1.5 text-gray-600 hover:bg-gray-50"
                 >
                   <Pencil size={15} />
                 </button>
