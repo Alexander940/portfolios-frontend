@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, LogOut, Plus } from 'lucide-react';
+import { LogOut, Plus } from 'lucide-react';
 import { useAuth } from '@/features/auth';
+import { NotificationsBell } from '@/features/alerts';
 import { SearchBar } from './SearchBar';
 import { SymbolModal } from '@/components/symbol';
 import type { SymbolSearchResult } from '@/services/symbolService';
@@ -46,10 +47,7 @@ export function Topbar() {
         {asOfLabel}
       </button>
 
-      <button type="button" className="topbar-icon-btn" aria-label="Alerts">
-        <Bell size={16} />
-        <span className="dot" />
-      </button>
+      <NotificationsBell />
 
       <button
         type="button"
