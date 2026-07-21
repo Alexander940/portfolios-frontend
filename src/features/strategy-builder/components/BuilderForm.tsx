@@ -447,8 +447,10 @@ export function BuilderForm({ initialCfg, busy, preservedFilters, onCancel, onSa
           <div className="sb-summary-title">Strategy</div>
           <input className="sb-name-input" value={cfg.name} onChange={(e) => set({ name: e.target.value })} placeholder="Strategy name" />
           <div className="sb-summary-row">
-            <span className="k">Min rating</span>
-            <span className="v">{cfg.minRating > 0 ? `+${cfg.minRating}` : cfg.minRating}</span>
+            <span className="k">Filters</span>
+            <span className="v">
+              {cfg.additionalRules.length + cfg.selectionFilters.length || 'none'}
+            </span>
           </div>
           <div className="sb-summary-row">
             <span className="k">Holds</span>

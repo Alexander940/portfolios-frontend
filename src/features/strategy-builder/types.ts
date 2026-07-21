@@ -82,13 +82,17 @@ export type PerformanceKey =
   | 'sharpe_12m';
 
 /** Trend / TrendRating range fields, PIT via the `trend`/`ade` dated series.
- *  `rating`, `smart_momentum`, `trend_strength` are intentionally NOT here — they
- *  have dedicated universe controls (minRating / minMomentum / minTrendStrength),
- *  and adding them to the dynamic catalog would double-count on the universe
- *  round-trip. `days_since_rating` works as a FILTER but is NOT a valid
- *  selection.sort_by (the backend ranking path can't resolve the computed column),
- *  so it must never be offered as a sort key. */
-export type TrendKey = 'retracement' | 'days_since_rating';
+ *  `rating` / `smart_momentum` / `trend_strength` live in the catalog since issue
+ *  #98 (no default filters — their old dedicated universe knobs are gone).
+ *  `days_since_rating` works as a FILTER but is NOT a valid selection.sort_by
+ *  (the backend ranking path can't resolve the computed column), so it must
+ *  never be offered as a sort key. */
+export type TrendKey =
+  | 'rating'
+  | 'smart_momentum'
+  | 'trend_strength'
+  | 'retracement'
+  | 'days_since_rating';
 
 /** Smart-Momentum (ADE variant) per-side range fields, PIT via the `ade` series. */
 export type SmartMomentumKey =
@@ -229,7 +233,7 @@ export interface UniverseSpec {
   // ---- ade / ti / tr / price range filters (raw values; resolved as-of in a
   // backtest). Added to the Additional/Selection-rules catalog (see mapping.ts). ----
   // Trend / TrendRating (alias tr/ade). rating/trend_strength/smart_momentum are
-  // above (dedicated universe controls), so they're not repeated here.
+  // declared at the top of this interface — catalog filters since issue #98.
   retracement?: RangeFilter;
   days_since_rating?: RangeFilter; // filter-only — not a valid sort_by (see TrendKey)
   // Smart Momentum (ADE variant, alias ade)
@@ -555,11 +559,9 @@ export interface BuilderConfig {
   // phase: they narrow which names are ranked/picked WITHOUT shrinking the
   // universe or the weighting base. They map into spec.selection_filters.
   selectionFilters: FundamentalFilter[];
-  // universe (PIT-safe)
+  // universe (PIT-safe). rating / trend_strength / smart_momentum have no
+  // dedicated knobs since issue #98 — they are ordinary catalog filters now.
   sector: string; // '' = all
-  minRating: number; // -3..3 → universe.rating.min
-  minTrendStrength: number | '';
-  minMomentum: number | ''; // smart_momentum.min
   // entry / exit (the real 8 trade-state knobs, friendly subset shown)
   minEr: number; // min_er 0..1
   useTrailStop: boolean;

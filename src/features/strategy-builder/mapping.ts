@@ -103,7 +103,12 @@ export const SCREENER_FILTERS: ScreenerFilterDef[] = [
   { key: 'sharpe_12m', label: 'Sharpe 12M', kind: 'ratio', hint: '12-month annualized Sharpe ratio.', category: 'Performance' },
   // ---- PIT-safe ade / ti / tr / price filters. Values are raw (kind 'ratio', no
   // ÷100) to match the screener + backend exactly; `unit` is display-only. ----
-  // Trend / TrendRating (alias tr/ade).
+  // Trend / TrendRating (alias tr/ade). rating / smart_momentum / trend_strength
+  // joined the catalog in issue #98 (their old dedicated universe knobs are gone —
+  // strategies carry no default filters).
+  { key: 'rating', label: 'Rating', kind: 'ratio', hint: 'TrendRating score, integers −3…+3 (e.g. min +1 = bullish only).', category: 'Trend' },
+  { key: 'smart_momentum', label: 'Smart Momentum', kind: 'ratio', hint: 'Composite Smart-Momentum score of the current rating run.', category: 'Trend' },
+  { key: 'trend_strength', label: 'Trend Strength', kind: 'ratio', hint: 'Strength score of the current rating run.', category: 'Trend' },
   { key: 'retracement', label: 'Retracement', kind: 'ratio', hint: 'Pullback within the current rating run.', category: 'Trend', unit: '%' },
   { key: 'days_since_rating', label: 'Days since rating', kind: 'ratio', hint: 'Trading days since the current rating started. Filter-only — not available as a ranking sort key.', category: 'Trend', unit: 'days' },
   // Smart Momentum (ADE variant, alias ade). Long side ≥ 0, short side ≤ 0.
@@ -308,9 +313,6 @@ export const DEFAULT_CONFIG: BuilderConfig = {
   additionalRules: [],
   selectionFilters: [],
   sector: '',
-  minRating: 1,
-  minTrendStrength: '',
-  minMomentum: '',
   minEr: 0.3,
   useTrailStop: true,
   trailAtrMult: 3,
@@ -341,14 +343,32 @@ export const DEFAULT_CONFIG: BuilderConfig = {
  *  Strategies persisted before a field existed would otherwise crash the form
  *  or cfgToSpec. Idempotent on fresh configs. */
 export function normalizeCfg(cfg: BuilderConfig): BuilderConfig {
-  const saved = cfg as Partial<BuilderConfig> & { fundamentals?: FundamentalFilter[] };
+  const saved = cfg as Partial<BuilderConfig> & {
+    fundamentals?: FundamentalFilter[];
+    minRating?: number;
+    minTrendStrength?: number | '';
+    minMomentum?: number | '';
+  };
   // Legacy migration: the old single `fundamentals` array (which mapped into the
   // universe) becomes `additionalRules` — the same universe-constraining semantics.
-  const additionalRules = Array.isArray(saved.additionalRules)
+  let additionalRules = Array.isArray(saved.additionalRules)
     ? saved.additionalRules
     : Array.isArray(saved.fundamentals)
       ? saved.fundamentals
       : [];
+  // Legacy knob migration (issue #98): pre-catalog configs carried dedicated
+  // universe knobs for these three; each becomes the equivalent Additional-rules
+  // row (min-only, exactly what the knob serialized).
+  const legacyKnobs: [ScreenerFieldKey, number | '' | undefined][] = [
+    ['rating', saved.minRating],
+    ['trend_strength', saved.minTrendStrength],
+    ['smart_momentum', saved.minMomentum],
+  ];
+  for (const [key, v] of legacyKnobs) {
+    if (typeof v === 'number' && !additionalRules.some((f) => f.key === key)) {
+      additionalRules = [...additionalRules, { key, type: 'range', min: v, max: '' }];
+    }
+  }
   const selectionFilters = Array.isArray(saved.selectionFilters) ? saved.selectionFilters : [];
   // `sectorDeltas` was added with layered weighting; an older config lacks it.
   const sectorDeltas =
@@ -356,7 +376,14 @@ export function normalizeCfg(cfg: BuilderConfig): BuilderConfig {
   // `sectorCaps` was added after per-sector tilts; an older config lacks it.
   const sectorCaps =
     saved.sectorCaps && typeof saved.sectorCaps === 'object' ? saved.sectorCaps : {};
-  return { ...DEFAULT_CONFIG, ...cfg, additionalRules, selectionFilters, sectorDeltas, sectorCaps };
+  const out = { ...DEFAULT_CONFIG, ...cfg, additionalRules, selectionFilters, sectorDeltas, sectorCaps };
+  // Strip the migrated knob props so the knob→row migration above runs at most
+  // once per stored config (a re-normalize must not resurrect a deleted row).
+  const rec = out as Record<string, unknown>;
+  delete rec.minRating;
+  delete rec.minTrendStrength;
+  delete rec.minMomentum;
+  return out;
 }
 
 /** Write each active filter onto a screen object (universe or the selection-phase
@@ -398,14 +425,11 @@ function addFilters(
  *  "Additional rules" (which constrain the universe) but NOT the post-universe
  *  "Selection rules". */
 export function buildUniverse(cfg: BuilderConfig): UniverseSpec {
-  const universe: UniverseSpec = { rating: { min: cfg.minRating }, country: ['US'] };
+  // Only `country` is fixed (US-only product decision, #104). Everything else —
+  // including rating / smart_momentum / trend_strength since issue #98 — is
+  // opt-in via the filter rows: strategies carry no default filters.
+  const universe: UniverseSpec = { country: ['US'] };
   if (cfg.sector) universe.sector = [cfg.sector];
-  if (cfg.minTrendStrength !== '') {
-    universe.trend_strength = { min: Number(cfg.minTrendStrength) };
-  }
-  if (cfg.minMomentum !== '') {
-    universe.smart_momentum = { min: Number(cfg.minMomentum) };
-  }
   if (cfg.companySizes.length) universe.market_cap_category = cfg.companySizes;
   if (cfg.excluded.length) universe.exclude = cfg.excluded.map((e) => e.symbolId);
   addFilters(universe, cfg.additionalRules, 'universe');
@@ -580,9 +604,6 @@ export function specToConfig(spec: StrategySpec, name: string): BuilderConfig {
     additionalRules,
     selectionFilters,
     sector: u.sector?.[0] ?? '',
-    minRating: u.rating?.min ?? DEFAULT_CONFIG.minRating,
-    minTrendStrength: u.trend_strength?.min ?? '',
-    minMomentum: u.smart_momentum?.min ?? '',
     minEr: ee?.min_er ?? DEFAULT_CONFIG.minEr,
     useTrailStop: ee?.use_trail_stop ?? DEFAULT_CONFIG.useTrailStop,
     trailAtrMult: ee?.trail_atr_mult ?? DEFAULT_CONFIG.trailAtrMult,
@@ -692,24 +713,58 @@ export function sparkFromResult(r: BacktestResultOut, points = 16): number[] {
   return out;
 }
 
+/** Universe keys the form fully manages: the dedicated universe controls plus
+ *  every catalog filter offered in that section. For these, the form's output is
+ *  the whole truth — including ABSENCE (the user deleted the filter row), so the
+ *  merge below must not resurrect them from the original spec. */
+const FORM_MANAGED_UNIVERSE_KEYS: ReadonlySet<string> = new Set([
+  'country',
+  'sector',
+  'market_cap_category',
+  'exclude',
+  ...SCREENER_FILTERS.filter((d) => sectionAllows(d, 'universe')).map((d) => d.key),
+]);
+/** Same idea for the selection-phase screen (its only controls are catalog rows). */
+const FORM_MANAGED_SELECTION_KEYS: ReadonlySet<string> = new Set(
+  SCREENER_FILTERS.filter((d) => sectionAllows(d, 'selection')).map((d) => d.key),
+);
+
+/** Keep the original screen's live-only entries (fields the form cannot express:
+ *  dividend_yield, vol caps, FCF yield… — the specToConfig gap documented in #34)
+ *  and let the form's output win everywhere else. A form-managed key absent from
+ *  the form spec was DELETED by the user and stays deleted (issue #98). */
+function mergeScreenPreserving(
+  original: Record<string, unknown> | undefined,
+  form: Record<string, unknown> | undefined,
+  managed: ReadonlySet<string>,
+): Record<string, unknown> {
+  const preserved = Object.fromEntries(
+    Object.entries(original ?? {}).filter(([k, v]) => v != null && !managed.has(k)),
+  );
+  return { ...preserved, ...(form ?? {}) };
+}
+
 /** Deep-merge the form-produced spec over the ORIGINAL server spec so filters
- *  the form does not expose (live-only: dividend_yield, vol caps, FCF yield…)
- *  survive a round-trip edit instead of being silently dropped (the
- *  specToConfig gap documented in #34). Form-managed clauses win key-by-key;
- *  a field the form cannot clear keeps its original value (documented v1
- *  caveat). Used whenever an edit of a server-persisted strategy is saved. */
+ *  the form does not expose survive a round-trip edit instead of being silently
+ *  dropped, while filters the user deleted in the form stay deleted. Used
+ *  whenever an edit of a server-persisted strategy is saved. */
 export function mergeSpecPreserving(original: StrategySpec, formSpec: StrategySpec): StrategySpec {
-  const universe = { ...original.universe, ...formSpec.universe };
-  const selectionFilters =
-    original.selection_filters || formSpec.selection_filters
-      ? { ...(original.selection_filters ?? {}), ...(formSpec.selection_filters ?? {}) }
-      : undefined;
-  return {
-    ...original,
-    ...formSpec,
-    universe,
-    ...(selectionFilters ? { selection_filters: selectionFilters } : {}),
-  };
+  const universe = mergeScreenPreserving(
+    original.universe as Record<string, unknown>,
+    formSpec.universe as Record<string, unknown>,
+    FORM_MANAGED_UNIVERSE_KEYS,
+  ) as UniverseSpec;
+  const sel = mergeScreenPreserving(
+    original.selection_filters as Record<string, unknown> | undefined,
+    formSpec.selection_filters as Record<string, unknown> | undefined,
+    FORM_MANAGED_SELECTION_KEYS,
+  );
+  const out: StrategySpec = { ...original, ...formSpec, universe };
+  // An empty selection screen is omitted (same content_hash rule as elsewhere) —
+  // and must not leak back in via the `...original` spread above.
+  if (Object.keys(sel).length > 0) out.selection_filters = sel as UniverseSpec;
+  else delete out.selection_filters;
+  return out;
 }
 
 /** Universe filters present in a server spec that the builder form does NOT
