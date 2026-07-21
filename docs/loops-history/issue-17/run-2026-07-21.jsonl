@@ -1,0 +1,2 @@
+{"ts":"2026-07-21T23:20:00-05:00","run_id":"issue-17-r1","item":"setup","phase":"outcome","action":"PR #19 mergeado (constructor); branch feature/alerts-17-bell desde master","verdict":"ok"}
+{"ts":"2026-07-21T23:02:00-05:00","run_id":"issue-17-r1","item":"loop","phase":"outcome","action":"campana completa; oracle verde (5/5, 17/17 acumulados); PR #20 mergeado; issue cerrada","verdict":"success","artifacts":["https://github.com/Alexander940/portfolios-frontend/pull/20"]}
