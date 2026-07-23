@@ -323,6 +323,194 @@ export async function listPortfolioPositions(
 }
 
 // =============================================================================
+// Rebalance — preview the diff toward the current screener selection, then
+// confirm (Alexander940/portfolios-backend#111 / #113)
+// =============================================================================
+
+/**
+ * Weighting methods the rebalance endpoints accept — `manual` is rejected by
+ * the backend validator (a rebalance always re-sizes from a rule).
+ */
+export type RebalanceWeighting = Exclude<WeightingMethod, 'manual'>;
+
+/**
+ * Cross-sectional ranking cut applied to the screener matches before sizing:
+ * order by `sort_by` (any screenable field) in `sort_order` and keep the best
+ * `top_n`. A `top_n` larger than the match count keeps everything.
+ */
+export interface PortfolioRankingSpec {
+  sort_by: string;
+  sort_order: SortOrder;
+  top_n: number;
+  per_sector?: number | null;
+}
+
+/**
+ * Body of POST /portfolios/{id}/rebalance/preview. Two mutually exclusive
+ * modes: inline (`filters` + optional `ranking` + `weighting_method`) or
+ * `use_saved: true` (replay the portfolio's stored spec — no filters/ranking).
+ */
+export interface RebalanceRequest {
+  use_saved?: boolean;
+  filters?: ScreenerRequest | null;
+  ranking?: PortfolioRankingSpec | null;
+  weighting_method?: RebalanceWeighting;
+}
+
+/**
+ * Body of POST /portfolios/{id}/rebalance (the confirm step). `as_of` must be
+ * the date the preview returned — the backend answers 409 when newer prices
+ * arrived in between (re-preview and confirm again). `update_saved_spec` also
+ * stores the applied filters+ranking as the portfolio's saved spec (US6 —
+ * always send false from the US5 flow).
+ */
+export interface RebalanceApplyRequest extends RebalanceRequest {
+  /** ISO date `YYYY-MM-DD`, echoed from the preview response. */
+  as_of: string;
+  update_saved_spec?: boolean;
+}
+
+export type RebalanceDiffAction =
+  | 'exit'
+  | 'entry'
+  | 'increase'
+  | 'reduction'
+  | 'unchanged';
+
+/**
+ * Per-symbol diff between the current position and the sized target.
+ * `delta` = quantity_after − quantity_before (signed); `amount` = |delta| ×
+ * price. Decimals arrive as strings. `price` is null only for a held symbol
+ * with no price data at all (kept untouched + warned, never traded).
+ */
+export interface RebalanceDiffItem {
+  symbol_id: string;
+  ticker: string;
+  action: RebalanceDiffAction;
+  quantity_before: number;
+  quantity_after: number;
+  delta: number;
+  price: string | null;
+  amount: string;
+  /** Target's screener rating; null when the symbol left the target. */
+  rating: number | null;
+}
+
+/** One executable order of the plan (sells listed before buys). */
+export interface RebalanceOrderItem {
+  symbol_id: string;
+  ticker: string;
+  side: 'sell' | 'buy';
+  quantity: number;
+  price: string;
+  total_amount: string;
+}
+
+export type RebalanceSkipReason = 'no_price' | 'too_small';
+
+/** A target name dropped from the plan, with the reason. */
+export interface RebalanceSkippedItem {
+  ticker: string;
+  reason: RebalanceSkipReason;
+}
+
+export interface RebalancePreStateHolding {
+  symbol_id: string;
+  ticker: string;
+  qty: number;
+  price: number | null;
+  value: number;
+  weight_pct: number;
+  avg_cost: number;
+  unrealized_pnl: number;
+  sector: string | null;
+}
+
+/** Snapshot of the portfolio BEFORE the rebalance (floats, not Decimals). */
+export interface RebalancePreState {
+  totals: { total_value: number; cash: number; invested: number };
+  holdings: RebalancePreStateHolding[];
+  sector_breakdown: { sector: string; value: number; weight_pct: number }[];
+}
+
+export interface RebalanceDiffSummary {
+  exits: number;
+  entries: number;
+  increases: number;
+  reductions: number;
+  unchanged: number;
+  turnover_pct: number;
+  skipped: RebalanceSkippedItem[];
+  warnings: string[];
+}
+
+/**
+ * The full rebalance plan. Decimal fields (`total_value`, `cash_*`,
+ * `turnover_pct`, item prices/amounts) are serialized as strings by the
+ * backend. `as_of` must be echoed back in the confirm request.
+ */
+export interface RebalancePreviewResponse {
+  portfolio_id: string;
+  as_of: string;
+  weighting_method: WeightingMethod;
+  total_value: string;
+  cash_before: string;
+  cash_after: string;
+  turnover_pct: string;
+  pre_state: RebalancePreState;
+  diff: RebalanceDiffItem[];
+  orders: RebalanceOrderItem[];
+  diff_summary: RebalanceDiffSummary;
+  spec_used: Record<string, unknown>;
+  skipped: RebalanceSkippedItem[];
+  warnings: string[];
+}
+
+/** Summary after applying a rebalance. */
+export interface RebalanceApplyResponse {
+  portfolio_id: string;
+  as_of: string;
+  n_sells: number;
+  n_buys: number;
+  cash_after: string;
+  positions_count: number;
+}
+
+/**
+ * Compute the rebalance plan (read-only — writes nothing). Requires co_owner
+ * or better on the target portfolio.
+ */
+export async function previewRebalance(
+  portfolioId: string,
+  payload: RebalanceRequest,
+  signal?: AbortSignal,
+): Promise<RebalancePreviewResponse> {
+  const { data } = await apiClient.post<RebalancePreviewResponse>(
+    `/portfolios/${portfolioId}/rebalance/preview`,
+    payload,
+    { signal },
+  );
+  return data;
+}
+
+/**
+ * Apply the rebalance previously previewed. Answers 409 when `as_of` is stale
+ * (newer prices arrived since the preview) — re-preview and confirm again.
+ */
+export async function applyRebalance(
+  portfolioId: string,
+  payload: RebalanceApplyRequest,
+  signal?: AbortSignal,
+): Promise<RebalanceApplyResponse> {
+  const { data } = await apiClient.post<RebalanceApplyResponse>(
+    `/portfolios/${portfolioId}/rebalance`,
+    payload,
+    { signal },
+  );
+  return data;
+}
+
+// =============================================================================
 // Performance curve (portfolio vs benchmark, total return)
 // =============================================================================
 
