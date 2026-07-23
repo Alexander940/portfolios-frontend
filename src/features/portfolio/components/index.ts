@@ -5,6 +5,8 @@ export { PortfolioPositionsTable } from './PortfolioPositionsTable';
 export { PortfolioPerformanceChart } from './PortfolioPerformanceChart';
 export { PortfolioOverviewTab } from './PortfolioOverviewTab';
 export { PortfolioEventsTab } from './PortfolioEventsTab';
+export { PortfolioRebalancesTab } from './PortfolioRebalancesTab';
+export { RebalanceDetailModal } from './RebalanceDetailModal';
 export { PortfolioStatCards } from './PortfolioStatCards';
 export { RelevantEventsRail } from './RelevantEventsRail';
 export { RelevantEventsList } from './RelevantEventsList';

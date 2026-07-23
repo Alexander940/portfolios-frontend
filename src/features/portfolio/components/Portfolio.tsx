@@ -15,9 +15,10 @@ import { PortfoliosTable } from './PortfoliosTable';
 import { PortfolioPositionsTable } from './PortfolioPositionsTable';
 import { PortfolioOverviewTab } from './PortfolioOverviewTab';
 import { PortfolioEventsTab } from './PortfolioEventsTab';
+import { PortfolioRebalancesTab } from './PortfolioRebalancesTab';
 import { ImportPortfolioFromExcelModal } from './ImportPortfolioFromExcelModal';
 
-const DETAIL_TABS = ['overview', 'holdings', 'events'] as const;
+const DETAIL_TABS = ['overview', 'holdings', 'events', 'rebalances'] as const;
 type DetailTab = (typeof DETAIL_TABS)[number];
 
 /**
@@ -247,6 +248,11 @@ export function Portfolio({
       )}
 
       {activeTab === 'events' && <PortfolioEventsTab portfolioId={portfolioId} />}
+
+      {/* US7 (#115): rebalance history — visible to every role, viewers included. */}
+      {activeTab === 'rebalances' && (
+        <PortfolioRebalancesTab portfolioId={portfolioId} />
+      )}
     </div>
   );
 }
