@@ -1,6 +1,10 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Briefcase, Calendar, RefreshCw, Share2, Users, Wallet } from 'lucide-react';
-import type { PortfolioResponse } from '@/services/portfolioService';
+import type {
+  PortfolioResponse,
+  RebalanceRedirectState,
+} from '@/services/portfolioService';
 import { toLocalDate } from '@/features/portfolio/lib/format';
 import { SharePortfolioModal } from './SharePortfolioModal';
 
@@ -28,6 +32,7 @@ function formatDate(iso: string | null): string {
 }
 
 export function PortfolioHeader({ portfolio, onTransferred }: PortfolioHeaderProps) {
+  const navigate = useNavigate();
   const [shareOpen, setShareOpen] = useState(false);
 
   const weighting =
@@ -39,8 +44,27 @@ export function PortfolioHeader({ portfolio, onTransferred }: PortfolioHeaderPro
   // Owner manages every grant + transfer; a co_owner can still open the dialog
   // to invite/remove viewers, so both get the "Compartir" affordance.
   const canManageShares = isOwner || portfolio.permission === 'co_owner';
+  // Rebalancing needs write access: owner or co_owner (viewers never see it).
+  const canRebalance = isOwner || portfolio.permission === 'co_owner';
   const sharedRoleLabel =
     portfolio.permission === 'co_owner' ? 'Co-propietario' : 'Solo lectura';
+
+  /**
+   * US6 (#114): jump to the screener carrying the portfolio's saved creation
+   * spec (raw — the screener parses/preloads it) and the target preselected.
+   * Portfolios without a spec land on a clean screener.
+   */
+  function handleRebalanceClick() {
+    const state: RebalanceRedirectState = {
+      rebalanceRedirect: {
+        portfolioId: portfolio.portfolio_id,
+        portfolioName: portfolio.name,
+        screenerFilters: portfolio.screener_filters,
+        weightingMethod: portfolio.weighting_method,
+      },
+    };
+    navigate('/dashboard/screening', { state });
+  }
 
   const meta = [
     {
@@ -56,13 +80,16 @@ export function PortfolioHeader({ portfolio, onTransferred }: PortfolioHeaderPro
       label: 'Created',
       value: formatDate(portfolio.created_at),
     },
-    {
-      icon: RefreshCw,
-      label: 'Last rebalance',
-      value: portfolio.last_rebalance_date
-        ? formatDate(portfolio.last_rebalance_date)
-        : '—',
-    },
+    // Never rebalanced → the item is omitted entirely (no dash placeholder).
+    ...(portfolio.last_rebalance_date
+      ? [
+          {
+            icon: RefreshCw,
+            label: 'Last rebalance',
+            value: formatDate(portfolio.last_rebalance_date),
+          },
+        ]
+      : []),
     {
       icon: Calendar,
       label: 'Last updated',
@@ -167,6 +194,18 @@ export function PortfolioHeader({ portfolio, onTransferred }: PortfolioHeaderPro
           >
             {weighting}
           </span>
+          {canRebalance && (
+            <button
+              type="button"
+              className="topbar-btn"
+              onClick={handleRebalanceClick}
+              title="Open the screener with this portfolio's saved filters preloaded and rebalance it"
+              style={{ border: '1px solid var(--c-border)' }}
+            >
+              <RefreshCw size={14} />
+              Rebalance
+            </button>
+          )}
           {canManageShares && (
             <button
               type="button"
