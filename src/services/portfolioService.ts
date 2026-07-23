@@ -418,11 +418,12 @@ export interface RebalancePreStateHolding {
   symbol_id: string;
   ticker: string;
   qty: number;
+  /** Null (along with value/weight_pct/unrealized_pnl) when the position had no price data. */
   price: number | null;
-  value: number;
-  weight_pct: number;
+  value: number | null;
+  weight_pct: number | null;
   avg_cost: number;
-  unrealized_pnl: number;
+  unrealized_pnl: number | null;
   sector: string | null;
 }
 
@@ -578,6 +579,89 @@ export async function applyRebalance(
   const { data } = await apiClient.post<RebalanceApplyResponse>(
     `/portfolios/${portfolioId}/rebalance`,
     payload,
+    { signal },
+  );
+  return data;
+}
+
+// =============================================================================
+// Rebalance history — list + detail of applied rebalances (US7 #115; endpoints
+// from backend #112). Read access: ANY role on the portfolio, viewer included.
+// =============================================================================
+
+/** One applied rebalance, as listed by GET /portfolios/{id}/rebalances. */
+export interface RebalanceHistoryItem {
+  rebalance_id: string;
+  /** Trading day the plan was priced at, `YYYY-MM-DD`. */
+  rebalance_date: string;
+  /** Wall-clock instant the rebalance was confirmed (ISO timestamp). */
+  executed_at: string;
+  /** Null when the executing user was since deleted. */
+  executed_by_email: string | null;
+  diff_summary: RebalanceDiffSummary;
+}
+
+export interface RebalanceHistoryList {
+  items: RebalanceHistoryItem[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+/**
+ * Selection spec stored with the rebalance (versioned, same family as the
+ * portfolio creation spec). Loosely typed on purpose: stored specs may predate
+ * the current schemas, so every key is optional and `filters`/`ranking` stay
+ * untyped for the consumer to interpret.
+ */
+export interface RebalanceSpecUsed {
+  version?: number;
+  filters?: Record<string, unknown> | null;
+  ranking?: Record<string, unknown> | null;
+  weighting_method?: string | null;
+}
+
+/**
+ * Full record from GET /portfolios/{id}/rebalances/{rebalance_id}: the list
+ * item plus the snapshot of the portfolio just BEFORE the rebalance and the
+ * spec that produced the plan (`spec_used` nullable for robustness).
+ */
+export interface RebalanceHistoryDetail extends RebalanceHistoryItem {
+  portfolio_id: string;
+  pre_state: RebalancePreState;
+  spec_used: RebalanceSpecUsed | null;
+}
+
+/**
+ * Rebalance history of a portfolio, newest first (rebalance_date DESC,
+ * executed_at DESC). Viewer or better.
+ */
+export async function listRebalanceHistory(
+  portfolioId: string,
+  params: { limit?: number; offset?: number } = {},
+  signal?: AbortSignal,
+): Promise<RebalanceHistoryList> {
+  const { data } = await apiClient.get<RebalanceHistoryList>(
+    `/portfolios/${portfolioId}/rebalances`,
+    {
+      params: { limit: params.limit ?? 50, offset: params.offset ?? 0 },
+      signal,
+    },
+  );
+  return data;
+}
+
+/**
+ * One historical rebalance with `pre_state` + `spec_used`. The backend answers
+ * 404 when the id does not exist or belongs to another portfolio.
+ */
+export async function getRebalanceDetail(
+  portfolioId: string,
+  rebalanceId: string,
+  signal?: AbortSignal,
+): Promise<RebalanceHistoryDetail> {
+  const { data } = await apiClient.get<RebalanceHistoryDetail>(
+    `/portfolios/${portfolioId}/rebalances/${rebalanceId}`,
     { signal },
   );
   return data;
