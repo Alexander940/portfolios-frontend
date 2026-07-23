@@ -466,6 +466,79 @@ export interface RebalancePreviewResponse {
   warnings: string[];
 }
 
+// =============================================================================
+// Creation spec (`PortfolioResponse.screener_filters`) — versioned format.
+// Mirror of backend app/services/portfolio_spec.py (#110 / #114).
+// =============================================================================
+
+/** Version written by the backend today. */
+export const CREATION_SPEC_VERSION = 2;
+
+/** Version assigned on read to legacy flat dicts (pre-#110). Never stored. */
+export const LEGACY_SPEC_VERSION = 1;
+
+/**
+ * Normalized view of a stored creation spec, whatever its on-disk format.
+ * `filters` is a serialized ScreenerRequest in API units (percent fields are
+ * fractions, numerics may arrive as strings — the backend dumps Decimals as
+ * JSON strings); `ranking` is a serialized PortfolioRankingSpec or null.
+ * Both are left untyped on purpose: stored specs may predate the current
+ * schemas, so validation belongs to the consumer that replays them.
+ */
+export interface ParsedCreationSpec {
+  version: number;
+  filters: Record<string, unknown>;
+  ranking: Record<string, unknown> | null;
+}
+
+/**
+ * Read a stored `screener_filters` value in any known format. Mirror of the
+ * backend's `parse_creation_spec`:
+ * - `null` (from-tickers / import portfolios) → `null`.
+ * - Flat dict without a `version` key → legacy: the dict IS the serialized
+ *   ScreenerRequest → `version=1, filters=raw, ranking=null`.
+ * - Versioned dict (v2 or any future version) → passed through as-is; extra
+ *   keys (e.g. a future `weighting_method`) are ignored, and unknown future
+ *   versions never throw — consumers decide what to do with them.
+ */
+export function parseCreationSpec(
+  raw: Record<string, unknown> | null | undefined,
+): ParsedCreationSpec | null {
+  if (raw === null || raw === undefined) return null;
+  if (!('version' in raw)) {
+    return { version: LEGACY_SPEC_VERSION, filters: raw, ranking: null };
+  }
+  const filters =
+    raw.filters && typeof raw.filters === 'object' && !Array.isArray(raw.filters)
+      ? (raw.filters as Record<string, unknown>)
+      : {};
+  const ranking =
+    raw.ranking && typeof raw.ranking === 'object' && !Array.isArray(raw.ranking)
+      ? (raw.ranking as Record<string, unknown>)
+      : null;
+  const version =
+    typeof raw.version === 'number' ? raw.version : Number(raw.version);
+  return { version, filters, ranking };
+}
+
+/**
+ * React-router `location.state` contract for the "Rebalance" button on the
+ * portfolio view (US6 #114): the portfolio view navigates to the screener with
+ * this payload; the screener preloads the saved filters, opens the rebalance
+ * modal with the target preselected, and clears the history state so a refresh
+ * doesn't replay the redirect.
+ */
+export interface RebalanceRedirectState {
+  rebalanceRedirect: {
+    portfolioId: string;
+    portfolioName: string;
+    /** Raw `PortfolioResponse.screener_filters` (any known format, or null). */
+    screenerFilters: Record<string, unknown> | null;
+    /** The portfolio's stored weighting (column, not spec). */
+    weightingMethod: WeightingMethod;
+  };
+}
+
 /** Summary after applying a rebalance. */
 export interface RebalanceApplyResponse {
   portfolio_id: string;
