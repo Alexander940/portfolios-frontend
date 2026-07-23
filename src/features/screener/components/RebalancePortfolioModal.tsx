@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Loader2, RefreshCw } from 'lucide-react';
+import { Loader2, RefreshCw, Save } from 'lucide-react';
 import { Modal, Button, toast } from '@/components/ui';
 import { getErrorMessage, isApiError } from '@/lib/apiErrors';
 import { fmtDate, fmtMoney, fmtPct } from '@/lib/format';
@@ -8,6 +8,7 @@ import {
   applyRebalance,
   listPortfolios,
   listSharedWithMe,
+  parseCreationSpec,
   previewRebalance,
   type PortfolioRankingSpec,
   type PortfolioResponse,
@@ -19,13 +20,23 @@ import {
   type RebalanceWeighting,
 } from '@/services/portfolioService';
 import { useScreenerStore } from '../stores';
-import { toApiPercentFilters } from '../services';
+import { specMatchesSelection, toApiPercentFilters } from '../services';
 import { ADDITIONAL_FILTERS, FILTER_CATEGORIES } from '../constants';
 
 interface RebalancePortfolioModalProps {
   isOpen: boolean;
   onClose: () => void;
   totalCount: number;
+  /** True while the screener results are (re)loading — Preview stays disabled. */
+  resultsLoading?: boolean;
+  /**
+   * Prefills for the redirect flow from the portfolio view (US6 #114):
+   * target preselected + saved ranking/weighting restored. Applied each time
+   * the modal opens; the user can still change everything.
+   */
+  initialPortfolioId?: string | null;
+  initialRanking?: PortfolioRankingSpec | null;
+  initialWeighting?: RebalanceWeighting | null;
 }
 
 /** A rebalance target: one of the user's own portfolios or a co-owned share. */
@@ -95,11 +106,15 @@ export function RebalancePortfolioModal({
   isOpen,
   onClose,
   totalCount,
+  resultsLoading = false,
+  initialPortfolioId = null,
+  initialRanking = null,
+  initialWeighting = null,
 }: RebalancePortfolioModalProps) {
   const navigate = useNavigate();
   const getApiRequest = useScreenerStore((s) => s.getApiRequest);
 
-  const [step, setStep] = useState<'setup' | 'preview'>('setup');
+  const [step, setStep] = useState<'setup' | 'preview' | 'saveSpec'>('setup');
 
   // Target portfolios (own + co-owned shares)
   const [targets, setTargets] = useState<TargetOption[] | null>(null);
@@ -117,6 +132,8 @@ export function RebalancePortfolioModal({
   const [preview, setPreview] = useState<RebalancePreviewResponse | null>(null);
   const [previewing, setPreviewing] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  /** Which saveSpec action is in flight — drives the right button's spinner. */
+  const [applyChoice, setApplyChoice] = useState<'save' | 'skip' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [staleNotice, setStaleNotice] = useState<string | null>(null);
 
@@ -124,6 +141,23 @@ export function RebalancePortfolioModal({
     () => targets?.find((t) => t.portfolio.portfolio_id === selectedId) ?? null,
     [targets, selectedId],
   );
+
+  // Apply the redirect-flow prefills every time the modal opens (state is
+  // reset on close, so a later manual open re-seeds the same target).
+  const wasOpenRef = useRef(false);
+  useEffect(() => {
+    if (isOpen && !wasOpenRef.current) {
+      if (initialPortfolioId) setSelectedId(initialPortfolioId);
+      if (initialRanking) {
+        setRankingEnabled(true);
+        setTopN(String(initialRanking.top_n));
+        setSortBy(initialRanking.sort_by);
+        setSortOrder(initialRanking.sort_order);
+      }
+      if (initialWeighting) setWeighting(initialWeighting);
+    }
+    wasOpenRef.current = isOpen;
+  }, [isOpen, initialPortfolioId, initialRanking, initialWeighting]);
 
   const sortedDiff = useMemo(() => {
     if (!preview) return [];
@@ -174,6 +208,7 @@ export function RebalancePortfolioModal({
     setPreview(null);
     setPreviewing(false);
     setConfirming(false);
+    setApplyChoice(null);
     setError(null);
     setStaleNotice(null);
   }
@@ -239,22 +274,64 @@ export function RebalancePortfolioModal({
     await runPreview();
   }
 
-  async function handleConfirm() {
+  /**
+   * The portfolio's stored creation spec, in normalized form (null when it
+   * has none — from-tickers/import portfolios or a target not yet loaded).
+   */
+  const savedSpec = useMemo(
+    () =>
+      parseCreationSpec(selectedTarget?.portfolio.screener_filters ?? null),
+    [selectedTarget],
+  );
+
+  /**
+   * Would `update_saved_spec` be a no-op? True only when the spec about to be
+   * applied (current filters + ranking) deep-equals the saved one AND the
+   * weighting is unchanged (the flag also overwrites the portfolio's
+   * weighting_method).
+   */
+  function selectionMatchesSavedSpec(): boolean {
+    if (!selectedTarget) return false;
+    if (selectedTarget.portfolio.weighting_method !== weighting) return false;
+    const req = buildRequest();
+    return specMatchesSelection(savedSpec, req.filters ?? {}, req.ranking ?? null);
+  }
+
+  /**
+   * Confirm click on the preview step: skip the save-spec question when the
+   * applied spec already equals the saved one (send update_saved_spec=false);
+   * otherwise ask first — both for a differing spec and for a portfolio with
+   * no spec yet (attach). Applies to BOTH entry paths (direct screener flow
+   * and the portfolio-view redirect).
+   */
+  function handleConfirmClick() {
+    if (!preview) return;
+    if (selectionMatchesSavedSpec()) {
+      void doApply(false);
+    } else {
+      setError(null);
+      setStep('saveSpec');
+    }
+  }
+
+  async function doApply(updateSavedSpec: boolean) {
     if (!preview) return;
     setError(null);
     setStaleNotice(null);
     setConfirming(true);
+    setApplyChoice(updateSavedSpec ? 'save' : 'skip');
     try {
       const resp = await applyRebalance(selectedId, {
         ...buildRequest(),
         as_of: preview.as_of,
-        update_saved_spec: false,
+        update_saved_spec: updateSavedSpec,
       });
       const name = selectedTarget?.portfolio.name ?? 'portfolio';
       toast(
         'success',
         `Rebalanced "${name}": ${resp.n_sells} sell${resp.n_sells === 1 ? '' : 's'}, ` +
-          `${resp.n_buys} buy${resp.n_buys === 1 ? '' : 's'}.`,
+          `${resp.n_buys} buy${resp.n_buys === 1 ? '' : 's'}.` +
+          (updateSavedSpec ? ' Filters saved to the portfolio.' : ''),
       );
       resetAll();
       onClose();
@@ -263,6 +340,7 @@ export function RebalancePortfolioModal({
       if (isApiError(err) && err.status === 409) {
         // Prices moved since the preview — tell the user and re-preview
         // automatically so they can confirm against the fresh plan.
+        setStep('preview');
         setStaleNotice(
           'Prices changed since this preview was computed. The preview below has been refreshed — review it and confirm again.',
         );
@@ -272,6 +350,7 @@ export function RebalancePortfolioModal({
       }
     } finally {
       setConfirming(false);
+      setApplyChoice(null);
     }
   }
 
@@ -289,9 +368,11 @@ export function RebalancePortfolioModal({
       description={
         step === 'setup'
           ? 'Replace the holdings of an existing portfolio with the current screener selection.'
-          : 'Review the plan — nothing is executed until you confirm.'
+          : step === 'preview'
+            ? 'Review the plan — nothing is executed until you confirm.'
+            : 'One last thing before applying.'
       }
-      size={step === 'setup' ? 'md' : '2xl'}
+      size={step === 'preview' ? '2xl' : 'md'}
     >
       {step === 'setup' ? (
         <div className="space-y-4">
@@ -485,14 +566,16 @@ export function RebalancePortfolioModal({
             className={`
               flex items-center gap-2 p-3 rounded-lg text-sm
               ${
-                noResults
+                noResults && !resultsLoading
                   ? 'bg-amber-50 text-amber-800 border border-amber-200'
                   : 'bg-blue-50 text-blue-800 border border-blue-200'
               }
             `}
           >
             <RefreshCw size={16} />
-            {noResults ? (
+            {resultsLoading ? (
+              <span>Loading the stocks that match the current filters…</span>
+            ) : noResults ? (
               <span>No stocks match the current filters.</span>
             ) : (
               <span>
@@ -524,13 +607,13 @@ export function RebalancePortfolioModal({
               type="button"
               onClick={handleContinue}
               isLoading={previewing}
-              disabled={noResults || !selectedId || previewing}
+              disabled={noResults || resultsLoading || !selectedId || previewing}
             >
               {previewing ? 'Computing preview…' : 'Preview Rebalance'}
             </Button>
           </div>
         </div>
-      ) : preview ? (
+      ) : step === 'preview' && preview ? (
         <div className="space-y-4">
           {/* Stale-preview notice (409 on confirm → auto re-preview) */}
           {staleNotice && (
@@ -712,7 +795,7 @@ export function RebalancePortfolioModal({
               </Button>
               <Button
                 type="button"
-                onClick={handleConfirm}
+                onClick={handleConfirmClick}
                 isLoading={confirming || previewing}
                 disabled={confirming || previewing}
               >
@@ -721,6 +804,69 @@ export function RebalancePortfolioModal({
                   : previewing
                     ? 'Refreshing preview…'
                     : 'Confirm Rebalance'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : step === 'saveSpec' && preview ? (
+        <div className="space-y-4">
+          {/* update_saved_spec question (US6): shown only when the spec being
+              applied differs from the portfolio's saved one, or when the
+              portfolio has none yet. */}
+          <div className="p-4 rounded-lg border border-gray-200 bg-gray-50 space-y-2">
+            <div className="flex items-center gap-2 text-sm font-medium text-gray-900">
+              <Save size={16} className="shrink-0" />
+              Save these filters to the portfolio?
+            </div>
+            <p className="text-sm text-gray-600">
+              {savedSpec
+                ? `The filters, ranking or weighting you are about to apply are different from the ones saved on "${
+                    selectedTarget?.portfolio.name ?? 'the portfolio'
+                  }". Saving them makes this selection the portfolio's spec for future rebalances.`
+                : `"${
+                    selectedTarget?.portfolio.name ?? 'The portfolio'
+                  }" has no saved screener filters yet. You can attach this selection so future rebalances can start from it.`}
+            </p>
+            <p className="text-xs text-gray-500">
+              Either way, the rebalance itself is applied exactly as previewed.
+            </p>
+          </div>
+
+          {error && (
+            <div className="p-3 rounded-lg bg-red-50 text-red-800 border border-red-200 text-sm">
+              {error}
+            </div>
+          )}
+
+          <div className="flex items-center justify-between gap-2 pt-2">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => {
+                setStep('preview');
+                setError(null);
+              }}
+              disabled={confirming}
+            >
+              Back
+            </Button>
+            <div className="flex items-center gap-3">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => void doApply(false)}
+                isLoading={confirming && applyChoice === 'skip'}
+                disabled={confirming}
+              >
+                Rebalance without saving
+              </Button>
+              <Button
+                type="button"
+                onClick={() => void doApply(true)}
+                isLoading={confirming && applyChoice === 'save'}
+                disabled={confirming}
+              >
+                Save filters & Rebalance
               </Button>
             </div>
           </div>
