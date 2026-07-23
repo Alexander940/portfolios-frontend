@@ -8,10 +8,12 @@ import {
   Tooltip,
   CartesianGrid,
   Legend,
+  ReferenceLine,
 } from 'recharts';
 import { Loader2 } from 'lucide-react';
 import {
   getPerformanceCurve,
+  listRebalanceHistory,
   type CurveBaseMode,
   type PerformanceCurveResponse,
 } from '@/services/portfolioService';
@@ -30,6 +32,8 @@ interface ChartRow {
 
 const PORTFOLIO_COLOR = '#2563eb';
 const BENCHMARK_COLOR = '#9ca3af';
+/** Vertical rebalance markers (US7 #115) — amber so they never read as a series. */
+const REBALANCE_COLOR = '#f59e0b';
 
 const BASE_MODES: { value: CurveBaseMode; label: string }[] = [
   { value: 'index_100', label: 'Base 100' },
@@ -67,13 +71,36 @@ export function PortfolioPerformanceChart({
   const [data, setData] = useState<PerformanceCurveResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [rebalanceDates, setRebalanceDates] = useState<string[]>([]);
   const abortRef = useRef<AbortController | null>(null);
+
+  // Rebalance dates for the vertical markers (US7 #115). Decoration only:
+  // a failure here must never break the curve, so errors are swallowed and
+  // the chart simply renders without markers.
+  useEffect(() => {
+    const controller = new AbortController();
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setRebalanceDates([]);
+    listRebalanceHistory(portfolioId, { limit: 100 }, controller.signal)
+      .then((res) => {
+        if (controller.signal.aborted) return;
+        setRebalanceDates(res.items.map((r) => r.rebalance_date));
+      })
+      .catch(() => {
+        /* markers only — the curve renders without them */
+      });
+    return () => controller.abort();
+  }, [portfolioId]);
 
   useEffect(() => {
     const controller = new AbortController();
     abortRef.current?.abort();
     abortRef.current = controller;
 
+    // Reset loading/error synchronously when the fetch key changes — the
+    // request-lifecycle pattern the other self-fetching blocks copied from
+    // this component (they all carry the same disable).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsLoading(true);
     setError(null);
 
@@ -104,6 +131,26 @@ export function PortfolioPerformanceChart({
       benchmark: p.benchmark_value == null ? null : Number(p.benchmark_value),
     }));
   }, [data]);
+
+  /**
+   * Marker positions: each rebalance_date snapped to the first curve point on
+   * or after it (the X axis is categorical, so a ReferenceLine only renders on
+   * an existing point — snapping covers non-trading days). Dates outside the
+   * curve's range are dropped, never forced; duplicates collapse via the Set.
+   * ISO `YYYY-MM-DD` strings compare correctly as plain strings.
+   */
+  const markerDates: string[] = useMemo(() => {
+    if (rows.length === 0 || rebalanceDates.length === 0) return [];
+    const first = rows[0].date;
+    const last = rows[rows.length - 1].date;
+    const snapped = new Set<string>();
+    for (const d of rebalanceDates) {
+      if (d < first || d > last) continue;
+      const row = rows.find((r) => r.date >= d);
+      if (row) snapped.add(row.date);
+    }
+    return Array.from(snapped);
+  }, [rows, rebalanceDates]);
 
   const benchLabel = data ? benchmarkLabel(data.benchmark) : 'Benchmark';
 
@@ -217,6 +264,23 @@ export function PortfolioPerformanceChart({
               />
               <Tooltip labelFormatter={(label: ReactNode) => formatDate(String(label))} />
               <Legend />
+              {/* One discreet vertical marker per rebalance (US7 #115). The
+                  curve itself is untouched — it crosses the marker with no
+                  discontinuity. */}
+              {markerDates.map((d) => (
+                <ReferenceLine
+                  key={d}
+                  x={d}
+                  stroke={REBALANCE_COLOR}
+                  strokeDasharray="4 3"
+                  label={{
+                    value: 'Rebalance',
+                    position: 'insideTop',
+                    fontSize: 10,
+                    fill: REBALANCE_COLOR,
+                  }}
+                />
+              ))}
               <Line
                 type="monotone"
                 dataKey="portfolio"
