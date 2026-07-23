@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import axios from 'axios';
-import { Bookmark, Download, Loader2 } from 'lucide-react';
+import { Bookmark, Download, Loader2, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui';
 import { PrimaryFilters } from './PrimaryFilters';
 import { AdditionalFiltersMenu } from './AdditionalFiltersMenu';
@@ -11,6 +11,7 @@ import { TablePagination } from './TablePagination';
 import { ColumnPresetTabs } from './ColumnPresetTabs';
 import { SavedScreensBar } from './SavedScreensBar';
 import { SavePortfolioModal } from './SavePortfolioModal';
+import { RebalancePortfolioModal } from './RebalancePortfolioModal';
 import { useScreenerData, useScreenerUrlSync } from '../hooks';
 import { screenerService } from '../services';
 import { useScreenerStore } from '../stores';
@@ -32,6 +33,7 @@ export function Screener() {
   const { data, totalCount, isLoading, error, refresh } = useScreenerData();
 
   const [isSaveOpen, setIsSaveOpen] = useState(false);
+  const [isRebalanceOpen, setIsRebalanceOpen] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
   const getApiRequest = useScreenerStore((s) => s.getApiRequest);
@@ -148,6 +150,20 @@ export function Screener() {
             >
               Save as Portfolio
             </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setIsRebalanceOpen(true)}
+              disabled={!canSaveAsPortfolio}
+              leftIcon={<RefreshCw size={14} />}
+              title={
+                canSaveAsPortfolio
+                  ? 'Rebalance an existing portfolio toward the current filter results'
+                  : 'Run a search with at least one result to rebalance a portfolio'
+              }
+            >
+              Rebalance Portfolio
+            </Button>
           </div>
         </div>
 
@@ -183,6 +199,12 @@ export function Screener() {
       <SavePortfolioModal
         isOpen={isSaveOpen}
         onClose={() => setIsSaveOpen(false)}
+        totalCount={totalCount}
+      />
+
+      <RebalancePortfolioModal
+        isOpen={isRebalanceOpen}
+        onClose={() => setIsRebalanceOpen(false)}
         totalCount={totalCount}
       />
     </div>
