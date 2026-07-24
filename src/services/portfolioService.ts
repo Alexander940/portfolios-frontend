@@ -355,6 +355,13 @@ export interface RebalanceRequest {
   filters?: ScreenerRequest | null;
   ranking?: PortfolioRankingSpec | null;
   weighting_method?: RebalanceWeighting;
+  /**
+   * Prioridad para posiciones actuales (#117/#118): las que siguen cumpliendo
+   * los filtros quedan sí o sí (bypasean el corte top_n del ranking); los
+   * candidatos nuevos compiten por los cupos restantes. Flag de ejecución —
+   * válido con ambos modos, nunca se persiste dentro del spec guardado.
+   */
+  prioritize_held?: boolean;
 }
 
 /**
@@ -441,6 +448,10 @@ export interface RebalanceDiffSummary {
   reductions: number;
   unchanged: number;
   turnover_pct: number;
+  /** #118 — whether the plan ran with held-priority (optional: older rows lack it). */
+  prioritize_held?: boolean;
+  /** Held positions protected into the final target by the priority (0 when off). */
+  held_kept?: number;
   skipped: RebalanceSkippedItem[];
   warnings: string[];
 }
@@ -619,6 +630,8 @@ export interface RebalanceSpecUsed {
   filters?: Record<string, unknown> | null;
   ranking?: Record<string, unknown> | null;
   weighting_method?: string | null;
+  /** Audit key (#119): the priority flag the rebalance actually ran with. */
+  prioritize_held?: boolean | null;
 }
 
 /**

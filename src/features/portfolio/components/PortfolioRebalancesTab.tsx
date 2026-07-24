@@ -5,6 +5,7 @@ import {
   ChevronRight,
   Loader2,
   RefreshCw,
+  Shield,
 } from 'lucide-react';
 import {
   listRebalanceHistory,
@@ -214,6 +215,22 @@ export function PortfolioRebalancesTab({
                             .join(', ')}
                         >
                           · {item.diff_summary.skipped.length} skipped
+                        </span>
+                      )}
+                      {item.diff_summary.prioritize_held && (
+                        <span
+                          data-testid="rebalance-priority-chip"
+                          style={{
+                            color: 'var(--c-pos, #16a34a)',
+                            marginLeft: 6,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 3,
+                          }}
+                          title="Rebalanced with priority for current holdings"
+                        >
+                          · <Shield size={11} style={{ flexShrink: 0 }} />
+                          {item.diff_summary.held_kept ?? 0} kept
                         </span>
                       )}
                     </td>
