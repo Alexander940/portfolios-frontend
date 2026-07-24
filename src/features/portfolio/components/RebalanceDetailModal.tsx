@@ -74,6 +74,11 @@ function specSummary(spec: RebalanceSpecUsed | null): string | null {
       parts.push(`Top ${topN} by ${sortBy}${sortOrder ? ` ${sortOrder}` : ''}`);
     }
   }
+  // Audit key #119: surfaced so the history explains why held names stayed
+  // even when the ranking alone would have cut them.
+  if (spec.prioritize_held === true) {
+    parts.push('Prioritized current holdings');
+  }
   return parts.length > 0 ? parts.join(' · ') : null;
 }
 

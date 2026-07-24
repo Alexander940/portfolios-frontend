@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Loader2, RefreshCw, Save } from 'lucide-react';
+import { Loader2, RefreshCw, Save, Shield } from 'lucide-react';
 import { Modal, Button, toast } from '@/components/ui';
 import { getErrorMessage, isApiError } from '@/lib/apiErrors';
 import { fmtDate, fmtMoney, fmtPct } from '@/lib/format';
@@ -127,6 +127,9 @@ export function RebalancePortfolioModal({
   const [sortBy, setSortBy] = useState('rating');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [weighting, setWeighting] = useState<RebalanceWeighting>('equal');
+  // Prioridad para posiciones actuales (#117/#118): flag de ejecución, se
+  // elige en cada rebalanceo — nunca forma parte del spec guardado.
+  const [prioritizeHeld, setPrioritizeHeld] = useState(false);
 
   // Preview / confirm state
   const [preview, setPreview] = useState<RebalancePreviewResponse | null>(null);
@@ -205,6 +208,7 @@ export function RebalancePortfolioModal({
     setSortBy('rating');
     setSortOrder('desc');
     setWeighting('equal');
+    setPrioritizeHeld(false);
     setPreview(null);
     setPreviewing(false);
     setConfirming(false);
@@ -239,7 +243,12 @@ export function RebalancePortfolioModal({
         ranking = { sort_by: sortBy, sort_order: sortOrder, top_n: n };
       }
     }
-    return { filters, ranking, weighting_method: weighting };
+    return {
+      filters,
+      ranking,
+      weighting_method: weighting,
+      prioritize_held: prioritizeHeld,
+    };
   }
 
   function validate(): string | null {
@@ -526,6 +535,30 @@ export function RebalancePortfolioModal({
             )}
           </div>
 
+          {/* Prioritize current holdings (#117/#118) */}
+          <div className="p-3 rounded-lg border border-gray-200">
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                data-testid="rebalance-prioritize-held"
+                checked={prioritizeHeld}
+                onChange={(e) => setPrioritizeHeld(e.target.checked)}
+                className="mt-0.5 accent-[#1e3a5f]"
+              />
+              <div>
+                <div className="flex items-center gap-1.5 text-sm font-medium text-gray-900">
+                  <Shield size={14} className="shrink-0 text-[#1e3a5f]" />
+                  Prioritize current holdings
+                </div>
+                <div className="text-xs text-gray-500">
+                  Holdings that still match the filters keep their spot no
+                  matter what; the ranking only decides which new names fill
+                  the remaining slots. Has no effect without a holdings limit.
+                </div>
+              </div>
+            </label>
+          </div>
+
           {/* Weighting method */}
           <div>
             <div className="block text-sm font-medium text-gray-700 mb-2">
@@ -671,6 +704,16 @@ export function RebalancePortfolioModal({
                 {count} {COUNT_LABEL[action][count === 1 ? 0 : 1]}
               </span>
             ))}
+            {preview.diff_summary.prioritize_held && (
+              <span
+                data-testid="rebalance-held-kept"
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded font-medium bg-emerald-100 text-emerald-700"
+                title="Current holdings still matching the filters were kept unconditionally"
+              >
+                <Shield size={11} />
+                {preview.diff_summary.held_kept ?? 0} kept by priority
+              </span>
+            )}
           </div>
 
           {/* Diff table */}
