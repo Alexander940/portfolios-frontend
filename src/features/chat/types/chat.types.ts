@@ -7,8 +7,9 @@ export type ChatRole = 'user' | 'assistant';
 
 export type ToolStatus = 'running' | 'done' | 'error';
 
-/** User-facing model choice. Mapped to a model id server-side. */
-export type ChatModelId = 'opus' | 'sonnet' | 'haiku';
+/** User-facing model choice. Mapped to a model id server-side.
+ * 'fable' = Claude Fable 5, el modelo más capaz (precio superior a Opus). */
+export type ChatModelId = 'fable' | 'opus' | 'sonnet' | 'haiku';
 
 /** One data-tool call surfaced by the agentic loop (e.g. screen_stocks). */
 export interface ToolActivity {
