@@ -61,7 +61,7 @@ export function Composer({ onSend, disabled, model, onModelChange }: ComposerPro
             title="Modelo de IA"
           >
             <option value="fable">Fable 5</option>
-            <option value="opus">Opus 4.8</option>
+            <option value="opus">Opus 5</option>
             <option value="sonnet">Sonnet 5</option>
             <option value="haiku">Haiku 4.5</option>
           </select>
