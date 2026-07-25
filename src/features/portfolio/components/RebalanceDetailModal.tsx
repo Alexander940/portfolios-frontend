@@ -47,6 +47,10 @@ const WEIGHTING_LABELS: Record<string, string> = {
   equal: 'Equal Weight',
   rating_weighted: 'Rating Weighted',
   market_cap: 'Market Cap',
+  sector_equal: 'Sector-balanced · Equal',
+  sector_rating_weighted: 'Sector-balanced · Rating',
+  sector_inverse_atr_calm: 'Sector-balanced · Inverse Volatility',
+  sector_market_cap: 'Sector-balanced · Market Cap',
 };
 
 const DASH = '—';
@@ -225,6 +229,41 @@ export function RebalanceDetailModal({
             {spec}
           </div>
         )}
+
+        {/* Sector allocation a sector-balanced plan targeted (audit #125) */}
+        {detail?.spec_used?.sector_weights &&
+          Object.keys(detail.spec_used.sector_weights).length > 0 && (
+            <div data-testid="rebalance-sector-weights">
+              <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">
+                Sector allocation used
+              </div>
+              <div className="space-y-1.5">
+                {Object.entries(detail.spec_used.sector_weights).map(
+                  ([sector, pct]) => (
+                    <div key={sector} className="flex items-center gap-3 text-sm">
+                      <span
+                        className="w-40 shrink-0 truncate text-gray-700"
+                        title={sector}
+                      >
+                        {sector}
+                      </span>
+                      <span className="flex-1 h-1.5 rounded bg-gray-100 overflow-hidden">
+                        <span
+                          className="block h-full rounded bg-[#1e3a5f]"
+                          style={{
+                            width: `${Math.max(0, Math.min(100, pct))}%`,
+                          }}
+                        />
+                      </span>
+                      <span className="w-14 text-right font-medium text-gray-900 whitespace-nowrap">
+                        {fmtNumber(pct, 1)}%
+                      </span>
+                    </div>
+                  ),
+                )}
+              </div>
+            </div>
+          )}
 
         {/* Skipped target names */}
         {summary.skipped.length > 0 && (

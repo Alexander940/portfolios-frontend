@@ -23,6 +23,10 @@ const WEIGHTING_LABELS: Record<string, string> = {
   equal: 'Equal',
   rating_weighted: 'Rating',
   market_cap: 'Market Cap',
+  sector_equal: 'Sector · Equal',
+  sector_rating_weighted: 'Sector · Rating',
+  sector_inverse_atr_calm: 'Sector · Inv. Volatility',
+  sector_market_cap: 'Sector · Market Cap',
 };
 
 const stickyHeaderStyle: React.CSSProperties = {
