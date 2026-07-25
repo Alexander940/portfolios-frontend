@@ -49,6 +49,28 @@ const WEIGHTING_OPTIONS: { value: RebalanceWeighting; label: string; hint: strin
   { value: 'equal', label: 'Equal Weight', hint: 'Same allocation for every stock' },
   { value: 'rating_weighted', label: 'Rating Weighted', hint: 'Higher rating → higher weight' },
   { value: 'market_cap', label: 'Market Cap Weighted', hint: 'Larger companies get more weight' },
+  // Sector-balanced family (#125): sector share mirrors the FULL filtered
+  // universe (by market cap); the suffix decides the split within the sector.
+  {
+    value: 'sector_equal',
+    label: 'Sector-balanced · Equal',
+    hint: 'Sectors mirror the filtered universe; equal split inside each sector',
+  },
+  {
+    value: 'sector_rating_weighted',
+    label: 'Sector-balanced · Rating',
+    hint: 'Sectors mirror the universe; higher-rated names get more inside their sector',
+  },
+  {
+    value: 'sector_inverse_atr_calm',
+    label: 'Sector-balanced · Inverse Volatility',
+    hint: 'Sectors mirror the universe; calmer (lower-ATR) names get more inside their sector',
+  },
+  {
+    value: 'sector_market_cap',
+    label: 'Sector-balanced · Market Cap',
+    hint: 'Sectors mirror the universe; bigger names get more inside their sector',
+  },
 ];
 
 /**

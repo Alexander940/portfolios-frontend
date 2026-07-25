@@ -18,6 +18,10 @@ const WEIGHTING_LABELS: Record<string, string> = {
   equal: 'Equal Weight',
   rating_weighted: 'Rating Weighted',
   market_cap: 'Market Cap',
+  sector_equal: 'Sector-balanced · Equal',
+  sector_rating_weighted: 'Sector-balanced · Rating',
+  sector_inverse_atr_calm: 'Sector-balanced · Inverse Volatility',
+  sector_market_cap: 'Sector-balanced · Market Cap',
 };
 
 function formatDate(iso: string | null): string {

@@ -1,7 +1,21 @@
 import { apiClient } from '@/lib/axios';
 import type { ScreenerRequest } from '@/features/screener/types';
 
-export type WeightingMethod = 'equal' | 'rating_weighted' | 'market_cap' | 'manual';
+/**
+ * Position-sizing methods. The `sector_*` family (#124/#125) first gives each
+ * sector its market-cap share of the FULL filtered screener universe, then
+ * splits the sector budget by the suffix method — only available in flows
+ * with a screener universe (create-from-screener + rebalance).
+ */
+export type WeightingMethod =
+  | 'equal'
+  | 'rating_weighted'
+  | 'market_cap'
+  | 'sector_equal'
+  | 'sector_rating_weighted'
+  | 'sector_inverse_atr_calm'
+  | 'sector_market_cap'
+  | 'manual';
 
 /**
  * Effective role the caller has on a portfolio. `owner` is implicit (the primary
@@ -474,6 +488,9 @@ export interface RebalancePreviewResponse {
   orders: RebalanceOrderItem[];
   diff_summary: RebalanceDiffSummary;
   spec_used: Record<string, unknown>;
+  /** Sector-balanced plans (#125): target allocation per sector (pre
+   * whole-share rounding, sums to ~100). Absent/null for plain methods. */
+  sector_weights?: Record<string, number> | null;
   skipped: RebalanceSkippedItem[];
   warnings: string[];
 }
@@ -632,6 +649,9 @@ export interface RebalanceSpecUsed {
   weighting_method?: string | null;
   /** Audit key (#119): the priority flag the rebalance actually ran with. */
   prioritize_held?: boolean | null;
+  /** Audit key (#125): the per-sector target allocation a sector-balanced
+   * rebalance actually used (sector → pct). Absent for plain methods. */
+  sector_weights?: Record<string, number> | null;
 }
 
 /**
