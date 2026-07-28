@@ -467,6 +467,30 @@ export interface ScreenerOptions {
   sectors: string[];
 }
 
+/**
+ * One sector's slice of the filtered universe, by market-cap share
+ * (from POST /screener/sector-distribution)
+ */
+export interface SectorDistributionRow {
+  sector: string;
+  member_count: number;
+  market_cap: number;
+  weight_pct: number;
+}
+
+/**
+ * Market-cap share per sector of the FULL filtered universe — the same
+ * Layer-1 base the sector_* weighting methods use, so a preview matches
+ * what /portfolios/from-screener will allocate.
+ */
+export interface SectorDistributionResponse {
+  total_count: number;
+  total_market_cap: number;
+  members_without_market_cap: number;
+  used_equal_fallback: boolean;
+  sectors: SectorDistributionRow[];
+}
+
 // =============================================================================
 // Market Cap Categories (Company Size)
 // =============================================================================

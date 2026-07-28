@@ -8,6 +8,7 @@ import axios from 'axios';
 import { Modal, Button, Input } from '@/components/ui';
 import { useScreenerStore } from '../stores';
 import { toApiPercentFilters } from '../services';
+import { SectorDistributionPreview } from './SectorDistributionPreview';
 import {
   createPortfolioFromScreener,
   type WeightingMethod,
@@ -224,6 +225,8 @@ export function SavePortfolioModal({
             </span>
           )}
         </div>
+
+        {isOpen && !noResults && <SectorDistributionPreview />}
 
         {serverError && (
           <div className="p-3 rounded-lg bg-red-50 text-red-800 border border-red-200 text-sm">

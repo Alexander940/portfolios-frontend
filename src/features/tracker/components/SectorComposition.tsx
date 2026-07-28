@@ -1,30 +1,11 @@
 import { useMemo } from 'react';
 import { fmtPct } from '@/lib/format';
+import {
+  CASH_SECTOR as CASH,
+  UNCLASSIFIED_SECTOR as UNCLASSIFIED,
+  sectorColor,
+} from '@/lib/sectorColors';
 import { useTrackerStore } from '../store';
-
-const UNCLASSIFIED = 'Unclassified';
-const CASH = 'Cash';
-
-/** Colores por sector del design system (tokens --c-sector-*). */
-const SECTOR_TOKEN: Record<string, string> = {
-  Technology: 'var(--c-sector-1)',
-  'Financial Services': 'var(--c-sector-2)',
-  Healthcare: 'var(--c-sector-3)',
-  'Consumer Cyclical': 'var(--c-sector-4)',
-  'Consumer Defensive': 'var(--c-sector-5)',
-  Industrials: 'var(--c-sector-6)',
-  Energy: 'var(--c-sector-7)',
-  'Basic Materials': 'var(--c-sector-8)',
-  'Real Estate': 'var(--c-sector-9)',
-  Utilities: 'var(--c-sector-10)',
-  'Communication Services': 'var(--c-sector-11)',
-};
-
-function sectorColor(sector: string): string {
-  if (sector === UNCLASSIFIED) return 'var(--c-text-dim)';
-  if (sector === CASH) return 'var(--c-text-soft)';
-  return SECTOR_TOKEN[sector] ?? 'var(--c-sector-12)';
-}
 
 interface SectorRow {
   sector: string;

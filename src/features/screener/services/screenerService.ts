@@ -5,6 +5,7 @@ import type {
   ScreenerOptions,
   ScreenerRequest,
   ScreenerResponse,
+  SectorDistributionResponse,
   Stock,
 } from '../types';
 
@@ -92,6 +93,32 @@ export const screenerService = {
         response.headers['content-disposition'] as string | undefined,
       ),
     };
+  },
+
+  /**
+   * Market-cap share per sector of the FULL filtered universe.
+   *
+   * POST /screener/sector-distribution
+   *
+   * The backend ignores pagination on this route — the distribution covers
+   * every match, the same Layer-1 base the sector_* weighting methods use
+   * when creating a portfolio from these filters. Percent fields in the
+   * request are converted at the API boundary like the regular screener
+   * call; the response needs no conversion (weight_pct is already 0..100).
+   */
+  async getSectorDistribution(
+    filters: ScreenerRequest,
+    signal?: AbortSignal,
+  ): Promise<SectorDistributionResponse> {
+    const cleanedFilters = cleanFilters(toApiPercentFilters(filters));
+
+    const response = await apiClient.post<SectorDistributionResponse>(
+      '/screener/sector-distribution',
+      cleanedFilters,
+      { signal },
+    );
+
+    return response.data;
   },
 };
 

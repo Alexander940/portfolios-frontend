@@ -46,6 +46,19 @@ const PORTFOLIO = {
 
 const SECTOR_WEIGHTS = { Technology: 60.0, Healthcare: 40.0 };
 
+// POST /screener/sector-distribution (#127) — base sectorial del universo
+// filtrado que la preview del modal de creación muestra como barras (#22).
+const SECTOR_DISTRIBUTION = {
+  total_count: 2,
+  total_market_cap: 1000,
+  members_without_market_cap: 0,
+  used_equal_fallback: false,
+  sectors: [
+    { sector: 'Technology', member_count: 1, market_cap: 600, weight_pct: 60.0 },
+    { sector: 'Healthcare', member_count: 1, market_cap: 400, weight_pct: 40.0 },
+  ],
+};
+
 const DIFF_SUMMARY = {
   exits: 0, entries: 1, increases: 1, reductions: 0, unchanged: 0,
   turnover_pct: 22.4, prioritize_held: false, held_kept: 0,
@@ -192,6 +205,9 @@ async function mockApi(page: Page): Promise<Captured> {
       },
     }),
   );
+  await page.route('**/screener/sector-distribution', (route) =>
+    route.fulfill({ json: SECTOR_DISTRIBUTION }),
+  );
 
   await page.route('**/portfolios/**', async (route) => {
     const url = new URL(route.request().url());
@@ -331,5 +347,52 @@ test.describe('Weighting sectorial (#124/#125/#126, UI)', () => {
     await expect(block).toContainText('60.0%');
     await expect(block).toContainText('Healthcare');
     await expect(block).toContainText('40.0%');
+  });
+});
+
+test.describe('Preview de distribución sectorial (#127 backend, #22 UI)', () => {
+  test('el modal de creación muestra las barras de market-cap share', async ({
+    page,
+  }) => {
+    await seedAuth(page);
+    await mockApi(page);
+
+    await page.goto('/dashboard/screening');
+    await page.getByRole('button', { name: 'Save as Portfolio' }).click();
+
+    const block = page.getByTestId('save-portfolio-sector-distribution');
+    await expect(block).toBeVisible();
+    await expect(block).toContainText('Sector distribution (by market cap)');
+    const tech = page.getByTestId('sector-dist-Technology');
+    await expect(tech).toContainText('60.0%');
+    await expect(page.getByTestId('sector-dist-Healthcare')).toContainText(
+      '40.0%',
+    );
+  });
+
+  test('si la preview falla (500), degrada a texto muted y no bloquea la creación', async ({
+    page,
+  }) => {
+    await seedAuth(page);
+    const captured = await mockApi(page);
+    // Registrada después de mockApi → gana (LIFO) y fuerza el fallo.
+    await page.route('**/screener/sector-distribution', (route) =>
+      route.fulfill({ status: 500, json: { detail: 'boom' } }),
+    );
+
+    await page.goto('/dashboard/screening');
+    await page.getByRole('button', { name: 'Save as Portfolio' }).click();
+
+    await expect(
+      page.getByTestId('save-portfolio-sector-distribution-error'),
+    ).toHaveText('Sector preview unavailable');
+
+    await page.getByLabel('Portfolio name').fill('Sin preview');
+    await page
+      .getByRole('button', { name: 'Create Portfolio', exact: true })
+      .click();
+    await expect
+      .poll(() => captured.creates.length, { timeout: 5000 })
+      .toBe(1);
   });
 });
