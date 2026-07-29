@@ -325,7 +325,7 @@ export interface WeightingSpec {
 // ---- layered weighting (sector base → sector tilt → intra-sector) ----
 // Mirrors the backend LayeredWeighting clause. Layers 1 & 2 are locked to a
 // single method in v1 (the Literal has one value); layer 3 is pluggable.
-export type Layer1Method = 'universe_marketcap';
+export type Layer1Method = 'universe_marketcap' | 'top_marketcap';
 export type Layer2Method = 'user_increment';
 export type Layer3Method = 'equal' | 'rating_weighted' | 'inverse_atr_calm' | 'market_cap';
 /** Lookback for the displayed sector alpha (display-only — not stored in the spec). */
@@ -333,6 +333,11 @@ export type AlphaWindow = '3m' | '6m' | '12m';
 
 export interface Layer1Spec {
   method: Layer1Method;
+  /** Size of the reference population for `top_marketcap` (the N largest US
+   *  stocks). The backend REQUIRES it on that method and REJECTS it (422) on
+   *  `universe_marketcap` — a present `top_n: null` is still a rejection, so it
+   *  must be omitted by spread, never nulled. */
+  top_n?: number | null;
 }
 export interface Layer2Spec {
   method: Layer2Method;
@@ -367,6 +372,7 @@ export interface ResolveUniverseResponse {
   alpha_metric: string;
   alpha_pit_safe: boolean;
   base_method: Layer1Method;
+  top_n?: number | null; // echo of the requested top-N size; null unless top_marketcap
   total_market_cap: number;
   eligible_count: number;
   coverage_pct: number;
@@ -575,9 +581,14 @@ export interface BuilderConfig {
   maxPerSector: number;
   // weighting (legacy single-stage — still read from older saved specs)
   weight: WeightMethod;
-  // layered weighting: layer 1 (sector base) + layer 2 (sector tilt) are locked;
-  // layer 3 (intra-sector) is the pluggable method. `sectorDeltas` is keyed by
-  // FMP sector name and held in PERCENT (UI) — divided by 100 into the spec.
+  // layered weighting: layer 1 (sector base) picks WHICH population the sector
+  // shares are measured over; layer 2 (sector tilt) is locked; layer 3
+  // (intra-sector) is the pluggable method. `sectorDeltas` is keyed by FMP
+  // sector name and held in PERCENT (UI) — divided by 100 into the spec.
+  layer1Method: Layer1Method;
+  /** Reference population size for `top_marketcap`. NOT `topN` above — that one
+   *  is the SELECTION top-N (how many holdings the book carries). '' = unset. */
+  layer1TopN: number | '';
   layer3Method: Layer3Method;
   layer3Gamma: number | ''; // only rating_weighted; '' = default (1.0)
   sectorDeltas: Record<string, number>; // FMP sector → % relative tilt

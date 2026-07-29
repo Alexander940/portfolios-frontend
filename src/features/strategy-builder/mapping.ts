@@ -6,6 +6,8 @@ import type {
   DateRange,
   FilterValueType,
   FundamentalFilter,
+  Layer1Method,
+  Layer1Spec,
   Layer3Method,
   LayeredWeightingSpec,
   MarketCapBucket,
@@ -281,6 +283,24 @@ export const SORT_FIELDS: { k: string; label: string }[] = [
 
 // Layer-3 intra-sector methods. `market_cap` is point-in-time via symbol_valuation
 // (wired in the backtester); locked layers 1 & 2 are rendered separately.
+/** Default reference-population size for the `top_marketcap` Layer-1 base — the
+ *  top 700 by market cap, the population the TrendRating/MONICA "Market Neutral"
+ *  step uses. */
+export const DEFAULT_LAYER1_TOP_N = 700;
+
+export const LAYER1_OPTIONS: { k: Layer1Method; n: string; d: string }[] = [
+  {
+    k: 'universe_marketcap',
+    n: 'Share of the universe',
+    d: "Each sector starts at its share of the filtered universe's total market cap.",
+  },
+  {
+    k: 'top_marketcap',
+    n: 'Share of the top N largest',
+    d: 'Each sector starts at its share of the N biggest US stocks, ignoring your filters — the sector mix tracks the broad market.',
+  },
+];
+
 export const LAYER3_OPTIONS: { k: Layer3Method; n: string; d: string }[] = [
   { k: 'equal', n: 'Equal weight', d: 'Each stock in a sector gets the same slice of that sector.' },
   { k: 'rating_weighted', n: 'Rating-weighted', d: 'Higher-rated names get more of their sector (γ sharpens the tilt).' },
@@ -323,6 +343,8 @@ export const DEFAULT_CONFIG: BuilderConfig = {
   perSector: false,
   maxPerSector: 5,
   weight: 'equal',
+  layer1Method: 'universe_marketcap',
+  layer1TopN: DEFAULT_LAYER1_TOP_N,
   layer3Method: 'equal',
   layer3Gamma: '',
   sectorDeltas: {},
@@ -446,10 +468,21 @@ export function buildSelectionFilters(cfg: BuilderConfig): UniverseSpec | undefi
   return Object.keys(screen).length > 0 ? screen : undefined;
 }
 
+/** The Layer-1 clause from the form. `top_n` is emitted ONLY under
+ *  `top_marketcap`: the backend requires it there and rejects it with a 422 on
+ *  `universe_marketcap` — and a present `top_n: null` is still a rejection, so
+ *  it has to be dropped by spread (same idiom as `sector_caps`). A blank input
+ *  falls back to the default rather than sending nothing, which would also 422. */
+export function buildLayer1(cfg: BuilderConfig): Layer1Spec {
+  if (cfg.layer1Method !== 'top_marketcap') return { method: cfg.layer1Method };
+  const n = cfg.layer1TopN === '' ? DEFAULT_LAYER1_TOP_N : cfg.layer1TopN;
+  return { method: 'top_marketcap', top_n: n };
+}
+
 /** Build the layered-weighting clause from the form, or `undefined` for a plain
- *  equal strategy (layer3 == equal, no tilts, no gamma). Omitting it keeps the
- *  backend content_hash of a pre-layered spec byte-identical (the backend pops a
- *  null `layered` from canonical_json). */
+ *  equal strategy (layer3 == equal, no tilts, no gamma, default Layer 1).
+ *  Omitting it keeps the backend content_hash of a pre-layered spec
+ *  byte-identical (the backend pops a null `layered` from canonical_json). */
 export function buildLayered(cfg: BuilderConfig): LayeredWeightingSpec | undefined {
   const deltas: Record<string, number> = {};
   for (const [sector, pct] of Object.entries(cfg.sectorDeltas ?? {})) {
@@ -462,9 +495,16 @@ export function buildLayered(cfg: BuilderConfig): LayeredWeightingSpec | undefin
   const hasTilt = Object.keys(deltas).length > 0;
   const hasCap = Object.keys(caps).length > 0;
   const hasGamma = cfg.layer3Method === 'rating_weighted' && cfg.layer3Gamma !== '';
-  if (cfg.layer3Method === 'equal' && !hasTilt && !hasGamma && !hasCap) return undefined;
+  // A non-default Layer 1 is on its own reason to emit the clause. Without this
+  // term, picking `top_marketcap` while leaving everything else at its default
+  // would fall through the early return, drop the WHOLE layered clause, and
+  // silently demote the strategy to flat weighting.
+  const hasLayer1 = cfg.layer1Method !== 'universe_marketcap';
+  if (cfg.layer3Method === 'equal' && !hasTilt && !hasGamma && !hasCap && !hasLayer1) {
+    return undefined;
+  }
   return {
-    layer1: { method: 'universe_marketcap' },
+    layer1: buildLayer1(cfg),
     // `sector_caps` omitted when empty so it isn't serialized (the backend pops it
     // from canonical_json anyway; keeping them consistent avoids a spurious hash).
     layer2: { method: 'user_increment', deltas, ...(hasCap ? { sector_caps: caps } : {}) },
@@ -618,6 +658,10 @@ export function specToConfig(spec: StrategySpec, name: string): BuilderConfig {
     // legacy single-stage `weighting.method` onto the closest Layer-3 method
     // (equal/rating_weighted/market_cap are all valid Layer-3 methods). Re-saving
     // such a spec adopts the layered model — see buildLayered.
+    // Layer 1: without reading it back, editing a saved `top_marketcap`
+    // strategy would silently revert it to the universe base on the next save.
+    layer1Method: spec.layered?.layer1?.method ?? DEFAULT_CONFIG.layer1Method,
+    layer1TopN: spec.layered?.layer1?.top_n ?? DEFAULT_CONFIG.layer1TopN,
     layer3Method:
       spec.layered?.layer3?.method ??
       ((spec.weighting?.method ?? 'equal') as Layer3Method),
@@ -764,6 +808,14 @@ export function mergeSpecPreserving(original: StrategySpec, formSpec: StrategySp
   // and must not leak back in via the `...original` spread above.
   if (Object.keys(sel).length > 0) out.selection_filters = sel as UniverseSpec;
   else delete out.selection_filters;
+  // Same leak, same fix, for `layered`: the form OWNS that clause end-to-end, so
+  // when it produces none (plain equal strategy, default Layer 1) the saved one
+  // must go. Otherwise switching a stored `top_marketcap` strategy back to the
+  // universe base — which makes buildLayered return undefined — would let the
+  // original clause survive the `...original` spread and the user's change would
+  // silently not stick.
+  if (formSpec.layered) out.layered = formSpec.layered;
+  else delete out.layered;
   return out;
 }
 

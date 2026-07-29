@@ -5,8 +5,14 @@
 import { useState } from 'react';
 
 import { Icon } from '../icons';
-import { LAYER3_OPTIONS } from '../mapping';
-import type { AlphaWindow, BuilderConfig, Layer3Method, UniverseSpec } from '../types';
+import { DEFAULT_LAYER1_TOP_N, LAYER1_OPTIONS, LAYER3_OPTIONS, buildLayer1 } from '../mapping';
+import type {
+  AlphaWindow,
+  BuilderConfig,
+  Layer1Method,
+  Layer3Method,
+  UniverseSpec,
+} from '../types';
 import { useResolveSectors } from '../hooks/useResolveSectors';
 import { Tip } from './formBits';
 
@@ -20,6 +26,8 @@ const WINDOW_LABEL: Record<AlphaWindow, string> = {
 interface Props {
   universe: UniverseSpec;
   enabled: boolean; // the section is open → resolve the universe
+  layer1Method: Layer1Method;
+  layer1TopN: number | '';
   layer3Method: Layer3Method;
   layer3Gamma: number | '';
   sectorDeltas: Record<string, number>; // FMP sector → % relative tilt
@@ -57,6 +65,8 @@ function fmtAlpha(a: number | null): string {
 export function SectorWeighting({
   universe,
   enabled,
+  layer1Method,
+  layer1TopN,
   layer3Method,
   layer3Gamma,
   sectorDeltas,
@@ -64,7 +74,10 @@ export function SectorWeighting({
   onChange,
 }: Props) {
   const [alphaWindow, setAlphaWindow] = useState<AlphaWindow>('12m');
-  const { data, loading, error } = useResolveSectors(universe, enabled, alphaWindow);
+  // Built through the same helper the spec uses, so the previewed base and the
+  // stored one can never be built from different rules.
+  const layer1 = buildLayer1({ layer1Method, layer1TopN } as BuilderConfig);
+  const { data, loading, error } = useResolveSectors(universe, enabled, alphaWindow, layer1);
   const sectors = data?.sectors ?? [];
   const thin = data != null && (data.coverage_pct < 0.6 || data.eligible_count < 20);
 
@@ -93,12 +106,50 @@ export function SectorWeighting({
         <div className="sb-layer-head">
           <span className="sb-layer-tag">Layer 1</span>
           <span className="sb-layer-title">Sector base</span>
-          <Tip text="The base weight of each sector = its market-cap share of the resolved investment universe." />
+          <Tip text="The base weight of each sector = its market-cap share of a reference population. Choose whether that population is your filtered universe or the N largest US stocks." />
         </div>
-        <LockedLayer
-          name="Market-cap share of the universe"
-          desc="Each sector starts at its share of the universe's total market cap."
-        />
+        <div className="sb-radio-grid">
+          {LAYER1_OPTIONS.map((o) => (
+            <button
+              key={o.k}
+              type="button"
+              data-testid={`sb-layer1-${o.k}`}
+              className={`sb-radio-card ${layer1Method === o.k ? 'active' : ''}`}
+              onClick={() => onChange({ layer1Method: o.k })}
+            >
+              <div className="sb-radio-card-head">
+                <span className="sb-radio-dot" />
+                <span className="sb-radio-name">{o.n}</span>
+              </div>
+              <div className="sb-radio-desc">{o.d}</div>
+            </button>
+          ))}
+        </div>
+        {layer1Method === 'top_marketcap' && (
+          <div className="sb-field" style={{ maxWidth: 220 }}>
+            <div className="sb-field-label">
+              Reference population{' '}
+              <Tip text="How many of the largest US stocks the sector shares are measured over. 700 mirrors the TrendRating 'Market Neutral' universe. Your own filters do not apply here." />
+            </div>
+            <div className="sb-input-suffix">
+              <input
+                type="number"
+                className="sb-input mono"
+                data-testid="sb-layer1-top-n"
+                value={layer1TopN}
+                placeholder={String(DEFAULT_LAYER1_TOP_N)}
+                min={1}
+                step={50}
+                onChange={(e) =>
+                  onChange({
+                    layer1TopN: e.target.value === '' ? '' : parseInt(e.target.value, 10),
+                  })
+                }
+              />
+              <span>stocks</span>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* LAYER 2 — sector tilt by alpha (locked method, user deltas) */}

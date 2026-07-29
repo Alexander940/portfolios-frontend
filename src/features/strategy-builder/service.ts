@@ -5,6 +5,7 @@ import type {
   AlphaWindow,
   BacktestStatusResponse,
   BacktestSubmitResponse,
+  Layer1Spec,
   ResolveUniverseResponse,
   StrategyCreatedResponse,
   StrategyListItem,
@@ -87,11 +88,27 @@ export async function deleteStrategy(strategyId: string): Promise<void> {
  *  table. `signal` lets the caller cancel a superseded in-flight request. */
 export async function resolveUniverse(
   universe: UniverseSpec,
-  opts: { alphaWindow?: AlphaWindow; signal?: AbortSignal } = {},
+  opts: { alphaWindow?: AlphaWindow; layer1?: Layer1Spec; signal?: AbortSignal } = {},
 ): Promise<ResolveUniverseResponse> {
   const res = await apiClient.post<ResolveUniverseResponse>(
     '/strategies/resolve-universe',
-    { universe, alpha_window: opts.alphaWindow ?? '12m' },
+    {
+      universe,
+      alpha_window: opts.alphaWindow ?? '12m',
+      // Send the SAME Layer-1 clause the spec will store, or the sector table
+      // would preview a base the engine is not going to use. Omitted entirely
+      // when absent — the request model is extra="forbid" and rejects `top_n`
+      // under `universe_marketcap`, so the clause is rebuilt here rather than
+      // forwarded verbatim.
+      ...(opts.layer1
+        ? {
+            layer1:
+              opts.layer1.method === 'top_marketcap'
+                ? { method: 'top_marketcap', top_n: opts.layer1.top_n }
+                : { method: opts.layer1.method },
+          }
+        : {}),
+    },
     { signal: opts.signal },
   );
   return res.data;

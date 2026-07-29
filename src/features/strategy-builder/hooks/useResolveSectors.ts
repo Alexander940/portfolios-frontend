@@ -4,7 +4,7 @@
 import { useEffect, useState } from 'react';
 
 import { resolveUniverse } from '../service';
-import type { AlphaWindow, ResolveUniverseResponse, UniverseSpec } from '../types';
+import type { AlphaWindow, Layer1Spec, ResolveUniverseResponse, UniverseSpec } from '../types';
 
 const DEBOUNCE_MS = 400;
 
@@ -18,6 +18,7 @@ export function useResolveSectors(
   universe: UniverseSpec,
   enabled: boolean,
   alphaWindow: AlphaWindow,
+  layer1: Layer1Spec,
 ): ResolveState {
   // Start "loading" when mounted open so the first paint shows a spinner, not the
   // empty state. setState lives only inside the debounce/async callbacks below —
@@ -27,16 +28,22 @@ export function useResolveSectors(
     loading: enabled,
     error: null,
   }));
-  // Serialize so the effect only re-runs when the universe content changes
-  // (buildUniverse returns a fresh object each render).
+  // Serialize so the effect only re-runs when the CONTENT changes (both the
+  // universe and the Layer-1 clause are rebuilt fresh on every render, so the
+  // raw objects would refire the effect endlessly).
   const key = JSON.stringify(universe);
+  const layer1Key = JSON.stringify(layer1);
 
   useEffect(() => {
     if (!enabled) return;
     const ctrl = new AbortController();
     const timer = setTimeout(() => {
       setState((s) => ({ ...s, loading: true, error: null }));
-      resolveUniverse(JSON.parse(key) as UniverseSpec, { alphaWindow, signal: ctrl.signal })
+      resolveUniverse(JSON.parse(key) as UniverseSpec, {
+        alphaWindow,
+        layer1: JSON.parse(layer1Key) as Layer1Spec,
+        signal: ctrl.signal,
+      })
         .then((data) => {
           if (!ctrl.signal.aborted) setState({ data, loading: false, error: null });
         })
@@ -49,7 +56,11 @@ export function useResolveSectors(
       clearTimeout(timer);
       ctrl.abort();
     };
-  }, [key, enabled, alphaWindow]);
+    // `layer1Key` is load-bearing: without it the request would carry the new
+    // Layer-1 clause only by accident, and switching method or editing top_n
+    // would leave the table showing the OLD base — a wrong-data bug that looks
+    // exactly like a working feature. The 400 ms debounce covers top_n typing.
+  }, [key, layer1Key, enabled, alphaWindow]);
 
   return state;
 }
