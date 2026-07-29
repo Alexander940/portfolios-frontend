@@ -337,6 +337,8 @@ export function BuilderForm({ initialCfg, busy, preservedFilters, onCancel, onSa
           <SectorWeighting
             universe={buildUniverse(cfg)}
             enabled={!!open[5]}
+            layer1Method={cfg.layer1Method}
+            layer1TopN={cfg.layer1TopN}
             layer3Method={cfg.layer3Method}
             layer3Gamma={cfg.layer3Gamma}
             sectorDeltas={cfg.sectorDeltas}
