@@ -2,11 +2,17 @@ import { useMemo, useState } from 'react';
 
 import { Icon } from '../icons';
 import type { DisplayResult } from '../mapping';
-import { EquityChart } from './EquityChart';
+import { EquityChart, type EquityChartMode } from './EquityChart';
 
 const fmtPct = (v: number, d = 1) => `${v > 0 ? '+' : ''}${v.toFixed(d)}%`;
 const fmtNum = (v: number, d = 2) =>
   v.toLocaleString(undefined, { minimumFractionDigits: d, maximumFractionDigits: d });
+
+// Chart base toggle — mirrors the portfolio performance chart (#134).
+const BASE_MODES: { value: EquityChartMode; label: string }[] = [
+  { value: 'index_100', label: 'Base 100' },
+  { value: 'capital', label: 'Capital inicial' },
+];
 
 type Status = 'running' | 'error' | 'done';
 
@@ -111,6 +117,8 @@ function FillsTable({ fills }: { fills: DisplayResult['fills'] }) {
 }
 
 export function ResultsView({ status, result, strategyName, errorMsg, notice, progressStep, onRetry, onEdit }: Props) {
+  const [baseMode, setBaseMode] = useState<EquityChartMode>('index_100');
+
   if (status === 'running') {
     return (
       <div className="sb-running">
@@ -177,18 +185,38 @@ export function ResultsView({ status, result, strategyName, errorMsg, notice, pr
       <div className="sb-chart-card" data-testid="sb-equity-chart">
         <div className="sb-chart-head">
           <div className="sb-chart-title">Equity curve</div>
-          <div className="sb-chart-legend">
-            <span>
-              <span className="dot" style={{ background: 'var(--c-accent)' }} />
-              {strategyName}
-            </span>
-            <span>
-              <span className="dot dash" />
-              S&amp;P 500 (SPY)
-            </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <div className="sb-chart-legend">
+              <span>
+                <span className="dot" style={{ background: 'var(--c-accent)' }} />
+                {strategyName}
+              </span>
+              <span>
+                <span className="dot dash" />
+                S&amp;P 500 (SPY)
+              </span>
+            </div>
+            <div style={{ display: 'flex', gap: 6 }} role="group" aria-label="Base de la curva">
+              {BASE_MODES.map((b) => (
+                <button
+                  key={b.value}
+                  type="button"
+                  className="chip"
+                  aria-pressed={baseMode === b.value}
+                  onClick={() => setBaseMode(b.value)}
+                  style={
+                    baseMode === b.value
+                      ? { borderColor: 'var(--c-accent)', color: 'var(--c-accent)' }
+                      : undefined
+                  }
+                >
+                  {b.label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
-        <EquityChart data={result.curve} name={strategyName} />
+        <EquityChart data={result.curve} name={strategyName} mode={baseMode} />
       </div>
 
       <div className="card">
