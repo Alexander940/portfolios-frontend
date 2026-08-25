@@ -703,6 +703,16 @@ export interface DisplayMetrics {
   beta: number;
   trades: number;
   lowConf: boolean;
+  // ---- turnover / cost-drag (issue #156) — undefined for the 174 pre-#155
+  // results, which must render without NaN/undefined (see ResultsView). Both
+  // `*PctAnnual` fields carry the backend's `_pct` convention verbatim (already
+  // a percent value, e.g. 976.3 — NOT a 0–1 fraction), matching every other
+  // `_pct` screener field in this codebase (mapping.ts SCREENER_FILTERS). ----
+  turnoverPctAnnual?: number; // % annual, two-sided convention
+  totalCosts?: number; // USD
+  costDragPctAnnual?: number; // % annual
+  avgHoldingDays?: number; // days
+  nExits?: number;
 }
 
 export interface DisplayResult {
@@ -734,6 +744,11 @@ export function adaptResult(r: BacktestResultOut): DisplayResult {
       beta: m.beta ?? 0,
       trades: m.n_trades,
       lowConf: m.low_sample_trades,
+      turnoverPctAnnual: m.turnover_pct_annual,
+      totalCosts: m.total_costs,
+      costDragPctAnnual: m.cost_drag_pct_annual,
+      avgHoldingDays: m.avg_holding_days,
+      nExits: m.n_exits,
     },
     curve: eq.map((p) => ({
       date: p.date,

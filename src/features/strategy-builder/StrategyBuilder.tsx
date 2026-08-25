@@ -415,6 +415,7 @@ export function StrategyBuilder() {
           strategyName={activeName}
           errorMsg={errorMsg}
           notice={notice}
+          costsAreZero={activeCfg.commission === 0 && activeCfg.slippage === 0}
           onRetry={() => {
             // Replay the SAME flow (incl. existingId/update) — retrying an edit
             // of a persisted strategy must never fall back to create.

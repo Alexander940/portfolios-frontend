@@ -507,6 +507,20 @@ export interface BacktestMetrics {
   oos_sharpe: number | null;
   low_sample_trades: boolean;
   low_sample_universe: boolean;
+  // ---- turnover / cost-drag metrics (issue #155/#156) — ALL optional: the 174
+  // results saved before #155 shipped don't have them and must keep rendering. ----
+  /** Annualized two-sided turnover as a percent (e.g. 976.3 = 976.3%; the
+   *  two-sided convention is (Σ sells + Σ buys) / (2 × avg equity) — 100% means
+   *  the whole book turned over once). */
+  turnover_pct_annual?: number;
+  /** Total commission + slippage paid over the whole window, in USD. */
+  total_costs?: number;
+  /** Annualized percent of return given up to trading costs (e.g. 2.5 = 2.5%/yr). */
+  cost_drag_pct_annual?: number;
+  /** Average number of calendar days a position was held, entry to exit. */
+  avg_holding_days?: number;
+  /** Number of position closes (mirrors n_trades' entries — a `>0 → 0` transition). */
+  n_exits?: number;
 }
 
 export interface EquityPoint {
