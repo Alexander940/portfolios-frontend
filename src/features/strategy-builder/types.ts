@@ -19,7 +19,15 @@ export type FilterValueType = 'range' | 'boolean' | 'multiselect' | 'daterange';
 
 export type SortOrder = 'asc' | 'desc';
 export type WeightMethod = 'equal' | 'rating_weighted' | 'market_cap';
-export type Cadence = 'monthly' | 'weekly';
+/** Rebalance cadence (issue #157/#158). `weekly`/`monthly` are the original
+ *  pair; `quarterly`/`semiannual`/`annual` are the longer cadences added to cut
+ *  turnover/cost drag (epic #154). */
+export type Cadence = 'weekly' | 'monthly' | 'quarterly' | 'semiannual' | 'annual';
+/** Which trading day of the period a rebalance fires on. `period_start` (first
+ *  trading day) is the backend default — it reproduces the pre-#157 engine
+ *  behavior byte-identically, so it is the value omitted from a serialized spec
+ *  (see RebalanceSpec.on). */
+export type RebalanceOn = 'period_start' | 'period_end';
 export type Currency = 'USD';
 export type Benchmark = 'SPY';
 export type PerformanceMetric =
@@ -381,6 +389,11 @@ export interface ResolveUniverseResponse {
 
 export interface RebalanceSpec {
   cadence: Cadence;
+  /** Day of the period the rebalance fires on. Optional — omitted when it
+   *  equals the backend default (`period_start`) so the content_hash of a
+   *  pre-#157 monthly/weekly spec stays byte-identical (same idiom as
+   *  `layer1.top_n` / `layer2.sector_caps`). */
+  on?: RebalanceOn;
 }
 
 export interface CostsSpec {
@@ -613,8 +626,12 @@ export interface BuilderConfig {
   // Per-name min weight in PERCENT (5 = drop positions under 5%); '' = no floor.
   // Divided by 100 into spec.min_position_weight; must stay below maxPositionWeight.
   minPositionWeight: number | '';
-  // rebalance
+  // rebalance (Section 8 — issue #158)
   rebalance: Cadence;
+  /** Which trading day of the period the rebalance fires on. Always populated
+   *  in the form (default `period_start`) — cfgToSpec omits it from the wire
+   *  spec when it equals that default. */
+  rebalanceOn: RebalanceOn;
   // costs
   commission: number;
   slippage: number;

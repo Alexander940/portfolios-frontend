@@ -3,6 +3,7 @@
 import type {
   BacktestResultOut,
   BuilderConfig,
+  Cadence,
   DateRange,
   FilterValueType,
   FundamentalFilter,
@@ -13,6 +14,7 @@ import type {
   MarketCapBucket,
   PerformanceMetric,
   RangeFilter,
+  RebalanceOn,
   ScreenerFieldKey,
   StrategySpec,
   UniverseSpec,
@@ -325,6 +327,21 @@ export const SECTORS_LIST = [
 // Rating is numeric −3..+3 in this product (not letter grades).
 export const RATING_OPTIONS = [3, 2, 1, 0, -1, -2, -3];
 
+// Rebalance cadence + day-of-period options (Section 8, issue #158). `period_start`
+// is the backend default (first trading day of the period — pre-#157 behavior).
+export const CADENCE_OPTIONS: { k: Cadence; label: string }[] = [
+  { k: 'weekly', label: 'Weekly' },
+  { k: 'monthly', label: 'Monthly' },
+  { k: 'quarterly', label: 'Quarterly' },
+  { k: 'semiannual', label: 'Semiannual' },
+  { k: 'annual', label: 'Annual' },
+];
+export const DEFAULT_REBALANCE_ON: RebalanceOn = 'period_start';
+export const REBALANCE_ON_OPTIONS: { k: RebalanceOn; label: string }[] = [
+  { k: 'period_start', label: 'Start of period' },
+  { k: 'period_end', label: 'End of period' },
+];
+
 export const DEFAULT_CONFIG: BuilderConfig = {
   name: 'Untitled strategy',
   performanceMetric: 'total_return',
@@ -352,6 +369,7 @@ export const DEFAULT_CONFIG: BuilderConfig = {
   maxPositionWeight: '',
   minPositionWeight: '',
   rebalance: 'monthly',
+  rebalanceOn: DEFAULT_REBALANCE_ON,
   commission: 5,
   slippage: 8,
   startDate: '2019-01-01',
@@ -398,7 +416,23 @@ export function normalizeCfg(cfg: BuilderConfig): BuilderConfig {
   // `sectorCaps` was added after per-sector tilts; an older config lacks it.
   const sectorCaps =
     saved.sectorCaps && typeof saved.sectorCaps === 'object' ? saved.sectorCaps : {};
-  const out = { ...DEFAULT_CONFIG, ...cfg, additionalRules, selectionFilters, sectorDeltas, sectorCaps };
+  // `rebalanceOn` was added with Section 8 (#158); every one of the 21 previously
+  // saved strategies lacks it. Validate rather than trust `...cfg` below — a
+  // stray/garbage value must still fall back to the backend default instead of
+  // reaching cfgToSpec and serializing something the backend rejects.
+  const rebalanceOn: RebalanceOn =
+    saved.rebalanceOn === 'period_start' || saved.rebalanceOn === 'period_end'
+      ? saved.rebalanceOn
+      : DEFAULT_REBALANCE_ON;
+  const out = {
+    ...DEFAULT_CONFIG,
+    ...cfg,
+    additionalRules,
+    selectionFilters,
+    sectorDeltas,
+    sectorCaps,
+    rebalanceOn,
+  };
   // Strip the migrated knob props so the knob→row migration above runs at most
   // once per stored config (a re-normalize must not resurrect a deleted row).
   const rec = out as Record<string, unknown>;
@@ -564,7 +598,12 @@ export function cfgToSpec(cfg: BuilderConfig): StrategySpec {
     // Omitted when empty so a strategy without selection filters keeps the legacy
     // content_hash (the backend pops a null `selection_filters` from canonical_json).
     ...(selectionFilters ? { selection_filters: selectionFilters } : {}),
-    rebalance: { cadence: cfg.rebalance },
+    rebalance: {
+      cadence: cfg.rebalance,
+      // Omitted when it's the backend default so a pre-#158 monthly/weekly spec
+      // keeps its legacy content_hash (same idiom as layer1.top_n).
+      ...(cfg.rebalanceOn !== DEFAULT_REBALANCE_ON ? { on: cfg.rebalanceOn } : {}),
+    },
     costs: { commission_bps: cfg.commission, slippage_bps: cfg.slippage },
     validation: {
       start: cfg.startDate,
@@ -680,6 +719,7 @@ export function specToConfig(spec: StrategySpec, name: string): BuilderConfig {
     maxPositionWeight: spec.max_position_weight != null ? spec.max_position_weight * 100 : '',
     minPositionWeight: spec.min_position_weight != null ? spec.min_position_weight * 100 : '',
     rebalance: spec.rebalance?.cadence ?? DEFAULT_CONFIG.rebalance,
+    rebalanceOn: spec.rebalance?.on ?? DEFAULT_REBALANCE_ON,
     commission: spec.costs?.commission_bps ?? DEFAULT_CONFIG.commission,
     slippage: spec.costs?.slippage_bps ?? DEFAULT_CONFIG.slippage,
     startDate: val?.start ?? DEFAULT_CONFIG.startDate,
