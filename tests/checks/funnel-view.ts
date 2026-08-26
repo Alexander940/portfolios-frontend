@@ -159,6 +159,7 @@ const CONTRACT_REASONS: SelectionExitReason[] = [
   'min_trade',
   'min_holding',
   'max_entries',
+  'execution_skip',
 ];
 for (const code of CONTRACT_REASONS) {
   const label = reasonLabel(code);

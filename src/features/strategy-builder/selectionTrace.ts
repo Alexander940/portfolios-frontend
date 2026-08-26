@@ -66,6 +66,11 @@ const REASON_LABELS: Record<string, string> = {
   min_trade: 'Below the minimum trade size',
   min_holding: 'Held below the minimum holding period',
   max_entries: 'Rebalance entry limit reached',
+  // La etapa de ejecución solo puede nombrar una causa concreta cuando es la
+  // ÚNICA posible: con el techo de turnover o la banda mínima activos hay más de
+  // un candidato y el backend devuelve este código a propósito, en vez de
+  // adivinar. La tabla dice lo que sabe y no lo que supone.
+  execution_skip: 'Not filled at execution — turnover cap or minimum trade size',
 };
 
 export function reasonLabel(reason: string | null): string {

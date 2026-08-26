@@ -676,7 +676,10 @@ export type SelectionExitReason =
   | 'turnover_cap'
   | 'min_trade'
   | 'min_holding'
-  | 'max_entries';
+  | 'max_entries'
+  // La etapa de ejecución solo nombra una causa concreta cuando es la única
+  // posible; si hay varias, el backend manda este código a propósito.
+  | 'execution_skip';
 
 export interface SelectionStage {
   key: SelectionStageKey;
