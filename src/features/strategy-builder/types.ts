@@ -654,6 +654,68 @@ export interface BacktestStatusResponse {
   result: BacktestResultOut | null;
 }
 
+// ---- selection trace / funnel (issue #174, Fase B) ----
+// `GET /backtests/{job_id}/selection-trace` — mirrors the section order the
+// engine actually runs in: Universe → Selection rules → Ranking → Weighting →
+// Execution. Fixed contract, see docs/loops-history/issue-174/design.md.
+
+export type SelectionStageKey =
+  | 'universe'
+  | 'selection_rules'
+  | 'ranking'
+  | 'weighting'
+  | 'execution';
+
+/** A short code for WHY a candidate didn't make it past a stage — always
+ *  translate this for display, never render it raw (see `reasonLabel`). */
+export type SelectionExitReason =
+  | 'top_n_cut'
+  | 'per_sector_full'
+  | 'below_floor'
+  | 'no_price'
+  | 'turnover_cap'
+  | 'min_trade'
+  | 'min_holding'
+  | 'max_entries';
+
+export interface SelectionStage {
+  key: SelectionStageKey;
+  count: number;
+  dropped_from_prev: number;
+  /** false = the strategy has no rules in this section — the stage still shows
+   *  (greyed, "no rules") rather than disappearing; the count just carries over. */
+  applies: boolean;
+}
+
+export interface SelectionRow {
+  symbol_id: string;
+  ticker: string;
+  name: string;
+  sector: string | null;
+  /** The value of the `sort_by` ranking key for this candidate — null if it
+   *  never reached ranking (e.g. cut by the universe or selection rules). */
+  score: number | null;
+  /** Position in the `sort_by` ranking — null for the same reason as `score`. */
+  rank: number | null;
+  /** Stage key where this candidate exited the funnel; null = it made it into
+   *  the portfolio at the last rebalance. */
+  exit_stage: SelectionStageKey | null;
+  reason: SelectionExitReason | string | null;
+  weight_pct: number | null;
+}
+
+export interface SelectionTraceResponse {
+  as_of: string;
+  sort_by: string;
+  candidates_count: number;
+  total: number;
+  /** True if the backend's 5,000-row hard cap trimmed `rows` — must be surfaced
+   *  in the UI, never silently swallowed. */
+  truncated: boolean;
+  stages: SelectionStage[];
+  rows: SelectionRow[];
+}
+
 // ---- form config (UI-side) ----
 
 export interface BuilderConfig {
