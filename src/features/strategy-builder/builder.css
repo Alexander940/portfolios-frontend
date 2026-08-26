@@ -465,6 +465,33 @@
 }
 .sb-or-ungroup:hover { color: var(--c-neg); }
 
+/* Botón permanente para empezar un grupo OR sin tener reglas sueltas antes.
+   Vive en la fila de añadir (.sb-fund-add), junto al selector, para que se lea
+   como la segunda forma de AÑADIR una condición y no como una acción sobre las
+   reglas ya existentes — que es lo que hacía invisible la función. */
+.sb-or-new {
+  font-size: 12px; font-weight: 600; padding: 8px 13px; border-radius: var(--radius-sm);
+  border: 1px dashed var(--c-accent); background: var(--c-accent-soft); color: var(--c-accent-text);
+  cursor: pointer; font-family: inherit; display: inline-flex; align-items: center; gap: 6px;
+  white-space: nowrap; flex: 0 0 auto;
+}
+.sb-or-new:hover { filter: brightness(0.97); }
+.sb-or-new:disabled { opacity: 0.5; cursor: default; filter: none; }
+
+/* Grupo a medio construir: mismo lenguaje que .sb-or-group pero con el borde en
+   color de acento — "sin terminar" dicho por la forma, no por un mensaje. */
+.sb-or-draft {
+  display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px;
+  padding: 5px 8px; border: 1px dashed var(--c-accent); border-radius: 8px;
+  background: color-mix(in oklch, var(--c-accent) 5%, transparent);
+}
+.sb-or-slot {
+  display: inline-flex; align-items: center; padding: 3px 9px; font-size: 12px;
+  font-family: var(--font-mono); color: var(--c-text-dim); background: var(--c-bg);
+  border: 1px dashed var(--c-border-strong); border-radius: 5px; cursor: pointer;
+}
+.sb-or-slot:hover { border-color: var(--c-accent); color: var(--c-accent-text); }
+
 /* ============================================================
    LAYERED WEIGHTING — 3 layer cards + the Layer-2 sector table
    ============================================================ */

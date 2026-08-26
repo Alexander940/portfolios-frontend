@@ -36,7 +36,17 @@ interface Props {
  *  of an OR group — `index === -1` means "append a new alternative". */
 type EditTarget =
   | { kind: 'loose'; key: ScreenerFieldKey }
-  | { kind: 'option'; groupId: string; index: number; key: ScreenerFieldKey };
+  | { kind: 'option'; groupId: string; index: number; key: ScreenerFieldKey }
+  | { kind: 'draft'; index: number; key: ScreenerFieldKey };
+
+/** Un grupo OR a medio construir. Vive SOLO en el estado del componente, nunca
+ *  en `rules`: un `FilterGroup` con menos de 2 alternativas es irrepresentable
+ *  en el estado del formulario por construcción (ver `removeOption`), y esa
+ *  invariante es lo que garantiza que `cfgToSpec` no pueda emitir un `any_of`
+ *  que el backend rechace con 422. El borrador se promueve a `FilterGroup` real
+ *  en cuanto sus dos huecos están llenos, y hasta entonces no existe para el
+ *  spec, para `ruleListError` ni para el guardado. */
+type DraftGroup = (FundamentalFilter | null)[];
 
 /** A self-contained group of range / boolean / multiselect / daterange filters:
  *  active chips, an "add a filter" selector (the SCREENER_FILTERS catalog grouped by
@@ -50,6 +60,9 @@ export function FundamentalFilterGroup({ rules, onChange, section, emptyHint }: 
   const [editing, setEditing] = useState<EditTarget | null>(null);
   // Loose (ungrouped) rule keys checked to be combined into a new OR group.
   const [selected, setSelected] = useState<ReadonlySet<ScreenerFieldKey>>(new Set());
+  // Grupo OR a medio construir (null = ninguno). Dos huecos al nacer: el mínimo
+  // que el backend exige, dicho por la forma en vez de por un error posterior.
+  const [draft, setDraft] = useState<DraftGroup | null>(null);
   // Cached option lists for multiselect fields (countries/exchanges/sectors).
   const { options } = useScreenerOptions();
 
@@ -176,6 +189,30 @@ export function FundamentalFilterGroup({ rules, onChange, section, emptyHint }: 
     setEntryAt(idx, { ...group, options });
   };
 
+  /** Empieza un grupo vacío con dos huecos. */
+  const startDraft = () => {
+    setSelected(new Set());
+    setDraft([null, null]);
+  };
+
+  /** Rellena un hueco del borrador. Cuando los dos quedan llenos, el borrador se
+   *  PROMUEVE a un `FilterGroup` real en `rules` y desaparece — a partir de ahí
+   *  lo gobierna `OrGroupBox` como cualquier otro grupo. Un valor vacío limpia
+   *  el hueco en vez de promover. */
+  const applyDraft = (index: number, next: FundamentalFilter) => {
+    if (!draft) return;
+    const def = SCREENER_FILTERS.find((f) => f.key === next.key);
+    const slots = draft.slice();
+    slots[index] = !def || isEmptyFilter(next, def) ? null : next;
+    const filled = slots.filter((s): s is FundamentalFilter => s !== null);
+    if (filled.length >= 2) {
+      onChange([...rules, { id: newGroupId(), options: filled.map((f) => [f]) }]);
+      setDraft(null);
+      return;
+    }
+    setDraft(slots);
+  };
+
   // ---- modal wiring: resolve what's being edited across BOTH loose + option ----
   const editingDef: ScreenerFilterDef | null = editing
     ? (SCREENER_FILTERS.find((f) => f.key === editing.key) ?? null)
@@ -183,6 +220,7 @@ export function FundamentalFilterGroup({ rules, onChange, section, emptyHint }: 
   const editingFilter: FundamentalFilter | null = (() => {
     if (!editing) return null;
     if (editing.kind === 'loose') return looseRules.find((f) => f.key === editing.key) ?? null;
+    if (editing.kind === 'draft') return draft?.[editing.index] ?? null;
     const group = rules.find((r): r is FilterGroup => isFilterGroup(r) && r.id === editing.groupId);
     const opt = group?.options[editing.index];
     return opt?.[0] ?? null;
@@ -190,7 +228,9 @@ export function FundamentalFilterGroup({ rules, onChange, section, emptyHint }: 
   const editingExists = editing
     ? editing.kind === 'loose'
       ? looseKeys.has(editing.key)
-      : editing.index >= 0
+      : editing.kind === 'draft'
+        ? draft?.[editing.index] != null
+        : editing.index >= 0
     : false;
   const modalOptions = editingDef?.optionsKey
     ? (options?.[editingDef.optionsKey] ?? (editingDef.optionsKey === 'sectors' ? SECTORS_LIST : []))
@@ -224,6 +264,54 @@ export function FundamentalFilterGroup({ rules, onChange, section, emptyHint }: 
               />
             ),
           )}
+        </div>
+      )}
+
+      {draft && (
+        <div className="sb-or-draft" data-testid="sb-or-draft" style={{ marginTop: 10 }}>
+          {draft.map((slot, i) => {
+            const def = slot ? SCREENER_FILTERS.find((d) => d.key === slot.key) : undefined;
+            return (
+              <span className="sb-or-alt-wrap" key={i}>
+                {i > 0 && <span className="sb-or-sep">OR</span>}
+                {slot && def ? (
+                  <span className="sb-or-alt">
+                    <button
+                      type="button"
+                      className="sb-or-alt-field"
+                      onClick={() => setEditing({ kind: 'draft', index: i, key: slot.key })}
+                      title="Edit alternative"
+                    >
+                      <b>{def.label}:</b> {formatFilterValue(slot, def)}
+                    </button>
+                  </span>
+                ) : (
+                  <span className="sb-select-wrap sb-or-add">
+                    <select
+                      className="sb-select sb-or-add-select"
+                      value=""
+                      aria-label={`Choose alternative ${i + 1} of the OR group`}
+                      data-testid={`sb-or-draft-slot-${i}`}
+                      onChange={(e) => {
+                        if (e.target.value)
+                          setEditing({ kind: 'draft', index: i, key: e.target.value as ScreenerFieldKey });
+                      }}
+                    >
+                      <option value="">choose a filter…</option>
+                      {allForSection.map((f) => (
+                        <option key={f.key} value={f.key}>
+                          {f.label}
+                        </option>
+                      ))}
+                    </select>
+                  </span>
+                )}
+              </span>
+            );
+          })}
+          <button type="button" className="sb-or-ungroup" onClick={() => setDraft(null)}>
+            Cancel
+          </button>
         </div>
       )}
 
@@ -263,10 +351,29 @@ export function FundamentalFilterGroup({ rules, onChange, section, emptyHint }: 
               })}
             </select>
           </div>
+          <button
+            type="button"
+            className="sb-or-new"
+            data-testid="sb-or-new"
+            onClick={startDraft}
+            disabled={draft !== null}
+            title="Combine two filters as alternatives — the name matches if EITHER holds"
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden>
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+            OR group
+          </button>
           {rules.length === 0 && emptyHint && <span className="sb-fund-add-hint">{emptyHint}</span>}
-          {looseRules.length >= 2 && (
-            <span className="sb-fund-add-hint">Check 2+ filters above to combine them with OR.</span>
-          )}
+          {/* Antes aquí vivía "Check 2+ filters above to combine them with OR" — la
+              ÚNICA pista de que los grupos existían, y solo con 2+ reglas sueltas.
+              Ahora el botón lleva el descubrimiento, así que este texto explica lo
+              que un grupo SIGNIFICA (lo que sigue siendo útil sabiéndolo ya) en vez
+              de cómo crear uno por el otro camino. Las casillas de los chips siguen
+              ahí como atajo para quien ya tiene reglas sueltas. */}
+          <span className="sb-fund-add-hint">
+            A group matches if <b>any</b> of its alternatives matches.
+          </span>
         </div>
       ) : (
         <div className="sb-fund-add-hint" style={{ marginTop: 12 }}>
@@ -276,18 +383,27 @@ export function FundamentalFilterGroup({ rules, onChange, section, emptyHint }: 
 
       {editing && editingDef && (
         <SelectionFilterModal
-          key={`${editing.kind}-${editing.kind === 'option' ? `${editing.groupId}-${editing.index}-` : ''}${editing.key}`}
+          key={`${editing.kind}-${
+            editing.kind === 'option'
+              ? `${editing.groupId}-${editing.index}-`
+              : editing.kind === 'draft'
+                ? `${editing.index}-`
+                : ''
+          }${editing.key}`}
           def={editingDef}
           initial={editingFilter}
           options={modalOptions}
           exists={editingExists}
           onApply={(next) => {
             if (editing.kind === 'loose') upsertLoose(next);
+            else if (editing.kind === 'draft') applyDraft(editing.index, next);
             else applyOption(editing.groupId, editing.index, next);
             setEditing(null);
           }}
           onRemove={() => {
             if (editing.kind === 'loose') removeLoose(editing.key);
+            else if (editing.kind === 'draft')
+              setDraft((d) => (d ? d.map((s, i) => (i === editing.index ? null : s)) : d));
             else removeOption(editing.groupId, editing.index);
             setEditing(null);
           }}
