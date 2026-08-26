@@ -364,10 +364,41 @@
 .sb-page-info { font-size: 12px; color: var(--c-text-dim); font-family: var(--font-mono); }
 .sb-trades-empty { padding: 48px 24px; text-align: center; color: var(--c-text-dim); font-size: 13px; }
 
+/* Plain inline text link (issue #174 "see all / back" jumps) */
+.sb-link {
+  color: var(--c-accent-text); background: none; border: 0; cursor: pointer;
+  font-family: inherit; font-size: inherit; text-decoration: underline; padding: 0;
+}
+.sb-link:hover { color: var(--c-accent); }
+
+/* Selection funnel — stage rail (issue #174). Same visual language as
+   .sb-metrics-grid/.sb-metric-cell, but cells are buttons that filter the
+   table below, and an `applies: false` stage renders greyed with "no rules"
+   instead of disappearing (approved design decision — every strategy reads
+   the same 5-stage shape). */
+.sb-selection { display: flex; flex-direction: column; gap: 16px; }
+.sb-stage-rail {
+  display: grid; grid-template-columns: repeat(5, 1fr); gap: 1px;
+  background: var(--c-border); border: 1px solid var(--c-border); border-radius: var(--radius); overflow: hidden;
+}
+.sb-stage-cell {
+  background: var(--c-bg); padding: 14px 16px; text-align: left; cursor: pointer;
+  border: 0; font-family: inherit; color: inherit;
+}
+.sb-stage-cell:hover { background: var(--c-bg-soft); }
+.sb-stage-cell .mk { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--c-text-dim); margin-bottom: 6px; }
+.sb-stage-cell .mv { font-size: 21px; font-weight: 600; font-family: var(--font-mono); font-variant-numeric: tabular-nums; color: var(--c-text); letter-spacing: -0.01em; }
+.sb-stage-cell .msub { font-size: 11px; color: var(--c-text-dim); margin-top: 3px; font-family: var(--font-mono); }
+.sb-stage-cell.active { background: var(--c-accent-soft); box-shadow: inset 0 -2px 0 var(--c-accent); }
+.sb-stage-cell.active .mv { color: var(--c-accent-text); }
+.sb-stage-cell.disabled { opacity: 0.55; }
+.sb-stage-cell.disabled .mv { color: var(--c-text-dim); }
+
 @media (max-width: 1100px) {
   .sb-build-grid { grid-template-columns: 1fr; }
   .sb-summary { position: static; }
   .sb-metrics-grid { grid-template-columns: repeat(2, 1fr); }
+  .sb-stage-rail { grid-template-columns: repeat(2, 1fr); }
   .sb-card { grid-template-columns: 1fr auto; gap: 12px; }
   .sb-card-spark, .sb-metric { display: none; }
 }

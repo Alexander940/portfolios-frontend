@@ -4,6 +4,7 @@ import { Icon } from '../icons';
 import { formatUsd, type DisplayResult } from '../mapping';
 import { Tip } from './formBits';
 import { EquityChart, type EquityChartMode } from './EquityChart';
+import { SelectionTraceView } from './SelectionTraceView';
 
 const fmtPct = (v: number, d = 1) => `${v > 0 ? '+' : ''}${v.toFixed(d)}%`;
 // Magnitude percent (turnover / cost drag) — no forced sign, they aren't gains.
@@ -34,10 +35,17 @@ interface Props {
    *  costs.slippage_bps === 0` (issue #156) — feeds the zero-friction warning
    *  when paired with high turnover. */
   costsAreZero?: boolean;
+  /** The completed backtest's job id — feeds the Selection tab's
+   *  `GET /backtests/{job_id}/selection-trace` call (#174). Null for a result
+   *  the tab can't identify a job for (shouldn't happen once status is
+   *  'done', but the tab degrades to an empty state rather than crashing). */
+  jobId?: string | null;
   progressStep?: string;
   onRetry: () => void;
   onEdit: () => void;
 }
+
+type ResultsTab = 'overview' | 'selection';
 
 function MetricsGrid({ m }: { m: DisplayResult['metrics'] }) {
   const cells = [
@@ -185,11 +193,13 @@ export function ResultsView({
   errorMsg,
   notice,
   costsAreZero,
+  jobId,
   progressStep,
   onRetry,
   onEdit,
 }: Props) {
   const [baseMode, setBaseMode] = useState<EquityChartMode>('index_100');
+  const [tab, setTab] = useState<ResultsTab>('overview');
 
   if (status === 'running') {
     return (
@@ -273,52 +283,80 @@ export function ResultsView({
       <MetricsGrid m={m} />
       <TurnoverGrid m={m} />
 
-      <div className="sb-chart-card" data-testid="sb-equity-chart">
-        <div className="sb-chart-head">
-          <div className="sb-chart-title">Equity curve</div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-            <div className="sb-chart-legend">
-              <span>
-                <span className="dot" style={{ background: 'var(--c-accent)' }} />
-                {strategyName}
-              </span>
-              <span>
-                <span className="dot dash" />
-                S&amp;P 500 (SPY)
-              </span>
-            </div>
-            <div style={{ display: 'flex', gap: 6 }} role="group" aria-label="Base de la curva">
-              {BASE_MODES.map((b) => (
-                <button
-                  key={b.value}
-                  type="button"
-                  className="chip"
-                  aria-pressed={baseMode === b.value}
-                  onClick={() => setBaseMode(b.value)}
-                  style={
-                    baseMode === b.value
-                      ? { borderColor: 'var(--c-accent)', color: 'var(--c-accent)' }
-                      : undefined
-                  }
-                >
-                  {b.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-        <EquityChart data={result.curve} name={strategyName} mode={baseMode} />
+      <div className="tabs" role="tablist">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === 'overview'}
+          className={`tab ${tab === 'overview' ? 'active' : ''}`}
+          onClick={() => setTab('overview')}
+        >
+          Overview
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === 'selection'}
+          className={`tab ${tab === 'selection' ? 'active' : ''}`}
+          onClick={() => setTab('selection')}
+          data-testid="sb-tab-selection"
+        >
+          Selection
+        </button>
       </div>
 
-      <div className="card">
-        <div className="card-head sb-trades-head">
-          <div>
-            <div className="card-title">Trade log</div>
-            <div className="card-sub">Every fill the strategy executed (next-open, net of costs)</div>
+      {tab === 'overview' && (
+        <>
+          <div className="sb-chart-card" data-testid="sb-equity-chart">
+            <div className="sb-chart-head">
+              <div className="sb-chart-title">Equity curve</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                <div className="sb-chart-legend">
+                  <span>
+                    <span className="dot" style={{ background: 'var(--c-accent)' }} />
+                    {strategyName}
+                  </span>
+                  <span>
+                    <span className="dot dash" />
+                    S&amp;P 500 (SPY)
+                  </span>
+                </div>
+                <div style={{ display: 'flex', gap: 6 }} role="group" aria-label="Base de la curva">
+                  {BASE_MODES.map((b) => (
+                    <button
+                      key={b.value}
+                      type="button"
+                      className="chip"
+                      aria-pressed={baseMode === b.value}
+                      onClick={() => setBaseMode(b.value)}
+                      style={
+                        baseMode === b.value
+                          ? { borderColor: 'var(--c-accent)', color: 'var(--c-accent)' }
+                          : undefined
+                      }
+                    >
+                      {b.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <EquityChart data={result.curve} name={strategyName} mode={baseMode} />
           </div>
-        </div>
-        <FillsTable fills={result.fills} />
-      </div>
+
+          <div className="card">
+            <div className="card-head sb-trades-head">
+              <div>
+                <div className="card-title">Trade log</div>
+                <div className="card-sub">Every fill the strategy executed (next-open, net of costs)</div>
+              </div>
+            </div>
+            <FillsTable fills={result.fills} />
+          </div>
+        </>
+      )}
+
+      {tab === 'selection' && <SelectionTraceView jobId={jobId ?? null} />}
     </div>
   );
 }

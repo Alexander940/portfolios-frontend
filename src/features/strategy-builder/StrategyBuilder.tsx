@@ -113,6 +113,10 @@ export function StrategyBuilder() {
   const [activeCfg, setActiveCfg] = useState<BuilderConfig>(DEFAULT_CONFIG);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  // The completed backtest's job id — feeds the results view's Selection tab
+  // (`GET /backtests/{job_id}/selection-trace`, #174). State (not a ref, like
+  // activeIdRef below): the results view needs to re-render when it changes.
+  const [activeJobId, setActiveJobId] = useState<string | null>(null);
   // Last run's (cfg, opts) so Retry replays the SAME flow — retrying an edit of
   // a persisted strategy must not fall back to create (that duplicated/409'd).
   const lastRunRef = useRef<{ cfg: BuilderConfig; opts: RunOpts } | null>(null);
@@ -157,6 +161,7 @@ export function StrategyBuilder() {
       setErrorMsg(null);
       setResult(null);
       setNotice(null);
+      setActiveJobId(null);
       try {
         // Preserve live-only filters: merge the form output over the original
         // server spec when editing a persisted strategy.
@@ -176,6 +181,7 @@ export function StrategyBuilder() {
         }
         activeIdRef.current = strategyId;
         const submit = await runBacktest(strategyId);
+        setActiveJobId(submit.job_id);
         if (submit.cached && opts.existingId) {
           setNotice(
             "The backtest dates haven't changed since the last run — showing the existing result (nothing was re-run).",
@@ -270,6 +276,7 @@ export function StrategyBuilder() {
     setResult(null);
     setErrorMsg(null);
     setNotice(null);
+    setActiveJobId(s.jobId);
     try {
       const res = await getBacktest(s.jobId);
       if (res.status === 'done' && res.result) {
@@ -416,6 +423,7 @@ export function StrategyBuilder() {
           errorMsg={errorMsg}
           notice={notice}
           costsAreZero={activeCfg.commission === 0 && activeCfg.slippage === 0}
+          jobId={activeJobId}
           onRetry={() => {
             // Replay the SAME flow (incl. existingId/update) — retrying an edit
             // of a persisted strategy must never fall back to create.

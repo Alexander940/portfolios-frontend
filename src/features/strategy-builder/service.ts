@@ -7,6 +7,7 @@ import type {
   BacktestSubmitResponse,
   Layer1Spec,
   ResolveUniverseResponse,
+  SelectionTraceResponse,
   StrategyCreatedResponse,
   StrategyListItem,
   StrategySpec,
@@ -123,6 +124,16 @@ export async function runBacktest(strategyId: string): Promise<BacktestSubmitRes
 
 export async function getBacktest(jobId: string): Promise<BacktestStatusResponse> {
   const res = await apiClient.get<BacktestStatusResponse>(`/backtests/${jobId}`);
+  return res.data;
+}
+
+/** Selection funnel for the LAST rebalance of a completed backtest (#174):
+ *  how many candidates survived Universe → Selection rules → Ranking →
+ *  Weighting → Execution, and per-symbol why each one left. Recomputed on
+ *  demand server-side (<1s) — not persisted, same access guard as
+ *  `GET /backtests/{job_id}`. */
+export async function getSelectionTrace(jobId: string): Promise<SelectionTraceResponse> {
+  const res = await apiClient.get<SelectionTraceResponse>(`/backtests/${jobId}/selection-trace`);
   return res.data;
 }
 
