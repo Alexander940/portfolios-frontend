@@ -757,8 +757,18 @@ export interface DisplayMetrics {
 
 export interface DisplayResult {
   metrics: DisplayMetrics;
-  /** equity-curve rows for recharts: rebased index + benchmark. */
-  curve: { date: string; portfolio: number; benchmark: number | null; drawdown: number }[];
+  /** equity-curve rows for recharts: rebased index + benchmark, plus the raw
+   *  capital values so the chart can toggle Base 100 ↔ Capital without
+   *  re-fetching (#134). */
+  curve: {
+    date: string;
+    portfolio: number;
+    benchmark: number | null;
+    drawdown: number;
+    totalValue: number;
+    benchmarkValue: number | null;
+  }[];
+  initialCash: number;
   fills: BacktestResultOut['trades'];
 }
 
@@ -796,7 +806,15 @@ export function adaptResult(r: BacktestResultOut): DisplayResult {
       benchmark:
         p.benchmark_value != null && benchBase ? (p.benchmark_value / benchBase) * 100 : null,
       drawdown: p.drawdown * 100,
+      totalValue: p.total_value,
+      // Benchmark in $ is anchored at the run's initial cash so both series
+      // share the same starting point (same rule as the portfolio curve).
+      benchmarkValue:
+        p.benchmark_value != null && benchBase
+          ? (p.benchmark_value / benchBase) * r.initial_cash
+          : null,
     })),
+    initialCash: r.initial_cash,
     fills: r.trades,
   };
 }
