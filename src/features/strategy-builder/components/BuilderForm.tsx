@@ -3,9 +3,11 @@ import { useMemo, useState } from 'react';
 import { Icon } from '../icons';
 import {
   buildUniverse,
+  CADENCE_OPTIONS,
   LAYER3_OPTIONS,
   MARKET_CAP_BUCKETS,
   PERFORMANCE_METRICS,
+  REBALANCE_ON_OPTIONS,
   SORT_FIELDS,
 } from '../mapping';
 import type { BuilderConfig } from '../types';
@@ -36,6 +38,7 @@ export function BuilderForm({ initialCfg, busy, preservedFilters, onCancel, onSa
     5: true,
     6: true,
     7: true,
+    8: true,
   });
   const set = (patch: Partial<BuilderConfig>) => setCfg((c) => ({ ...c, ...patch }));
   const toggleSection = (n: number) => setOpen((o) => ({ ...o, [n]: !o[n] }));
@@ -78,6 +81,7 @@ export function BuilderForm({ initialCfg, busy, preservedFilters, onCancel, onSa
   const metricLabel =
     PERFORMANCE_METRICS.find((m) => m.k === cfg.performanceMetric)?.label ?? cfg.performanceMetric;
   const rankLabel = SORT_FIELDS.find((f) => f.k === cfg.sortBy)?.label ?? cfg.sortBy;
+  const cadenceLabel = CADENCE_OPTIONS.find((o) => o.k === cfg.rebalance)?.label ?? cfg.rebalance;
 
   return (
     <div className="sb-build-grid">
@@ -97,26 +101,11 @@ export function BuilderForm({ initialCfg, busy, preservedFilters, onCancel, onSa
         <Section
           num="1"
           title="General parameters"
-          sub="Rebalance, currency, performance, benchmark"
+          sub="Currency, performance, benchmark"
           open={open[1]}
           onToggle={() => toggleSection(1)}
         >
           <div className="sb-grid-3" style={{ marginTop: 14 }}>
-            <div className="sb-field" style={{ marginTop: 0 }}>
-              <div className="sb-field-label">Rebalance</div>
-              <div className="sb-segment full" style={{ marginTop: 2 }}>
-                {(['weekly', 'monthly'] as const).map((k) => (
-                  <button
-                    key={k}
-                    type="button"
-                    className={`sb-seg-btn ${cfg.rebalance === k ? 'active' : ''}`}
-                    onClick={() => set({ rebalance: k })}
-                  >
-                    {k === 'weekly' ? 'Weekly' : 'Monthly'}
-                  </button>
-                ))}
-              </div>
-            </div>
             <div className="sb-field" style={{ marginTop: 0 }}>
               <div className="sb-field-label">
                 Currency <Tip text="Locked to USD — the strategy invests in US equities only for now." />
@@ -441,6 +430,52 @@ export function BuilderForm({ initialCfg, busy, preservedFilters, onCancel, onSa
             />
           </div>
         </Section>
+
+        {/* 8. Rebalancing */}
+        <Section
+          num="8"
+          title="Rebalancing"
+          sub="How the book moves between rebalances"
+          open={open[8]}
+          onToggle={() => toggleSection(8)}
+        >
+          <div className="sb-field" style={{ marginTop: 14 }}>
+            <div className="sb-field-label">
+              Cadence <Tip text="How often the book is re-priced and re-sized. Longer cadences trade less often, cutting turnover and cost drag at the expense of reacting slower to new signals." />
+            </div>
+            <div className="sb-segment full" style={{ marginTop: 2 }} data-testid="sb-rebalance-cadence">
+              {CADENCE_OPTIONS.map((o) => (
+                <button
+                  key={o.k}
+                  type="button"
+                  data-testid={`sb-cadence-${o.k}`}
+                  className={`sb-seg-btn ${cfg.rebalance === o.k ? 'active' : ''}`}
+                  onClick={() => set({ rebalance: o.k })}
+                >
+                  {o.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="sb-field">
+            <div className="sb-field-label">
+              Fires on <Tip text="Which trading day of the period the rebalance is stamped on: the first session of the period, or the last. Start of period reproduces the engine's original behavior." />
+            </div>
+            <div className="sb-segment full" style={{ marginTop: 2 }} data-testid="sb-rebalance-on">
+              {REBALANCE_ON_OPTIONS.map((o) => (
+                <button
+                  key={o.k}
+                  type="button"
+                  data-testid={`sb-rebalance-on-${o.k}`}
+                  className={`sb-seg-btn ${cfg.rebalanceOn === o.k ? 'active' : ''}`}
+                  onClick={() => set({ rebalanceOn: o.k })}
+                >
+                  {o.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </Section>
       </div>
 
       {/* SUMMARY */}
@@ -470,7 +505,7 @@ export function BuilderForm({ initialCfg, busy, preservedFilters, onCancel, onSa
           </div>
           <div className="sb-summary-row">
             <span className="k">Rebalance</span>
-            <span className="v">{cfg.rebalance === 'weekly' ? 'Weekly' : 'Monthly'}</span>
+            <span className="v">{cadenceLabel}</span>
           </div>
           <div className="sb-summary-row">
             <span className="k">Performance</span>
