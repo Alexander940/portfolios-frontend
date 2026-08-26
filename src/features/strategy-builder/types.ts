@@ -394,6 +394,41 @@ export interface RebalanceSpec {
    *  pre-#157 monthly/weekly spec stays byte-identical (same idiom as
    *  `layer1.top_n` / `layer2.sector_caps`). */
   on?: RebalanceOn;
+
+  // --- Reglas opcionales (épica #154). TODAS se omiten del spec cuando no se
+  // usan: el backend las popea de canonical_json con ese mismo criterio, así que
+  // emitirlas con null/0 cambiaría el content_hash de una estrategia existente.
+  // Los valores son los del BACKEND (fracciones, no porcentajes de UI).
+
+  // Permanencia en cartera
+  /** Un tenedor sobrevive mientras su rank ≤ top_n × este multiplicador (> 1). */
+  hold_rank_buffer?: number;
+  /** Los tenedores que siguen cumpliendo filtros entran sin pasar por el corte. */
+  prioritize_held?: boolean;
+  /** Días mínimos antes de poder vender. SOLO BACKTEST: necesita la fecha de
+   *  entrada por posición, que solo lleva el `_Book` del motor. */
+  min_holding_days?: number;
+  /** Tope de nombres nuevos por rebalanceo. SOLO BACKTEST (misma razón). */
+  max_entries_per_rebalance?: number;
+
+  // Ejecución
+  /** Techo de rotación por rebalanceo, fracción del valor del libro en (0, 1]. */
+  max_turnover_pct?: number;
+  /** Fracción del portafolio que se deja en caja, en (0, 1). */
+  cash_buffer_pct?: number;
+  /** Diferencia mínima para operar un nombre, fracción del total en (0, 1). */
+  min_trade_pct?: number;
+  /** Si ningún peso se desvió más que esta fracción, se salta el rebalanceo. */
+  drift_band_pct?: number;
+
+  // Salidas fuera de calendario
+  /** Caída desde el costo base que dispara la venta, fracción en (0, 1). */
+  stop_loss_pct?: number;
+  /** Trailing stop en múltiplos de ATR (> 0). */
+  trailing_stop_atr?: number;
+  /** Días de feed de precio muerto que fuerzan la salida de un tenedor.
+   *  Aplica al TRACKER en vivo; el backtest conserva los delistados a propósito. */
+  exit_on_stale_price_days?: number;
 }
 
 export interface CostsSpec {
@@ -632,6 +667,31 @@ export interface BuilderConfig {
    *  in the form (default `period_start`) — cfgToSpec omits it from the wire
    *  spec when it equals that default. */
   rebalanceOn: RebalanceOn;
+  // --- Reglas de rebalanceo (épica #154). '' = sin usar (el spec las omite).
+  // OJO con las unidades: en el formulario se escriben en PORCENTAJE y
+  // cfgToSpec las divide por 100, salvo holdRankBuffer y trailingStopAtr
+  // (multiplicadores) y los tres campos en días (enteros).
+  /** Multiplicador sobre top_n; > 1. */
+  holdRankBuffer: number | '';
+  prioritizeHeld: boolean;
+  /** Días. Solo backtest. */
+  minHoldingDays: number | '';
+  /** Nombres nuevos por rebalanceo. Solo backtest. */
+  maxEntriesPerRebalance: number | '';
+  /** % del libro. */
+  maxTurnoverPct: number | '';
+  /** % del portafolio. */
+  cashBufferPct: number | '';
+  /** % del total. */
+  minTradePct: number | '';
+  /** Puntos porcentuales de desviación de peso. */
+  driftBandPct: number | '';
+  /** % de caída desde el costo. */
+  stopLossPct: number | '';
+  /** Múltiplos de ATR. */
+  trailingStopAtr: number | '';
+  /** Días de feed muerto. Solo tracker en vivo. */
+  exitOnStalePriceDays: number | '';
   // costs
   commission: number;
   slippage: number;

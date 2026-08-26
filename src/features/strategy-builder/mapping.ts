@@ -15,6 +15,7 @@ import type {
   PerformanceMetric,
   RangeFilter,
   RebalanceOn,
+  RebalanceSpec,
   ScreenerFieldKey,
   StrategySpec,
   UniverseSpec,
@@ -370,6 +371,19 @@ export const DEFAULT_CONFIG: BuilderConfig = {
   minPositionWeight: '',
   rebalance: 'monthly',
   rebalanceOn: DEFAULT_REBALANCE_ON,
+  // Reglas de rebalanceo: TODAS apagadas por defecto — una estrategia que no las
+  // toca produce el mismo spec (y el mismo content_hash) que antes de la épica.
+  holdRankBuffer: '',
+  prioritizeHeld: false,
+  minHoldingDays: '',
+  maxEntriesPerRebalance: '',
+  maxTurnoverPct: '',
+  cashBufferPct: '',
+  minTradePct: '',
+  driftBandPct: '',
+  stopLossPct: '',
+  trailingStopAtr: '',
+  exitOnStalePriceDays: '',
   commission: 5,
   slippage: 8,
   startDate: '2019-01-01',
@@ -549,6 +563,54 @@ export function buildLayered(cfg: BuilderConfig): LayeredWeightingSpec | undefin
   };
 }
 
+/** Las 11 reglas opcionales de rebalanceo, en unidades del BACKEND.
+ *
+ *  Cada una se emite SOLO cuando el usuario la puso: un campo vacío (o el
+ *  toggle apagado) desaparece del spec, que es exactamente lo que hace
+ *  `StrategySpec.canonical_json` del backend al popearlas. Emitirlas como
+ *  `null` cambiaría el `content_hash` de las estrategias ya guardadas y
+ *  rompería el dedupe de backtests.
+ *
+ *  Conversión de unidades: el formulario recoge porcentajes (más legibles) y
+ *  aquí se dividen por 100, salvo los multiplicadores (`holdRankBuffer`,
+ *  `trailingStopAtr`) y los tres campos en días, que van tal cual. */
+/** Fracción del spec → porcentaje del formulario; `undefined` → '' (apagada).
+ *  El redondeo a 6 decimales evita que 0.07 vuelva como 6.999999999999999. */
+function pctFromFraction(v: number | undefined): number | '' {
+  return v == null ? '' : Math.round(v * 100 * 1e6) / 1e6;
+}
+
+function rebalanceRules(cfg: BuilderConfig): Partial<RebalanceSpec> {
+  const num = (v: number | '') => (v !== '' && Number.isFinite(v) ? (v as number) : null);
+  const frac = (v: number | '') => {
+    const n = num(v);
+    return n !== null && n > 0 ? n / 100 : null;
+  };
+  const holdRankBuffer = num(cfg.holdRankBuffer);
+  const minHoldingDays = num(cfg.minHoldingDays);
+  const maxEntries = num(cfg.maxEntriesPerRebalance);
+  const staleDays = num(cfg.exitOnStalePriceDays);
+  const trailingAtr = num(cfg.trailingStopAtr);
+  const maxTurnover = frac(cfg.maxTurnoverPct);
+  const cashBuffer = frac(cfg.cashBufferPct);
+  const minTrade = frac(cfg.minTradePct);
+  const driftBand = frac(cfg.driftBandPct);
+  const stopLoss = frac(cfg.stopLossPct);
+  return {
+    ...(holdRankBuffer !== null && holdRankBuffer > 1 ? { hold_rank_buffer: holdRankBuffer } : {}),
+    ...(cfg.prioritizeHeld ? { prioritize_held: true } : {}),
+    ...(minHoldingDays !== null && minHoldingDays >= 1 ? { min_holding_days: minHoldingDays } : {}),
+    ...(maxEntries !== null && maxEntries >= 1 ? { max_entries_per_rebalance: maxEntries } : {}),
+    ...(maxTurnover !== null ? { max_turnover_pct: maxTurnover } : {}),
+    ...(cashBuffer !== null ? { cash_buffer_pct: cashBuffer } : {}),
+    ...(minTrade !== null ? { min_trade_pct: minTrade } : {}),
+    ...(driftBand !== null ? { drift_band_pct: driftBand } : {}),
+    ...(stopLoss !== null ? { stop_loss_pct: stopLoss } : {}),
+    ...(trailingAtr !== null && trailingAtr > 0 ? { trailing_stop_atr: trailingAtr } : {}),
+    ...(staleDays !== null && staleDays >= 0 ? { exit_on_stale_price_days: staleDays } : {}),
+  };
+}
+
 export function cfgToSpec(cfg: BuilderConfig): StrategySpec {
   const universe = buildUniverse(cfg);
   const layered = buildLayered(cfg);
@@ -603,6 +665,10 @@ export function cfgToSpec(cfg: BuilderConfig): StrategySpec {
       // Omitted when it's the backend default so a pre-#158 monthly/weekly spec
       // keeps its legacy content_hash (same idiom as layer1.top_n).
       ...(cfg.rebalanceOn !== DEFAULT_REBALANCE_ON ? { on: cfg.rebalanceOn } : {}),
+      // Reglas de la épica #154 — cada una se OMITE cuando está sin usar. El
+      // backend las popea de canonical_json con el mismo criterio, así que
+      // mandarlas como null rompería el content_hash de los specs guardados.
+      ...rebalanceRules(cfg),
     },
     costs: { commission_bps: cfg.commission, slippage_bps: cfg.slippage },
     validation: {
@@ -720,6 +786,19 @@ export function specToConfig(spec: StrategySpec, name: string): BuilderConfig {
     minPositionWeight: spec.min_position_weight != null ? spec.min_position_weight * 100 : '',
     rebalance: spec.rebalance?.cadence ?? DEFAULT_CONFIG.rebalance,
     rebalanceOn: spec.rebalance?.on ?? DEFAULT_REBALANCE_ON,
+    // Inversa de rebalanceRules: fracción → % para los que el formulario
+    // muestra en porcentaje; ausente → '' (input vacío = regla apagada).
+    holdRankBuffer: spec.rebalance?.hold_rank_buffer ?? '',
+    prioritizeHeld: spec.rebalance?.prioritize_held ?? false,
+    minHoldingDays: spec.rebalance?.min_holding_days ?? '',
+    maxEntriesPerRebalance: spec.rebalance?.max_entries_per_rebalance ?? '',
+    maxTurnoverPct: pctFromFraction(spec.rebalance?.max_turnover_pct),
+    cashBufferPct: pctFromFraction(spec.rebalance?.cash_buffer_pct),
+    minTradePct: pctFromFraction(spec.rebalance?.min_trade_pct),
+    driftBandPct: pctFromFraction(spec.rebalance?.drift_band_pct),
+    stopLossPct: pctFromFraction(spec.rebalance?.stop_loss_pct),
+    trailingStopAtr: spec.rebalance?.trailing_stop_atr ?? '',
+    exitOnStalePriceDays: spec.rebalance?.exit_on_stale_price_days ?? '',
     commission: spec.costs?.commission_bps ?? DEFAULT_CONFIG.commission,
     slippage: spec.costs?.slippage_bps ?? DEFAULT_CONFIG.slippage,
     startDate: val?.start ?? DEFAULT_CONFIG.startDate,

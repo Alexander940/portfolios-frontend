@@ -139,6 +139,15 @@
   font-size: 12px; color: var(--c-text-soft); font-weight: 500;
 }
 .sb-field-label .req { color: var(--c-neg); }
+/* Subtítulo de grupo dentro de una sección (los 3 bloques de reglas de la
+   Sección 8: permanencia, ejecución y salidas fuera de calendario). Un punto
+   más grande y con más peso que .sb-field-label, para que se lea como
+   encabezado de grupo y no como etiqueta de campo. */
+.sb-subhead {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 13px; font-weight: 600; color: var(--c-text);
+  padding-bottom: 6px; border-bottom: 1px solid var(--c-border);
+}
 .sb-field-hint { font-size: 11.5px; color: var(--c-text-dim); }
 .sb-field-error { font-size: 11.5px; color: var(--c-neg); display: flex; align-items: center; gap: 4px; }
 
