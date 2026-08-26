@@ -200,6 +200,44 @@ export interface FundamentalFilter {
   dateMax?: string; // daterange (ISO)
 }
 
+/** One alternative inside an OR group (issue #173): a small set of catalog
+ *  filters ANDed together — mirrors one backend `any_of[].options[]`
+ *  mini-screen. The builder UI only ever creates/edits single-field
+ *  alternatives (arrays of length 1), but a multi-field one — e.g. reloaded
+ *  from a spec some other client wrote — round-trips through the same shape. */
+export type FilterOption = FundamentalFilter[];
+
+/** A group of >= 2 alternative filter-sets, OR'd together: a symbol admits the
+ *  group when it matches ANY ONE option. Groups AND with everything else in
+ *  the rule list (loose rules + other groups) and with each other — mirrors
+ *  the backend's `any_of[]` semantics exactly (between groups = AND, within a
+ *  group = OR, within one option = AND). `id` is UI-only (a stable React key
+ *  and edit target) and is never sent to the backend — `cfgToSpec` builds the
+ *  wire `{options: UniverseSpec[]}` shape straight from `options` below. */
+export interface FilterGroup {
+  id: string;
+  options: FilterOption[];
+}
+
+/** One entry of an Additional/Selection rules list. A loose rule keeps the
+ *  exact pre-#173 `FundamentalFilter` shape (no wrapper, no discriminant) so
+ *  every config saved before this feature — local drafts and the 21 real
+ *  server-persisted strategies alike — is already a valid `RuleEntry[]` with
+ *  zero migration. A `FilterGroup` is distinguished structurally: it has an
+ *  `options` array (no `key`), which a `FundamentalFilter` never has. */
+export type RuleEntry = FundamentalFilter | FilterGroup;
+
+export function isFilterGroup(entry: RuleEntry): entry is FilterGroup {
+  return typeof entry === 'object' && entry !== null && 'options' in entry;
+}
+
+/** Wire shape of one `any_of` group (mirrors the backend's `OrGroup`: >= 2
+ *  mini-screens, enforced by the backend — the builder enforces it too by
+ *  construction, see `FundamentalFilterGroup`'s group/ungroup logic). */
+export interface OrGroupSpec {
+  options: UniverseSpec[];
+}
+
 export interface UniverseSpec {
   rating?: RangeFilter;
   trend_strength?: RangeFilter;
@@ -298,6 +336,12 @@ export interface UniverseSpec {
   exchange?: string[];
   // Date-range (ade): bull-cycle origin date, resolved as-of.
   bull_cycle_origin_date?: DateRange;
+  // ---- compound OR filters (issue #171/#173) ----
+  /** Optional OR groups, ANDed with every field above and with each other.
+   *  Omitted (never an empty array — the backend normalizes `[]` to `None`
+   *  and `cfgToSpec` never emits one either) so a spec without groups keeps
+   *  its legacy content_hash. */
+  any_of?: OrGroupSpec[];
 }
 
 /** A stock chosen for the Exclusion list (kept with ticker/name for display). */
@@ -621,12 +665,14 @@ export interface BuilderConfig {
   excluded: ExcludedSymbol[];
   // "Additional rules" — fundamental/performance filters that CONSTRAIN the
   // investment universe (and therefore the Layer-1 sector weighting base). They
-  // map into spec.universe. Pre-existing strategies' filters load here.
-  additionalRules: FundamentalFilter[];
+  // map into spec.universe. Pre-existing strategies' filters load here. Each
+  // entry is a loose rule or an OR group of alternative rules (issue #173) —
+  // see `RuleEntry`.
+  additionalRules: RuleEntry[];
   // "Selection rules" — the SAME field catalog, but applied as a post-universe
   // phase: they narrow which names are ranked/picked WITHOUT shrinking the
   // universe or the weighting base. They map into spec.selection_filters.
-  selectionFilters: FundamentalFilter[];
+  selectionFilters: RuleEntry[];
   // universe (PIT-safe). rating / trend_strength / smart_momentum have no
   // dedicated knobs since issue #98 — they are ordinary catalog filters now.
   sector: string; // '' = all

@@ -8,6 +8,7 @@ import {
   MARKET_CAP_BUCKETS,
   PERFORMANCE_METRICS,
   REBALANCE_ON_OPTIONS,
+  ruleListError,
   SORT_FIELDS,
 } from '../mapping';
 import type { BuilderConfig } from '../types';
@@ -86,6 +87,14 @@ export function BuilderForm({ initialCfg, busy, preservedFilters, onCancel, onSa
     pctRule(cfg.minTradePct, 'minTradePct');
     pctRule(cfg.driftBandPct, 'driftBandPct');
     pctRule(cfg.stopLossPct, 'stopLossPct');
+    // OR groups (issue #173) — mirror the backend's own restrictions in the
+    // form so a bad rule list shows an error on the field instead of a 422 at
+    // save time (see `ruleListError`'s doc for why only 2 of the 6 `any_of`
+    // decisions need a runtime check at all).
+    const additionalRulesError = ruleListError(cfg.additionalRules);
+    if (additionalRulesError) e.additionalRules = additionalRulesError;
+    const selectionFiltersError = ruleListError(cfg.selectionFilters);
+    if (selectionFiltersError) e.selectionFilters = selectionFiltersError;
     return e;
   }, [cfg]);
 
@@ -240,10 +249,15 @@ export function BuilderForm({ initialCfg, busy, preservedFilters, onCancel, onSa
             </div>
             <FundamentalFilterGroup
               section="universe"
-              filters={cfg.additionalRules}
+              rules={cfg.additionalRules}
               onChange={(v) => set({ additionalRules: v })}
               emptyHint="No universe filters yet — pick a field to add one."
             />
+            {errors.additionalRules && (
+              <div className="sb-field-error">
+                <Icon name="warn" size={11} /> {errors.additionalRules}
+              </div>
+            )}
           </div>
         </Section>
 
@@ -267,10 +281,15 @@ export function BuilderForm({ initialCfg, busy, preservedFilters, onCancel, onSa
           </div>
           <FundamentalFilterGroup
             section="selection"
-            filters={cfg.selectionFilters}
+            rules={cfg.selectionFilters}
             onChange={(v) => set({ selectionFilters: v })}
             emptyHint="No selection filters yet — pick a field to add one."
           />
+          {errors.selectionFilters && (
+            <div className="sb-field-error">
+              <Icon name="warn" size={11} /> {errors.selectionFilters}
+            </div>
+          )}
         </Section>
 
         {/* 4. Ranking */}
