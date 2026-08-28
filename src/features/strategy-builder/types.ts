@@ -149,7 +149,11 @@ export type BooleanFieldKey =
   | 'bull_cycle_started'
   | 'bull_origin_active'
   | 'bear_origin_active'
-  | 'atr_spike';
+  | 'atr_spike'
+  /** M&A exclusion (épica #175). NOT PIT-safe yet: until the backend has
+   *  `MA_DEALS_HISTORY_FROM` configured, the PIT linter REJECTS it in a
+   *  backtest and accepts it in live tracking. */
+  | 'exclude_pending_deals';
 
 /** Multiselect (sym) classification fields. `country` is omitted (the universe is
  *  locked to US); `sector` is offered only in the Selection-rules section because
@@ -284,6 +288,8 @@ export interface UniverseSpec {
   bull_origin_active?: boolean;
   bear_origin_active?: boolean;
   atr_spike?: boolean;
+  /** M&A exclusion (#185). Live-only until the deals history is backfilled. */
+  exclude_pending_deals?: boolean;
   // Multiselect (sym). `sector` / `country` are declared above (string[]); `exchange`
   // is new. `country` stays universe-only (locked US); `sector` catalog filter is
   // Selection-rules-only to avoid colliding with the dedicated universe control.

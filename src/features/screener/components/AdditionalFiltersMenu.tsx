@@ -1,7 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
 import { Plus, ChevronRight, Check } from 'lucide-react';
 import { useScreenerStore } from '../stores';
-import { FILTER_CATEGORIES, ADDITIONAL_FILTERS } from '../constants';
+import {
+  FILTER_CATEGORIES,
+  ADDITIONAL_FILTERS,
+  EXCLUDE_PENDING_DEALS_KEY,
+} from '../constants';
 import type { FilterCategory } from '../types';
 
 /**
@@ -20,7 +24,11 @@ export function AdditionalFiltersMenu() {
   const additionalFilters = useScreenerStore((state) => state.additionalFilters);
   const openFilterModal = useScreenerStore((state) => state.openFilterModal);
 
-  const activeCount = Object.keys(additionalFilters).length;
+  // The M&A exclusion is ON by default and lives in its own toggle, not in
+  // this menu — counting it would put a permanent "1" on the button.
+  const activeCount = Object.keys(additionalFilters).filter(
+    (k) => k !== EXCLUDE_PENDING_DEALS_KEY,
+  ).length;
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {

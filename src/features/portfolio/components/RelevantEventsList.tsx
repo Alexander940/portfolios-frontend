@@ -1,10 +1,11 @@
 import { useNavigate } from 'react-router-dom';
 import { TrendingUp, TrendingDown, AlertCircle, RefreshCw } from 'lucide-react';
 import type { RelevantEvent } from '@/services/portfolioService';
+import { DealBadge, dealTooltip } from '@/components/ui';
 import { RatingBadge } from './RatingBadge';
 import { fmtDate, fmtNumber } from '../lib/format';
 
-type Filter = 'All' | 'Upgrades' | 'Downgrades' | 'Movers';
+type Filter = 'All' | 'Upgrades' | 'Downgrades' | 'Movers' | 'Deals';
 
 interface RelevantEventsListProps {
   events: RelevantEvent[];
@@ -75,6 +76,9 @@ export function RelevantEventsList({
   const losers = events.filter(
     (e) => e.event_type === 'mover' && (e.move_pct ?? 0) < 0,
   );
+  // M&A deals on held names (épica #175). Empty on every backend/period
+  // without deals, so the feed looks exactly as it did before the feature.
+  const dealEvents = events.filter((e) => e.event_type === 'deal');
 
   const showMoverGroups = filter === 'Movers' || filter === 'All';
 
@@ -82,6 +86,15 @@ export function RelevantEventsList({
     <div className="rail-list">
       {ratingEvents.length > 0 &&
         ratingEvents.map((e) => <RatingEventRow key={rowKey(e)} event={e} />)}
+
+      {dealEvents.length > 0 && (
+        <>
+          {filter === 'All' && <div className="rail-section-label">Deals</div>}
+          {dealEvents.map((e) => (
+            <DealEventRow key={rowKey(e)} event={e} />
+          ))}
+        </>
+      )}
 
       {showMoverGroups ? (
         <>
@@ -173,6 +186,40 @@ function MoverEventRow({ event }: { event: RelevantEvent }) {
           {up ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
           {up ? '+' : ''}
           {fmtNumber(move, 2)}%
+        </span>
+        <span className="rail-date dim">{fmtDate(event.as_of)}</span>
+      </div>
+    </button>
+  );
+}
+
+/** M&A row: badge + acquirer, with the full deal detail in the tooltip. */
+function DealEventRow({ event }: { event: RelevantEvent }) {
+  const navigate = useNavigate();
+  const deal = event.deal ?? null;
+
+  return (
+    <button
+      type="button"
+      className="rail-row"
+      onClick={() => navigate(`/dashboard/analysis/${event.portfolio_id}`)}
+      title={deal ? dealTooltip(deal) : `${event.ticker} — ${event.portfolio_name}`}
+      data-testid={`deal-event-${event.ticker}`}
+    >
+      <div className="rail-row-main">
+        <span className="rail-ticker">{event.ticker}</span>
+        <span className="rail-name" title={event.name}>
+          {event.name}
+        </span>
+      </div>
+      <div className="rail-row-side">
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+          <DealBadge deal={deal} />
+          {deal?.acquirer && (
+            <span className="rail-name" style={{ fontSize: 11 }}>
+              {deal.acquirer}
+            </span>
+          )}
         </span>
         <span className="rail-date dim">{fmtDate(event.as_of)}</span>
       </div>

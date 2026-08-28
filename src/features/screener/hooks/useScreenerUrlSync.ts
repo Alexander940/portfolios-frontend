@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useScreenerStore } from '../stores';
 import type { DateRangeFilter, RangeFilter, RatingValue } from '../types';
-import { isValidRating } from '../constants';
+import { DEFAULT_ON_BOOLEAN_FILTER_KEYS, isValidRating } from '../constants';
 
 type TimeoutId = ReturnType<typeof setTimeout>;
 
@@ -96,10 +96,15 @@ export function useScreenerUrlSync() {
       for (const [key, value] of Object.entries(additionalFilters)) {
         if (value === null || value === undefined) continue;
 
-        // Boolean filters
+        // Boolean filters. Only the NON-default value goes in the URL: for a
+        // normal boolean that is `true` (absent = off); for a default-ON one
+        // (#185) it is `false` — without it a refresh would silently switch the
+        // filter back on, and writing `=true` would add a param to every plain
+        // screener link.
         if (typeof value === 'boolean') {
-          if (value) {
-            params.set(key, 'true');
+          const defaultOn = DEFAULT_ON_BOOLEAN_FILTER_KEYS.includes(key);
+          if (value !== defaultOn) {
+            params.set(key, String(value));
           }
           continue;
         }

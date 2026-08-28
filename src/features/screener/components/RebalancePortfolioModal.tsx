@@ -119,6 +119,8 @@ const COUNT_LABEL: Record<RebalanceDiffAction, [singular: string, plural: string
 const SKIP_REASON: Record<RebalanceSkipReason, string> = {
   no_price: 'no current price data',
   too_small: 'allocation too small to buy one share',
+  // épica #175 — the name is the target of a pending acquisition.
+  pending_deal: 'pending acquisition (M&A)',
 };
 
 const FIELD_CLS =
@@ -768,7 +770,18 @@ export function RebalancePortfolioModal({
                           {badge.text}
                         </span>
                       </td>
-                      <td className="px-3 py-2 font-medium text-gray-900">{d.ticker}</td>
+                      <td className="px-3 py-2 font-medium text-gray-900">
+                        {d.ticker}
+                        {/* épica #175: the backend flags M&A targets on the row */}
+                        {d.flags?.includes('pending_deal') && (
+                          <span
+                            className="ml-1.5 inline-block rounded-full border border-amber-400 bg-amber-50 px-1.5 py-0 text-[10px] font-semibold text-amber-700 align-middle"
+                            title="Este símbolo tiene una adquisición anunciada o en curso (M&A)"
+                          >
+                            En adquisición
+                          </span>
+                        )}
+                      </td>
                       <td className="px-3 py-2 text-right text-gray-700 whitespace-nowrap">
                         {d.quantity_before.toLocaleString()} →{' '}
                         {d.quantity_after.toLocaleString()}

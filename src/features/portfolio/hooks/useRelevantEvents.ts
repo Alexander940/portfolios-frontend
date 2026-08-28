@@ -8,7 +8,7 @@ import {
 import { isApiError } from '@/lib/apiErrors';
 
 type PeriodLabel = 'Today' | 'Week';
-type FilterLabel = 'All' | 'Upgrades' | 'Downgrades' | 'Movers';
+type FilterLabel = 'All' | 'Upgrades' | 'Downgrades' | 'Movers' | 'Deals';
 
 const PERIOD_PARAM: Record<PeriodLabel, EventPeriod> = {
   Today: 'today',
@@ -20,6 +20,8 @@ const FILTER_PARAM: Record<FilterLabel, RelevantEventType> = {
   Upgrades: 'upgrades',
   Downgrades: 'downgrades',
   Movers: 'movers',
+  // M&A deals on the user's holdings (épica #175).
+  Deals: 'deals',
 };
 
 /**

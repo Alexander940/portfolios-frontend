@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { ArrowDown, ArrowUp, Loader2, Zap, ZapOff } from 'lucide-react';
-import { Button, RatingBadge } from '@/components/ui';
+import { Button, DealBadge, RatingBadge } from '@/components/ui';
 import { fmtDate, fmtMoney, fmtNumber, fmtPct } from '@/lib/format';
 import { useTrackerStore } from '../store';
 import type { ApiNumber, PositionItem } from '../types';
@@ -202,7 +202,11 @@ export function PositionsSection() {
                 {sorted.map((p) => (
                   <tr key={p.ticker} data-testid={`position-row-${p.ticker}`}>
                     <td>{p.ticker}</td>
-                    <td className="name-cell">{p.name}</td>
+                    <td className="name-cell">
+                      {p.name}
+                      {/* M&A (#185): renders nothing without a deal. */}
+                      <DealBadge deal={p.deal} />
+                    </td>
                     <td className="dim">{p.sector ?? '—'}</td>
                     <td className="num">{fmtNumber(p.quantity, 0)}</td>
                     <td className="num">{fmtMoney(p.average_cost)}</td>
@@ -248,6 +252,7 @@ export function PositionsSection() {
                   <div>
                     <strong>{p.ticker}</strong>{' '}
                     <LiveTag p={p} intraday={intraday} />
+                    <DealBadge deal={p.deal} compact />
                     <div className="dim" style={{ fontSize: 12 }}>
                       {p.name}
                     </div>

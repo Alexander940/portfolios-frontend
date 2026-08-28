@@ -4,6 +4,7 @@ import type {
 } from '@/services/portfolioService';
 import {
   ADDITIONAL_FILTERS,
+  EXCLUDE_PENDING_DEALS_KEY,
   PERCENTAGE_FIELDS,
   RATING_VALUES,
   isMarketCapCategory,
@@ -130,6 +131,14 @@ export function specFiltersToCriteria(
         const max = range.max ?? 3;
         const selected = RATING_VALUES.filter((r) => r >= min && r <= max);
         if (selected.length > 0) criteria.ratings = selected;
+        else ignored.push(key);
+        continue;
+      }
+      case EXCLUDE_PENDING_DEALS_KEY: {
+        // Default-ON boolean with its own toggle: it is deliberately out of
+        // ADDITIONAL_FILTERS (and therefore out of DEF_BY_API_KEY), so it is
+        // handled here instead of being reported as an unknown saved filter.
+        if (typeof value === 'boolean') criteria.additionalFilters[key] = value;
         else ignored.push(key);
         continue;
       }
