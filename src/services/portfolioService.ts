@@ -1471,15 +1471,43 @@ export async function setSleeveAllocations(
 }
 
 /**
- * Una manga tal como la resolvió el plan de rebalanceo (#204): el shape de
- * #203 más `resolved`.
+ * Una manga tal como la resolvió el plan de rebalanceo (#204): espejo campo a
+ * campo de `RebalanceSleeveItem` del backend.
  *
- * `resolved: false` = la manga no pudo resolverse (universo vacío o cobertura
- * baja) y el plan mantuvo su ÚLTIMO target en lugar de liquidar su parte —
- * misma regla de seguridad que el tracker. Nunca significa "vendida".
+ * NO es un `SleeveBreakdownItem`. El preview describe la RESOLUCIÓN de hoy, no
+ * el libro vivo, así que no trae `pinned_version`/`latest_version`/`outdated`
+ * (el desfase de versión lo reporta `GET /sleeves`, y con eso se pinta la
+ * pestaña Mangas) ni `current_weight_pct` (el plan todavía no se aplicó, así
+ * que no hay atribución que mostrar). `version` ES la versión con la que corrió
+ * la manga, es decir la pineada.
+ *
+ * `resolved: false` = la manga no pudo resolverse (universo vacío, cobertura
+ * baja, spec que no lintea) y el plan mantuvo su ÚLTIMO target en lugar de
+ * liquidar su parte — misma regla de seguridad que el tracker. Nunca significa
+ * "vendida". En ese caso los cuatro campos que describen una resolución fresca
+ * (`coverage_pct`, `eligible_count`, `as_of`, `data_as_of`) vienen `null`.
  */
-export interface RebalanceSleeveResolved extends SleeveBreakdownItem {
+export interface RebalanceSleeveResolved {
+  strategy_id: string;
+  strategy_version_id: string;
+  name: string;
+  /** Versión de la estrategia con la que se resolvió la manga (la pineada). */
+  version: number;
+  /** Porción del capital que pidió la manga, FRACCIÓN. */
+  allocation: number;
+  /** `false` = se mantuvo su último target en vez de liquidar su parte. */
   resolved: boolean;
+  /** Nombres del target de ESTE plan (no las posiciones actuales del libro). */
+  holdings_count: number;
+  /** Lo que la manga pesa en el plan tras floor/cap/colchón, PORCENTAJE. */
+  target_weight_pct: number;
+  /** Cobertura del universo, FRACCIÓN. `null` si la manga no resolvió. */
+  coverage_pct: number | null;
+  eligible_count: number | null;
+  /** Fecha de la resolución (`YYYY-MM-DD`). `null` si la manga no resolvió. */
+  as_of: string | null;
+  data_as_of: string | null;
+  warnings: string[];
 }
 
 /**

@@ -169,7 +169,14 @@ function CompositeRebalanceNotice({ name }: { name: string }) {
  * `resolved: false` es lo importante de esta tabla — significa que la manga no
  * pudo resolverse (universo vacío, cobertura baja, feed caído) y que el plan
  * MANTUVO su último target en lugar de liquidar su parte. Sin este riel, ese
- * caso sería invisible en el diff.
+ * caso sería invisible en el diff. Cuando pasa, la cobertura y las fechas de
+ * la manga vienen `null` (describen una resolución que no ocurrió) y la fila
+ * degrada a «—»: el peso objetivo que se muestra es el del target GUARDADO.
+ *
+ * La columna «Versión» es la versión con la que el plan resolvió la manga —
+ * la pineada. Que exista una más nueva NO se sabe acá: el preview no trae
+ * `latest_version`/`outdated`. Ese aviso (y el botón para adoptarla) vive en
+ * la pestaña Mangas del portafolio, que lee `GET /sleeves` (#203/#205).
  */
 function CompositeSleeveRail({ sleeves }: { sleeves: RebalanceSleeveResolved[] }) {
   const unresolved = sleeves.filter((s) => !s.resolved).length;
@@ -202,15 +209,7 @@ function CompositeSleeveRail({ sleeves }: { sleeves: RebalanceSleeveResolved[] }
                   )}
                 </td>
                 <td className="px-3 py-2 text-gray-700 whitespace-nowrap">
-                  v{s.pinned_version}
-                  {s.outdated && (
-                    <span
-                      className="ml-1.5 inline-block px-1.5 py-0.5 rounded text-xs bg-amber-100 text-amber-800"
-                      title={`La estrategia ya va por la v${s.latest_version}`}
-                    >
-                      hay v{s.latest_version}
-                    </span>
-                  )}
+                  v{s.version}
                 </td>
                 <td className="px-3 py-2 text-right text-gray-700">
                   {(s.allocation * 100).toFixed(2)}%

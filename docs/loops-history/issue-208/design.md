@@ -113,3 +113,33 @@ Implementado en el FE, rama `feat/fe-208` (base `feat/composite-fe` 7bc855a).
 **Pendiente**: revisión visual del dueño (pestaña «Mangas», editor de
 asignaciones, preview compuesto con el riel de mangas e historial v3) y el
 merge/deploy a Vercel, con #203/#204/#205 mergeados en el backend.
+
+---
+
+## Reconciliación con #204
+
+Con #204 ya mergeado, el contrato real del preview compuesto resultó ser más
+angosto que el que había asumido la decisión 1 de arriba: `sleeves` **no** es
+«el shape de #203 más `resolved`». `RebalanceSleeveItem`
+(`app/schemas/portfolio.py`) trae `strategy_id`, `strategy_version_id`, `name`,
+`version`, `allocation`, `resolved`, `holdings_count`, `target_weight_pct`,
+`coverage_pct`, `eligible_count`, `as_of`, `data_as_of` y `warnings`, y nada
+más: no hay `pinned_version`, ni `latest_version`/`outdated`, ni
+`current_weight_pct`. Tiene sentido — el preview describe la **resolución de
+hoy**, no el libro vivo, y con el plan sin aplicar no hay atribución que
+mostrar. En consecuencia se rehízo `RebalanceSleeveResolved` como un tipo
+propio, espejo campo a campo del modelo pydantic (ya no extiende
+`SleeveBreakdownItem`), y el riel del preview pasó a mostrar «Versión» =
+`v{version}` — la pineada, que es con la que corrió la manga; antes leía
+`s.pinned_version` y habría pintado literalmente `vundefined`. También se quitó
+del riel la insignia «hay vN»: el desfase de versión no viaja en el preview, y
+ese aviso (con su botón para adoptarla) ya vive donde corresponde, en la
+pestaña **Mangas**, que lee `GET /sleeves`. Con `resolved: false` los cuatro
+campos de la resolución fresca vienen `null` y la fila degrada a «—» sin
+cambios, porque `fmtCoverage`/`fmtPct` ya toleraban nulos; el peso objetivo que
+se muestra en esa fila es el del target **guardado**. El historial
+(`RebalanceDetailModal` → `SpecSleevesTable`) **no necesitó tocarse**:
+`audit_entry()` del backend emite exactamente el subconjunto que
+`RebalanceSpecSleeve` declara opcional, y sin `name` la tabla ya degradaba a un
+id corto. Oráculos de la reconciliación: `npm run build` verde y `npx eslint`
+sobre los dos archivos tocados con 0 problemas.
