@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { streamMessage } from '../services/chatService';
 import type { ChatMessageRecord, ChatSessionDetail } from '../services/chatService';
 import type {
+  ChatChart,
   ChatFile,
   ChatMessage,
   ChatModelId,
@@ -78,6 +79,77 @@ function mapToolFiles(
   return merged.length > 0 ? merged : undefined;
 }
 
+/** Normalize one X-axis category: finite numbers stay numeric, the rest is text. */
+function toChartX(v: unknown): string | number {
+  return typeof v === 'number' && Number.isFinite(v) ? v : String(v ?? '');
+}
+
+/**
+ * Map one chart payload (snake_case, from the `chart` SSE event, the `done`
+ * event's `charts[]`, or a persisted `tool_calls[].chart`) into a ChatChart.
+ * Returns null for anything that isn't renderable: no id, no categories, or
+ * no usable series. Series values are padded/truncated to the length of `x`
+ * so the card never has to defend itself against a ragged payload.
+ */
+function toChatChart(raw: unknown, toolName?: string): ChatChart | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const c = raw as Record<string, unknown>;
+
+  const id = typeof c.id === 'string' ? c.id : '';
+  if (!id) return null;
+
+  if (!Array.isArray(c.x) || c.x.length === 0) return null;
+  const x = (c.x as unknown[]).map(toChartX);
+
+  if (!Array.isArray(c.series) || c.series.length === 0) return null;
+  const rawSeries = c.series as unknown[];
+  const series: ChatChart['series'] = [];
+  for (let i = 0; i < rawSeries.length; i += 1) {
+    const entry = rawSeries[i];
+    if (!entry || typeof entry !== 'object') continue;
+    const se = entry as Record<string, unknown>;
+    if (!Array.isArray(se.values)) continue;
+    const values = se.values as unknown[];
+    series.push({
+      name: typeof se.name === 'string' && se.name ? se.name : `Serie ${i + 1}`,
+      values: x.map((_, j) => {
+        const v = values[j];
+        return typeof v === 'number' && Number.isFinite(v) ? v : null;
+      }),
+    });
+  }
+  if (series.length === 0) return null;
+
+  return {
+    id,
+    type: c.type === 'bar' ? 'bar' : 'line',
+    title: typeof c.title === 'string' && c.title ? c.title : undefined,
+    x,
+    series,
+    xLabel: typeof c.x_label === 'string' && c.x_label ? c.x_label : undefined,
+    yLabel: typeof c.y_label === 'string' && c.y_label ? c.y_label : undefined,
+    tool: typeof c.tool === 'string' ? c.tool : (toolName ?? ''),
+  };
+}
+
+/**
+ * Rehydrate the charts of a reloaded session from its tool_calls audit — one
+ * entry per `show_chart` call, in call order. Nothing is deduped: the id is
+ * the model's label, not a key, and two calls that happen to reuse one are
+ * still two charts the user asked for.
+ */
+function mapToolCharts(
+  toolCalls: Array<Record<string, unknown>> | null,
+): ChatChart[] | undefined {
+  if (!toolCalls || toolCalls.length === 0) return undefined;
+  const charts: ChatChart[] = [];
+  for (const t of toolCalls) {
+    const c = toChatChart(t.chart, typeof t.name === 'string' ? t.name : undefined);
+    if (c) charts.push(c);
+  }
+  return charts.length > 0 ? charts : undefined;
+}
+
 /** Map a persisted tool_calls audit array into display chips. */
 function mapToolCalls(
   toolCalls: Array<Record<string, unknown>> | null,
@@ -99,6 +171,7 @@ function mapRecord(r: ChatMessageRecord): ChatMessage {
     time: timeLabel(r.created_at),
     tools: r.role === 'assistant' ? mapToolCalls(r.tool_calls) : undefined,
     files: r.role === 'assistant' ? mapToolFiles(r.tool_calls) : undefined,
+    charts: r.role === 'assistant' ? mapToolCharts(r.tool_calls) : undefined,
     streaming: false,
   };
 }
@@ -240,6 +313,21 @@ export function useChat(options?: UseChatOptions) {
                 break;
               }
 
+              case 'chart': {
+                // One event per show_chart call, in order — just append. The
+                // `done` event below resends the full list and replaces this
+                // one, so a repeated id never collapses two charts into one.
+                const c = toChatChart(data);
+                if (c) {
+                  patch(assistantId, (m) => ({
+                    ...m,
+                    thinking: false,
+                    charts: [...(m.charts ?? []), c],
+                  }));
+                }
+                break;
+              }
+
               case 'usage':
                 patch(assistantId, (m) => ({ ...m, usage: data }));
                 break;
@@ -250,11 +338,20 @@ export function useChat(options?: UseChatOptions) {
                       .map((x) => toChatFile(x))
                       .filter((x): x is ChatFile => x !== null)
                   : [];
+                const doneCharts = Array.isArray(data.charts)
+                  ? (data.charts as unknown[])
+                      .map((x) => toChatChart(x))
+                      .filter((x): x is ChatChart => x !== null)
+                  : [];
                 patch(assistantId, (m) => ({
                   ...m,
                   content: m.content || String(data.content ?? ''),
                   files:
                     doneFiles.length > 0 ? mergeFiles(m.files, doneFiles) : m.files,
+                  // `done.charts` is the turn's complete, ordered list — it
+                  // wins over what streamed (and covers a missed `chart`
+                  // event). Empty/absent means the turn drew nothing.
+                  charts: doneCharts.length > 0 ? doneCharts : m.charts,
                   streaming: false,
                   thinking: false,
                 }));

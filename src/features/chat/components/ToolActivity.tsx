@@ -17,6 +17,7 @@ const TOOL_LABELS: Record<string, string> = {
   create_spreadsheet: 'Generando hoja de cálculo',
   export_portfolios_xlsx: 'Exportando portafolios a Excel',
   export_screener_xlsx: 'Exportando screener a Excel',
+  show_chart: 'Mostrando gráfico',
 };
 
 export function ToolActivityRow({ tools }: { tools: ToolActivity[] }) {

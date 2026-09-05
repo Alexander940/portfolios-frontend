@@ -1,5 +1,6 @@
 import { AlertTriangle, Copy, Sparkles } from 'lucide-react';
 import type { ChatMessage } from '../types';
+import { ChatChartCard } from './ChatChartCard';
 import { FileDownloadCard } from './FileDownloadCard';
 import { MarkdownMessage } from './MarkdownMessage';
 import { ToolActivityRow } from './ToolActivity';
@@ -34,6 +35,16 @@ export function ChatMessageItem({ message }: { message: ChatMessage }) {
           <div className="file-cards">
             {message.files.map((f) => (
               <FileDownloadCard key={f.fileId} file={f} />
+            ))}
+          </div>
+        )}
+
+        {message.charts && message.charts.length > 0 && (
+          <div className="chart-cards">
+            {/* Keyed by position: the id is the model's label and two calls
+                in one turn may reuse it. */}
+            {message.charts.map((c, i) => (
+              <ChatChartCard key={`${c.id}-${i}`} chart={c} />
             ))}
           </div>
         )}
