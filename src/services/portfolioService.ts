@@ -1,5 +1,12 @@
 import { apiClient } from '@/lib/axios';
 import type { ScreenerRequest } from '@/features/screener/types';
+// The composite backtest (#206) reuses the builder's backtest payloads verbatim
+// (`BacktestMetricsOut` / the equity rows), so its types are imported instead of
+// re-declared — a drift between the two would be invisible otherwise.
+import type {
+  BacktestMetrics,
+  EquityPoint,
+} from '@/features/strategy-builder/types';
 
 /**
  * Position-sizing methods. The `sector_*` family (#124/#125) first gives each
@@ -518,6 +525,10 @@ export interface ParsedCreationSpec {
   version: number;
   filters: Record<string, unknown>;
   ranking: Record<string, unknown> | null;
+  /** v3 (composite portfolio, épica #197): `"composite"`. Absent in v1/v2. */
+  kind: string | null;
+  /** v3 `rules` block (cadence, on, max_position_weight…). Null in v1/v2. */
+  rules: Record<string, unknown> | null;
 }
 
 /**
@@ -529,13 +540,22 @@ export interface ParsedCreationSpec {
  * - Versioned dict (v2 or any future version) → passed through as-is; extra
  *   keys (e.g. a future `weighting_method`) are ignored, and unknown future
  *   versions never throw — consumers decide what to do with them.
+ * - v3 (composite, #197) carries no screener filters at all: `kind` and `rules`
+ *   are surfaced so callers can tell a composite from a screener portfolio,
+ *   and `filters` stays `{}` rather than throwing.
  */
 export function parseCreationSpec(
   raw: Record<string, unknown> | null | undefined,
 ): ParsedCreationSpec | null {
   if (raw === null || raw === undefined) return null;
   if (!('version' in raw)) {
-    return { version: LEGACY_SPEC_VERSION, filters: raw, ranking: null };
+    return {
+      version: LEGACY_SPEC_VERSION,
+      filters: raw,
+      ranking: null,
+      kind: null,
+      rules: null,
+    };
   }
   const filters =
     raw.filters && typeof raw.filters === 'object' && !Array.isArray(raw.filters)
@@ -545,9 +565,31 @@ export function parseCreationSpec(
     raw.ranking && typeof raw.ranking === 'object' && !Array.isArray(raw.ranking)
       ? (raw.ranking as Record<string, unknown>)
       : null;
+  const rules =
+    raw.rules && typeof raw.rules === 'object' && !Array.isArray(raw.rules)
+      ? (raw.rules as Record<string, unknown>)
+      : null;
+  const kind = typeof raw.kind === 'string' ? raw.kind : null;
   const version =
     typeof raw.version === 'number' ? raw.version : Number(raw.version);
-  return { version, filters, ranking };
+  return { version, filters, ranking, kind, rules };
+}
+
+/** Spec version written for a composite portfolio (#197). */
+export const COMPOSITE_SPEC_VERSION = 3;
+
+/**
+ * Whether a portfolio was created from strategy sleeves (composite, #197).
+ * Reads the stored creation spec: `version === 3` OR `kind === "composite"` —
+ * either marker alone is enough, so a future v4 that keeps the `kind` still
+ * reads as composite.
+ */
+export function isCompositePortfolio(
+  portfolio: Pick<PortfolioResponse, 'screener_filters'> | null | undefined,
+): boolean {
+  const spec = parseCreationSpec(portfolio?.screener_filters);
+  if (!spec) return false;
+  return spec.version === COMPOSITE_SPEC_VERSION || spec.kind === 'composite';
 }
 
 /**
@@ -1153,4 +1195,101 @@ export async function createPortfolioFromStrategies(
     { signal },
   );
   return data;
+// Composite backtest (#206/#209) — mezcla de las curvas de los backtests hijos
+// =============================================================================
+
+/**
+ * A sleeve while its backtest is still queued/running (202 payload). The
+ * composite result cannot be computed until every child reaches `done`.
+ */
+export interface CompositeBacktestPendingChild {
+  strategy_id: string;
+  version: number;
+  job_id: string;
+  status: 'queued' | 'running' | 'done' | 'error';
+}
+
+/** 202: at least one child backtest is not `done` yet — the caller polls
+ *  `GET /backtests/{job_id}` for each pending child and re-POSTs afterwards. */
+export interface CompositeBacktestPending {
+  status: 'pending';
+  children: CompositeBacktestPendingChild[];
+}
+
+/** A sleeve in the 200 payload. NOTE: it carries metrics only — the child's
+ *  equity curve is NOT in this response; fetch it with `getBacktest(job_id)`. */
+export interface CompositeBacktestChild {
+  strategy_id: string;
+  name: string;
+  version: number;
+  job_id: string;
+  allocation: number;
+  window_start: string;
+  window_end: string;
+  metrics: BacktestMetrics;
+}
+
+/**
+ * Keys the backend documents in `approximations`. Typed as a union for the
+ * copy map, but the response field stays `string[]`: an unknown future key
+ * must render (as its raw key) instead of breaking the view.
+ */
+export type CompositeApproximationKey =
+  | 'no_overlap_netting'
+  | 'double_counted_costs_on_shared_names'
+  | 'fractional_shares'
+  | 'composite_cap_not_applied'
+  | 'no_remix_costs';
+
+/** 200: the blended curve + metrics, the sleeves, and what it approximates. */
+export interface CompositeBacktestDone {
+  status: 'done';
+  /** Always `composite_curve_approx` — this is NOT an engine backtest. */
+  fill_convention: string;
+  /** Common window = intersection of the children's windows. */
+  window_start: string;
+  window_end: string;
+  cadence: string;
+  on: string;
+  equity: EquityPoint[];
+  metrics: BacktestMetrics;
+  children: CompositeBacktestChild[];
+  approximations: string[];
+}
+
+export type CompositeBacktestResponse =
+  | CompositeBacktestPending
+  | CompositeBacktestDone;
+
+/**
+ * Run (or resume) the composite backtest of a portfolio created from strategy
+ * sleeves. Stateless and idempotent: it recomputes the blend from the children's
+ * cached backtests, enqueueing the ones that are missing.
+ *
+ * - **202** → `{ status: 'pending' }` with a job per sleeve. 202 is a success
+ *   status, so axios does NOT reject it; the discriminator is the payload's
+ *   `status` (with `res.status` as the fallback for a body that omits it).
+ * - **200** → `{ status: 'done' }` with the blended curve, metrics per sleeve
+ *   and the `approximations` block.
+ * - **422** (rejected) → a child backtest failed (the detail names the sleeve)
+ *   or the common window is shorter than 60 days.
+ * - **400** (rejected) → the portfolio is not composite. **404** → no link.
+ */
+export async function runCompositeBacktest(
+  portfolioId: string,
+  signal?: AbortSignal,
+): Promise<CompositeBacktestResponse> {
+  const res = await apiClient.post<CompositeBacktestResponse>(
+    `/portfolios/${portfolioId}/composite-backtest`,
+    undefined,
+    { signal },
+  );
+  const data = res.data;
+  if (data?.status === 'pending' || (res.status === 202 && !data?.status)) {
+    return {
+      status: 'pending',
+      children: (data as CompositeBacktestPending)?.children ?? [],
+    };
+  }
+  return data as CompositeBacktestDone;
 }
