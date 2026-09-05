@@ -11,3 +11,4 @@ export { PortfolioStatCards } from './PortfolioStatCards';
 export { RelevantEventsRail } from './RelevantEventsRail';
 export { RelevantEventsList } from './RelevantEventsList';
 export { ImportPortfolioFromExcelModal } from './ImportPortfolioFromExcelModal';
+export { CreateFromStrategiesModal } from './CreateFromStrategiesModal';

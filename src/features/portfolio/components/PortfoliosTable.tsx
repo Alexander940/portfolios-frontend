@@ -5,6 +5,7 @@ import {
   Briefcase,
   ChevronRight,
   FileSpreadsheet,
+  Layers,
   Loader2,
   Star,
   Trash2,
@@ -17,6 +18,8 @@ interface PortfoliosTableProps {
   portfolios: PortfolioResponse[];
   onDelete?: (portfolioId: string) => Promise<void>;
   onImportClick?: () => void;
+  /** Opens the «Create from Strategies» modal (composite portfolio, #207). */
+  onCreateFromStrategiesClick?: () => void;
 }
 
 const WEIGHTING_LABELS: Record<string, string> = {
@@ -55,6 +58,7 @@ export function PortfoliosTable({
   portfolios,
   onDelete,
   onImportClick,
+  onCreateFromStrategiesClick,
 }: PortfoliosTableProps) {
   const navigate = useNavigate();
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -133,7 +137,8 @@ export function PortfoliosTable({
             fontSize: 13,
           }}
         >
-          Create a portfolio from the Screener or import one from an Excel file.
+          Create a portfolio from the Screener, combine your strategies into one,
+          or import it from an Excel file.
         </p>
         <div
           style={{
@@ -150,6 +155,17 @@ export function PortfoliosTable({
           >
             Go to Screener
           </button>
+          {onCreateFromStrategiesClick && (
+            <button
+              type="button"
+              className="topbar-btn"
+              onClick={onCreateFromStrategiesClick}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+            >
+              <Layers size={14} />
+              Create from Strategies
+            </button>
+          )}
           {onImportClick && (
             <button
               type="button"
@@ -175,17 +191,31 @@ export function PortfoliosTable({
             {portfolios.length} {portfolios.length === 1 ? 'portfolio' : 'portfolios'}
           </div>
         </div>
-        {onImportClick && (
-          <button
-            type="button"
-            className="topbar-btn"
-            onClick={onImportClick}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
-          >
-            <FileSpreadsheet size={14} />
-            Import from Excel
-          </button>
-        )}
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {onCreateFromStrategiesClick && (
+            <button
+              type="button"
+              className="topbar-btn"
+              onClick={onCreateFromStrategiesClick}
+              title="Combine your strategies into one composite portfolio"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+            >
+              <Layers size={14} />
+              Create from Strategies
+            </button>
+          )}
+          {onImportClick && (
+            <button
+              type="button"
+              className="topbar-btn"
+              onClick={onImportClick}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+            >
+              <FileSpreadsheet size={14} />
+              Import from Excel
+            </button>
+          )}
+        </div>
       </div>
 
       <div style={{ overflow: 'auto', maxHeight: 'max(360px, calc(100vh - 280px))' }}>

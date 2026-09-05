@@ -971,3 +971,186 @@ export async function transferOwnership(
   );
   return data;
 }
+
+// =============================================================================
+// Composite portfolio — create from strategy sleeves (épica #197, issues #202/#207)
+// =============================================================================
+//
+// Mirror of the JSON contract fixed by the backend design doc of #202
+// (`docs/loops-history/issue-202/design.md`, section «Contrato»). Everything the
+// composite flow assumes about the backend lives in THIS block, so a drift in
+// the contract is reconciled here and nowhere else.
+//
+// UNITS — the contract mixes them on purpose, so read the doc comments:
+//   · `allocation`, `max_position_weight`, `min_position_weight`,
+//     `cash_buffer_pct` and `coverage_pct` are FRACTIONS (0.60 = 60 %).
+//   · `weight_pct`, `weight_realized_pct`, `target_weight_pct` and `cash_pct`
+//     are PERCENTAGES (10.0 = 10 %).
+
+/** Rebalance schedule of a composite. Same vocabulary as a strategy spec. */
+export type CompositeCadence =
+  | 'weekly'
+  | 'monthly'
+  | 'quarterly'
+  | 'semiannual'
+  | 'annual';
+
+/** Day of the period the composite rebalance fires on. */
+export type CompositeRebalanceOn = 'period_start' | 'period_end';
+
+/** What happens when two sleeves pick the same ticker. Only `sum` exists in v1. */
+export type CompositeOverlapPolicy = 'sum';
+
+/** One sleeve of the request: a strategy and the share of capital it gets. */
+export interface SleeveAllocation {
+  strategy_id: string;
+  /** Fraction in (0, 1]; the sleeves must add up to 1 ± 1e-6 (backend 422). */
+  allocation: number;
+}
+
+/**
+ * `CompositeRules` (backend `app/schemas/portfolio.py`). `extra="forbid"` on the
+ * backend model: never send a key that is not declared here.
+ */
+export interface CompositeRules {
+  cadence: CompositeCadence;
+  on: CompositeRebalanceOn;
+  /** Per-NAME cap, a fraction in (0, 1]. `null` = uncapped. */
+  max_position_weight: number | null;
+  /** Per-NAME floor, a fraction in (0, 1) EXCLUSIVE, below the cap. `null` = none. */
+  min_position_weight: number | null;
+  /** Capital deliberately left in cash, a fraction in (0, 1) EXCLUSIVE. `null` = none. */
+  cash_buffer_pct: number | null;
+  overlap: CompositeOverlapPolicy;
+}
+
+export interface PortfolioFromStrategiesCreate {
+  name: string;
+  description?: string | null;
+  /** Backend minimum: 1000. */
+  initial_cash: number;
+  /** 2–10 sleeves, unique `strategy_id`, Σ `allocation` = 1. */
+  sleeves: SleeveAllocation[];
+  rules: CompositeRules;
+}
+
+/** Per-sleeve outcome of resolving a strategy's target holdings. */
+export interface CompositeSleeveResult {
+  strategy_id: string;
+  /** Strategy name as stored server-side (the modal falls back to it). */
+  name: string;
+  /** Strategy version the sleeve was resolved against. */
+  version: number;
+  /** The requested share of capital, a FRACTION. */
+  allocation: number;
+  /** Universe coverage, a FRACTION (0.97 = 97 %). Below 0.5 the backend 422s. */
+  coverage_pct: number | null;
+  eligible_count: number | null;
+  as_of: string | null;
+  data_as_of: string | null;
+  holdings_count: number;
+  /** Share of the composite this sleeve actually claims, as a PERCENTAGE. */
+  target_weight_pct: number | null;
+  warnings: string[];
+}
+
+/** How much of a holding's weight came from one sleeve (a PERCENTAGE). */
+export interface CompositeHoldingSleeve {
+  strategy_id: string;
+  weight_pct: number;
+}
+
+export interface CompositeHolding {
+  symbol_id: string;
+  ticker: string;
+  name: string | null;
+  sector: string | null;
+  price: number | null;
+  /** Merged target weight after cap/floor, a PERCENTAGE. */
+  weight_pct: number;
+  shares: number;
+  est_value: number;
+  /** Weight after whole-share rounding, a PERCENTAGE. */
+  weight_realized_pct: number | null;
+  /** Which sleeves contributed, and how much. Length > 1 = overlap. */
+  sleeves: CompositeHoldingSleeve[];
+}
+
+/** A name selected by ≥ 2 sleeves. `sleeves` holds the `strategy_id`s. */
+export interface CompositeOverlapItem {
+  ticker: string;
+  sleeves: string[];
+}
+
+/**
+ * Why a name is reported apart. `capped` is INFORMATIVE — the name stays in the
+ * book with its weight already trimmed by `max_position_weight`; the other three
+ * mean the name is not bought.
+ */
+export type CompositeExcludedReason =
+  | 'no_price'
+  | 'too_small'
+  | 'capped'
+  | 'below_floor';
+
+export interface CompositeExcludedItem {
+  ticker: string;
+  reason: CompositeExcludedReason;
+}
+
+/**
+ * Response of BOTH endpoints. `portfolio` is present only on create — the
+ * preview writes nothing, so it comes back absent/null there.
+ */
+export interface PortfolioFromStrategiesResponse {
+  portfolio?: PortfolioResponse | null;
+  positions_count: number;
+  as_of: string | null;
+  /** Cash left over as a PERCENTAGE of the initial capital. */
+  cash_pct: number;
+  /** How sleeve weights were attributed, e.g. `proportional_to_target`. */
+  attribution: string;
+  sleeves: CompositeSleeveResult[];
+  holdings: CompositeHolding[];
+  overlap: CompositeOverlapItem[];
+  excluded: CompositeExcludedItem[];
+  warnings: string[];
+}
+
+/**
+ * Dry-run of the composite: resolves every sleeve, merges the weights under the
+ * rules and sizes whole shares — WITHOUT writing anything. Same numbers the
+ * create call returns (the backend is deterministic between the two), so the
+ * modal only paints what comes back; it never recomputes a weight.
+ *
+ * 422 when coverage is too low for a sleeve (the `detail` names it), when the
+ * allocations do not add up to 1, or when the rules are out of range; 404 when a
+ * `strategy_id` is not the caller's (not enumerable).
+ */
+export async function previewPortfolioFromStrategies(
+  payload: PortfolioFromStrategiesCreate,
+  signal?: AbortSignal,
+): Promise<PortfolioFromStrategiesResponse> {
+  const { data } = await apiClient.post<PortfolioFromStrategiesResponse>(
+    '/portfolios/from-strategies/preview',
+    payload,
+    { signal },
+  );
+  return data;
+}
+
+/**
+ * Create the composite portfolio: positions, ledger and snapshots, plus the
+ * sleeve rows that let it be rebalanced later. Same payload as the preview.
+ */
+export async function createPortfolioFromStrategies(
+  payload: PortfolioFromStrategiesCreate,
+  signal?: AbortSignal,
+): Promise<PortfolioFromStrategiesResponse> {
+  const { data } = await apiClient.post<PortfolioFromStrategiesResponse>(
+    '/portfolios/from-strategies',
+    payload,
+    { signal },
+  );
+  return data;
+}
