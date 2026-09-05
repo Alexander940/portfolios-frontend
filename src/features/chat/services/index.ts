@@ -3,6 +3,7 @@ export {
   listSessions,
   getSession,
   deleteSession,
+  downloadChatFile,
 } from './chatService';
 export type {
   SendMessageBody,

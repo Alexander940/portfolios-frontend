@@ -1,5 +1,6 @@
 import { AlertTriangle, Copy, Sparkles } from 'lucide-react';
 import type { ChatMessage } from '../types';
+import { FileDownloadCard } from './FileDownloadCard';
 import { MarkdownMessage } from './MarkdownMessage';
 import { ToolActivityRow } from './ToolActivity';
 import { Typing } from './Typing';
@@ -28,6 +29,14 @@ export function ChatMessageItem({ message }: { message: ChatMessage }) {
 
       <div className="msg-body">
         <ToolActivityRow tools={message.tools ?? []} />
+
+        {message.files && message.files.length > 0 && (
+          <div className="file-cards">
+            {message.files.map((f) => (
+              <FileDownloadCard key={f.fileId} file={f} />
+            ))}
+          </div>
+        )}
 
         {showTyping ? <Typing /> : null}
         {message.content ? <MarkdownMessage content={message.content} /> : null}
