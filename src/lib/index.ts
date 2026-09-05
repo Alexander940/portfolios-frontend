@@ -5,3 +5,4 @@ export {
   getErrorMessage,
 } from './apiErrors';
 export { fmtNumber, fmtMoney, fmtPct, toLocalDate, fmtDate } from './format';
+export { triggerDownload, extractFilename } from './download';

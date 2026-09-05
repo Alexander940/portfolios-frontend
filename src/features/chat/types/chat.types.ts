@@ -19,6 +19,28 @@ export interface ToolActivity {
   ticker?: string;
 }
 
+/**
+ * A file produced by the assistant during a turn (PDF / DOCX / XLSX).
+ * Backend fields are snake_case; they're mapped to camelCase at the SSE /
+ * history boundary in `useChat`.
+ */
+export interface ChatFile {
+  fileId: string;
+  filename: string;
+  /**
+   * Absolute API path, e.g. "/api/v1/chat/files/{file_id}" — it already
+   * includes the API prefix, so it must be resolved against the axios
+   * baseURL's own prefix before requesting (see `downloadChatFile`).
+   */
+  url: string;
+  mediaType: string;
+  sizeBytes: number;
+  /** Tool that generated it (create_document, export_screener_xlsx, ...). */
+  tool: string;
+  /** ISO timestamp; the backend keeps files for 7 days. */
+  expiresAt?: string;
+}
+
 export interface ChatUsage {
   input_tokens?: number;
   output_tokens?: number;
@@ -38,6 +60,8 @@ export interface ChatMessage {
   streaming?: boolean;
   error?: string;
   usage?: ChatUsage;
+  /** Downloadable files generated during the turn. */
+  files?: ChatFile[];
 }
 
 export type ChatStreamEventName =
@@ -45,6 +69,7 @@ export type ChatStreamEventName =
   | 'thinking'
   | 'token'
   | 'tool'
+  | 'file'
   | 'usage'
   | 'done'
   | 'error';

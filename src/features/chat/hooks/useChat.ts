@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { streamMessage } from '../services/chatService';
 import type { ChatMessageRecord, ChatSessionDetail } from '../services/chatService';
-import type { ChatMessage, ChatModelId, ToolActivity, ToolStatus } from '../types';
+import type {
+  ChatFile,
+  ChatMessage,
+  ChatModelId,
+  ToolActivity,
+  ToolStatus,
+} from '../types';
 
 /**
  * useChat — owns the active conversation and drives the streaming agentic
@@ -24,6 +30,54 @@ function timeLabel(iso: string): string {
     : d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
+/**
+ * Map one file payload (snake_case, from the `file` SSE event, the `done`
+ * event's `files[]`, or a persisted `tool_calls[].file`) into a ChatFile.
+ * Returns null for anything that isn't a usable file object.
+ */
+function toChatFile(raw: unknown, toolName?: string): ChatFile | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const f = raw as Record<string, unknown>;
+  const fileId = typeof f.file_id === 'string' ? f.file_id : '';
+  const url = typeof f.url === 'string' ? f.url : '';
+  if (!fileId || !url) return null;
+  return {
+    fileId,
+    filename: typeof f.filename === 'string' ? f.filename : 'archivo',
+    url,
+    mediaType: typeof f.media_type === 'string' ? f.media_type : '',
+    sizeBytes: typeof f.size_bytes === 'number' ? f.size_bytes : 0,
+    tool: typeof f.tool === 'string' ? f.tool : (toolName ?? ''),
+    expiresAt: typeof f.expires_at === 'string' ? f.expires_at : undefined,
+  };
+}
+
+/** Append files to a message, skipping ids that are already there. */
+function mergeFiles(
+  current: ChatFile[] | undefined,
+  incoming: ChatFile[],
+): ChatFile[] {
+  const merged = [...(current ?? [])];
+  for (const f of incoming) {
+    if (!merged.some((x) => x.fileId === f.fileId)) merged.push(f);
+  }
+  return merged;
+}
+
+/** Rehydrate the file cards of a reloaded session from its tool_calls audit. */
+function mapToolFiles(
+  toolCalls: Array<Record<string, unknown>> | null,
+): ChatFile[] | undefined {
+  if (!toolCalls || toolCalls.length === 0) return undefined;
+  const files: ChatFile[] = [];
+  for (const t of toolCalls) {
+    const f = toChatFile(t.file, typeof t.name === 'string' ? t.name : undefined);
+    if (f) files.push(f);
+  }
+  const merged = mergeFiles(undefined, files);
+  return merged.length > 0 ? merged : undefined;
+}
+
 /** Map a persisted tool_calls audit array into display chips. */
 function mapToolCalls(
   toolCalls: Array<Record<string, unknown>> | null,
@@ -44,6 +98,7 @@ function mapRecord(r: ChatMessageRecord): ChatMessage {
     content: r.content,
     time: timeLabel(r.created_at),
     tools: r.role === 'assistant' ? mapToolCalls(r.tool_calls) : undefined,
+    files: r.role === 'assistant' ? mapToolFiles(r.tool_calls) : undefined,
     streaming: false,
   };
 }
@@ -173,18 +228,38 @@ export function useChat(options?: UseChatOptions) {
                 break;
               }
 
+              case 'file': {
+                const f = toChatFile(data);
+                if (f) {
+                  patch(assistantId, (m) => ({
+                    ...m,
+                    thinking: false,
+                    files: mergeFiles(m.files, [f]),
+                  }));
+                }
+                break;
+              }
+
               case 'usage':
                 patch(assistantId, (m) => ({ ...m, usage: data }));
                 break;
 
-              case 'done':
+              case 'done': {
+                const doneFiles = Array.isArray(data.files)
+                  ? (data.files as unknown[])
+                      .map((x) => toChatFile(x))
+                      .filter((x): x is ChatFile => x !== null)
+                  : [];
                 patch(assistantId, (m) => ({
                   ...m,
                   content: m.content || String(data.content ?? ''),
+                  files:
+                    doneFiles.length > 0 ? mergeFiles(m.files, doneFiles) : m.files,
                   streaming: false,
                   thinking: false,
                 }));
                 break;
+              }
 
               case 'error':
                 patch(assistantId, (m) => ({

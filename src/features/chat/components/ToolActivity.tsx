@@ -13,6 +13,10 @@ const TOOL_LABELS: Record<string, string> = {
   get_price_history: 'Histórico de precios',
   list_my_portfolios: 'Tus carteras',
   get_portfolio: 'Tu cartera',
+  create_document: 'Generando documento',
+  create_spreadsheet: 'Generando hoja de cálculo',
+  export_portfolios_xlsx: 'Exportando portafolios a Excel',
+  export_screener_xlsx: 'Exportando screener a Excel',
 };
 
 export function ToolActivityRow({ tools }: { tools: ToolActivity[] }) {
