@@ -17,6 +17,7 @@ import { PortfolioOverviewTab } from './PortfolioOverviewTab';
 import { PortfolioEventsTab } from './PortfolioEventsTab';
 import { PortfolioRebalancesTab } from './PortfolioRebalancesTab';
 import { ImportPortfolioFromExcelModal } from './ImportPortfolioFromExcelModal';
+import { CreateFromStrategiesModal } from './CreateFromStrategiesModal';
 
 const DETAIL_TABS = ['overview', 'holdings', 'events', 'rebalances'] as const;
 type DetailTab = (typeof DETAIL_TABS)[number];
@@ -35,8 +36,9 @@ interface PortfolioProps {
   portfoliosLoading?: boolean;
   portfoliosError?: string | null;
   onDeletePortfolio?: (id: string) => Promise<void>;
+  /** A portfolio was created from this view (Excel import or strategy sleeves). */
   onImportCreated?: (p: PortfolioResponse) => void;
-  /** Import creates owned portfolios — hidden in the "shared with me" list. */
+  /** Creation flows produce OWNED portfolios — hidden in "shared with me". */
   showImport?: boolean;
 }
 
@@ -63,6 +65,7 @@ export function Portfolio({
   const [pageSize, setPageSize] = useState(25);
 
   const [importModalOpen, setImportModalOpen] = useState(false);
+  const [strategiesModalOpen, setStrategiesModalOpen] = useState(false);
 
   const [activeTab, setActiveTab] = useState<DetailTab>('overview');
 
@@ -182,13 +185,25 @@ export function Portfolio({
           portfolios={portfolios}
           onDelete={onDeletePortfolio}
           onImportClick={showImport ? () => setImportModalOpen(true) : undefined}
+          onCreateFromStrategiesClick={
+            showImport ? () => setStrategiesModalOpen(true) : undefined
+          }
         />
         {showImport && (
-          <ImportPortfolioFromExcelModal
-            isOpen={importModalOpen}
-            onClose={() => setImportModalOpen(false)}
-            onCreated={(p) => onImportCreated?.(p)}
-          />
+          <>
+            <ImportPortfolioFromExcelModal
+              isOpen={importModalOpen}
+              onClose={() => setImportModalOpen(false)}
+              onCreated={(p) => onImportCreated?.(p)}
+            />
+            {/* Composite portfolio from strategy sleeves (épica #197, #207).
+                It navigates to the new portfolio's page on success. */}
+            <CreateFromStrategiesModal
+              isOpen={strategiesModalOpen}
+              onClose={() => setStrategiesModalOpen(false)}
+              onCreated={(p) => onImportCreated?.(p)}
+            />
+          </>
         )}
       </>
     );
