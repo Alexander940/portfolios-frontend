@@ -498,6 +498,12 @@ export interface RebalancePreviewResponse {
   /** Sector-balanced plans (#125): target allocation per sector (pre
    * whole-share rounding, sums to ~100). Absent/null for plain methods. */
   sector_weights?: Record<string, number> | null;
+  /**
+   * Mangas resueltas del plan (#204). Presente SOLO en el preview de un
+   * portafolio compuesto; ausente/null en los planes v1/v2, que no tienen
+   * mangas. Ver `RebalanceSleeveResolved` en el bloque «Composite sleeves».
+   */
+  sleeves?: RebalanceSleeveResolved[] | null;
   skipped: RebalanceSkippedItem[];
   warnings: string[];
 }
@@ -694,6 +700,38 @@ export interface RebalanceSpecUsed {
   /** Audit key (#125): the per-sector target allocation a sector-balanced
    * rebalance actually used (sector → pct). Absent for plain methods. */
   sector_weights?: Record<string, number> | null;
+  /** v3 (compuesto, #204): `"composite"`. Ausente en v1/v2. */
+  kind?: string | null;
+  /** v3: las reglas de fusión con las que corrió el plan. */
+  rules?: Record<string, unknown> | null;
+  /** v3: las mangas con las que se armó el target (ver `RebalanceSpecSleeve`). */
+  sleeves?: RebalanceSpecSleeve[] | null;
+}
+
+/**
+ * Una manga dentro de `spec_used` de un rebalanceo compuesto (#204).
+ *
+ * NO es el shape de `SleeveBreakdownItem`: el historial guarda la AUDITORÍA de
+ * lo que se usó (qué versión, con qué asignación y si resolvió), no el
+ * desglose vivo — en particular puede no traer el nombre de la estrategia, que
+ * la vista resuelve o degrada a un id corto. Todo opcional a propósito: es un
+ * registro inmutable que puede predatar cualquier cambio de schema.
+ */
+export interface RebalanceSpecSleeve {
+  strategy_id?: string;
+  /** Presente solo si el backend lo denormaliza; si no, se muestra el id. */
+  name?: string | null;
+  strategy_version_id?: string | null;
+  /** Versión de la estrategia con la que se resolvió la manga. */
+  version?: number | null;
+  /** FRACCIÓN (0,60 = 60 %). */
+  allocation?: number | null;
+  as_of?: string | null;
+  data_as_of?: string | null;
+  /** FRACCIÓN. */
+  coverage_pct?: number | null;
+  /** `false` = se mantuvo su último target en vez de liquidar su parte. */
+  resolved?: boolean | null;
 }
 
 /**
@@ -1295,4 +1333,179 @@ export async function runCompositeBacktest(
     };
   }
   return data as CompositeBacktestDone;
+}
+
+// =============================================================================
+// Composite sleeves — desglose, re-pineo y asignaciones (#203/#205) y el
+// rebalanceo `use_saved` del compuesto (#204)
+// =============================================================================
+//
+// Espejo de los contratos fijados por el backend:
+//   · `GET  /portfolios/{id}/sleeves`                 → #203 (PortfolioSleevesResponse)
+//   · `PATCH /portfolios/{id}/sleeves/{strategy_id}`  → #205 (rebase_to_latest)
+//   · `PUT  /portfolios/{id}/sleeves`                 → #205 (lista COMPLETA, Σ = 1)
+//   · `POST /portfolios/{id}/rebalance[/preview]`     → #204 (use_saved, sin filtros)
+//
+// TODO lo que el FE asume de esos tres loops vive en ESTE bloque: si el
+// contrato cambia al mergearlos, se reconcilia acá y en ningún otro lado.
+//
+// UNIDADES (mismas del bloque de creación, #202/#207):
+//   · `allocation` y `coverage_pct` son FRACCIONES (0,60 = 60 %).
+//   · `target_weight_pct`, `current_weight_pct`, `cash_pct` y `weight_pct` de
+//     la exposición sectorial son PORCENTAJES (10.0 = 10 %).
+
+/** Una manga vista desde el libro existente (`SleeveBreakdownItem`, #203). */
+export interface SleeveBreakdownItem {
+  strategy_id: string;
+  name: string;
+  /** Versión pineada en la manga: con la que corre el compuesto hoy. */
+  pinned_version: number;
+  /** Última versión publicada de la estrategia. */
+  latest_version: number;
+  /** `latest_version > pinned_version` — nunca se adopta sola (D6). */
+  outdated: boolean;
+  /** Porción del capital que pidió la manga, FRACCIÓN. */
+  allocation: number;
+  /** Lo que la manga pidió en el último target guardado, PORCENTAJE. */
+  target_weight_pct: number;
+  /** Lo que la manga explica hoy del valor total, PORCENTAJE (atribución
+   *  `proportional_to_target`; la diferencia con el target es la deriva). */
+  current_weight_pct: number;
+  /** Posiciones ACTUALES que la manga reclama (no el tamaño de su target). */
+  holdings_count: number;
+  /** Cobertura del universo, FRACCIÓN. */
+  coverage_pct: number | null;
+  eligible_count: number | null;
+  /** Fecha del último target guardado de la manga (`YYYY-MM-DD`). */
+  target_as_of: string | null;
+  data_as_of: string | null;
+  warnings: string[];
+}
+
+/** Exposición sectorial agregada del compuesto, en % del valor total. */
+export interface SectorExposureItem {
+  sector: string;
+  weight_pct: number;
+}
+
+/**
+ * Respuesta de `GET /portfolios/{id}/sleeves` (#203).
+ *
+ * `attribution` viaja en la respuesta (y no solo en la documentación) porque
+ * `current_weight_pct` NO es un libro por manga: el compuesto tiene un solo
+ * ledger y cada posición se reparte entre las mangas que la eligieron, en
+ * proporción a su contribución al último target.
+ *
+ * `warnings` reporta lo que rompería la identidad
+ * `Σ current_weight_pct == 100 − cash_pct` (posiciones sin precio, o que
+ * ninguna manga reclama).
+ */
+export interface PortfolioSleevesResponse {
+  portfolio_id: string;
+  kind: string;
+  attribution: string;
+  rules: CompositeRules;
+  as_of: string;
+  last_rebalance_date: string | null;
+  total_value: number;
+  /** Efectivo como PORCENTAJE del valor total. */
+  cash_pct: number;
+  sleeves: SleeveBreakdownItem[];
+  sector_exposure: SectorExposureItem[];
+  /** Nombres elegidos por ≥ 2 mangas. */
+  overlap_count: number;
+  warnings: string[];
+}
+
+/**
+ * Desglose por manga del compuesto. Solo lectura — cualquier rol con acceso al
+ * portafolio lo ve. 400 si el portafolio no es compuesto; 404 sin vínculo.
+ */
+export async function getPortfolioSleeves(
+  portfolioId: string,
+  signal?: AbortSignal,
+): Promise<PortfolioSleevesResponse> {
+  const { data } = await apiClient.get<PortfolioSleevesResponse>(
+    `/portfolios/${portfolioId}/sleeves`,
+    { signal },
+  );
+  return data;
+}
+
+/**
+ * Adopta la ÚLTIMA versión de la estrategia en esa manga (rebase explícito,
+ * #205). Requiere `co_owner`; no toca el libro — el cambio se ve en el próximo
+ * preview de rebalanceo. Sobre una manga ya al día es un no-op idempotente.
+ * Responde con el mismo shape que `GET /sleeves`.
+ */
+export async function rebaseSleeve(
+  portfolioId: string,
+  strategyId: string,
+  signal?: AbortSignal,
+): Promise<PortfolioSleevesResponse> {
+  const { data } = await apiClient.patch<PortfolioSleevesResponse>(
+    `/portfolios/${portfolioId}/sleeves/${strategyId}`,
+    { rebase_to_latest: true },
+    { signal },
+  );
+  return data;
+}
+
+/**
+ * Reescribe las asignaciones de TODAS las mangas (#205). El body lleva la lista
+ * completa, con exactamente el mismo conjunto de `strategy_id` que ya tiene el
+ * portafolio (alta/baja de mangas no existe en v1 → 422) y Σ `allocation` = 1.
+ * Atómico: o cambian todas o ninguna. Requiere `co_owner`; no mueve el libro.
+ */
+export async function setSleeveAllocations(
+  portfolioId: string,
+  sleeves: SleeveAllocation[],
+  signal?: AbortSignal,
+): Promise<PortfolioSleevesResponse> {
+  const { data } = await apiClient.put<PortfolioSleevesResponse>(
+    `/portfolios/${portfolioId}/sleeves`,
+    { sleeves },
+    { signal },
+  );
+  return data;
+}
+
+/**
+ * Una manga tal como la resolvió el plan de rebalanceo (#204): el shape de
+ * #203 más `resolved`.
+ *
+ * `resolved: false` = la manga no pudo resolverse (universo vacío o cobertura
+ * baja) y el plan mantuvo su ÚLTIMO target en lugar de liquidar su parte —
+ * misma regla de seguridad que el tracker. Nunca significa "vendida".
+ */
+export interface RebalanceSleeveResolved extends SleeveBreakdownItem {
+  resolved: boolean;
+}
+
+/**
+ * Body del preview/confirm de un rebalanceo COMPUESTO (#204).
+ *
+ * Un compuesto no tiene filtros de screener que replicar: el plan sale de las
+ * versiones pineadas de sus mangas, así que el request es exactamente
+ * `{ use_saved: true }` — sin `filters`, sin `ranking`, sin `weighting_params`
+ * (el backend responde 422 si viajan con `use_saved`) y sin `weighting_method`
+ * ni `prioritize_held` (los ignora: el sizing es la fusión de las mangas y la
+ * histéresis viene del spec de cada estrategia).
+ *
+ * Vive acá, y no dentro del modal, para que el body del compuesto se pueda
+ * verificar sin montar React.
+ */
+export function buildCompositeRebalanceRequest(): RebalanceRequest {
+  return { use_saved: true };
+}
+
+/**
+ * Body del confirm de un rebalanceo compuesto: el request de arriba + la fecha
+ * que devolvió el preview. `update_saved_spec` va SIEMPRE en `false` — no hay
+ * spec inline que guardar y el backend lo rechaza con 400 si va en `true`.
+ */
+export function buildCompositeRebalanceApplyRequest(
+  asOf: string,
+): RebalanceApplyRequest {
+  return { ...buildCompositeRebalanceRequest(), as_of: asOf, update_saved_spec: false };
 }

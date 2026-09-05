@@ -11,8 +11,12 @@ import {
   Trash2,
   Users,
 } from 'lucide-react';
-import type { PortfolioResponse } from '@/services/portfolioService';
+import {
+  isCompositePortfolio,
+  type PortfolioResponse,
+} from '@/services/portfolioService';
 import { usePortfolioSelection } from '../store/selection';
+import { CompositeBadge } from './CompositeBadge';
 
 interface PortfoliosTableProps {
   portfolios: PortfolioResponse[];
@@ -290,6 +294,7 @@ export function PortfoliosTable({
                       }}
                     >
                       <span>{p.name}</span>
+                      {isCompositePortfolio(p) && <CompositeBadge size="sm" />}
                       <RoleTag portfolio={p} />
                     </div>
                     {p.description && (

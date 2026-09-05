@@ -20,10 +20,13 @@ import { PortfolioRebalancesTab } from './PortfolioRebalancesTab';
 import { ImportPortfolioFromExcelModal } from './ImportPortfolioFromExcelModal';
 import { CreateFromStrategiesModal } from './CreateFromStrategiesModal';
 import { CompositeBacktestView } from './CompositeBacktestView';
+import { SleevesTab } from './SleevesTab';
 
 const DETAIL_TABS = ['overview', 'holdings', 'events', 'rebalances'] as const;
-/** Composite portfolios (#197) get one extra tab — the blended backtest (#209). */
-const COMPOSITE_DETAIL_TABS = [...DETAIL_TABS, 'composite'] as const;
+/** Composite portfolios (#197) get two extra tabs — the sleeve breakdown
+ *  (#203/#208) and the blended backtest (#209). */
+const COMPOSITE_ONLY_TABS = ['sleeves', 'composite'] as const;
+const COMPOSITE_DETAIL_TABS = [...DETAIL_TABS, ...COMPOSITE_ONLY_TABS] as const;
 type DetailTab = (typeof COMPOSITE_DETAIL_TABS)[number];
 
 const TAB_LABELS: Record<DetailTab, string> = {
@@ -31,6 +34,7 @@ const TAB_LABELS: Record<DetailTab, string> = {
   holdings: 'Holdings',
   events: 'Events',
   rebalances: 'Rebalances',
+  sleeves: 'Mangas',
   composite: 'Backtest compuesto',
 };
 
@@ -222,13 +226,20 @@ export function Portfolio({
   }
 
   // ===== Detail view =====
-  // The composite tab only exists for portfolios created from strategy sleeves;
-  // if the selected portfolio changes to a non-composite one while that tab is
-  // active, fall back to Overview instead of rendering nothing.
+  // The composite tabs only exist for portfolios created from strategy sleeves;
+  // if the selected portfolio changes to a non-composite one while one of them
+  // is active, fall back to Overview instead of rendering nothing.
   const isComposite = isCompositePortfolio(portfolio);
   const tabs = isComposite ? COMPOSITE_DETAIL_TABS : DETAIL_TABS;
+  const isCompositeOnlyTab = (COMPOSITE_ONLY_TABS as readonly string[]).includes(
+    activeTab,
+  );
   const currentTab: DetailTab =
-    activeTab === 'composite' && !isComposite ? 'overview' : activeTab;
+    isCompositeOnlyTab && !isComposite ? 'overview' : activeTab;
+  // Cambiar la mezcla o re-pinear una versión necesita escritura (#205); un
+  // viewer ve el desglose igual, pero sin acciones.
+  const canEditSleeves =
+    portfolio?.is_owner === true || portfolio?.permission === 'co_owner';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -287,6 +298,11 @@ export function Portfolio({
       {/* US7 (#115): rebalance history — visible to every role, viewers included. */}
       {currentTab === 'rebalances' && (
         <PortfolioRebalancesTab portfolioId={portfolioId} />
+      )}
+
+      {/* #208: sleeve breakdown of the composite + the two mix actions (#205). */}
+      {currentTab === 'sleeves' && (
+        <SleevesTab portfolioId={portfolioId} canEdit={canEditSleeves} />
       )}
 
       {/* #209: composite backtest — sleeves overlaid + declared approximations. */}

@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Loader2, RefreshCw, Save, Shield } from 'lucide-react';
+import { Layers, Loader2, RefreshCw, Save, Shield } from 'lucide-react';
 import { Modal, Button, toast } from '@/components/ui';
 import { getErrorMessage, isApiError } from '@/lib/apiErrors';
 import { fmtDate, fmtMoney, fmtPct } from '@/lib/format';
 import {
   applyRebalance,
+  buildCompositeRebalanceApplyRequest,
+  buildCompositeRebalanceRequest,
+  isCompositePortfolio,
   listPortfolios,
   listSharedWithMe,
   parseCreationSpec,
@@ -17,8 +20,12 @@ import {
   type RebalancePreviewResponse,
   type RebalanceRequest,
   type RebalanceSkipReason,
+  type RebalanceSleeveResolved,
   type RebalanceWeighting,
 } from '@/services/portfolioService';
+// Import cruzado a propósito: la unidad de `coverage_pct` (fracción, no
+// porcentaje) es una sola regla y ya vive en el módulo de portafolios.
+import { fmtCoverage } from '@/features/portfolio/lib/sleeves';
 import { useScreenerStore } from '../stores';
 import { specMatchesSelection, toApiPercentFilters } from '../services';
 import { ADDITIONAL_FILTERS, FILTER_CATEGORIES } from '../constants';
@@ -124,6 +131,125 @@ const SKIP_REASON: Record<RebalanceSkipReason, string> = {
 const FIELD_CLS =
   'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f] focus:border-transparent disabled:bg-gray-100 disabled:text-gray-400';
 
+/**
+ * Lo que reemplaza a la sección de filtros/ranking/ponderación cuando el
+ * destino es un compuesto (#204): explica de dónde sale el plan y adónde ir
+ * para cambiar la mezcla, en vez de dejar controles que el backend ignoraría.
+ */
+function CompositeRebalanceNotice({ name }: { name: string }) {
+  return (
+    <div
+      className="flex items-start gap-2 p-3 rounded-lg bg-blue-50 text-blue-900 border border-blue-200 text-sm"
+      data-testid="rebalance-composite-notice"
+    >
+      <Layers size={16} className="shrink-0 mt-0.5" />
+      <div className="space-y-1">
+        <div className="font-medium">
+          &ldquo;{name}&rdquo; es un portafolio compuesto
+        </div>
+        <p className="text-xs text-blue-900/80">
+          El plan se recalcula resolviendo cada manga con la versión de la
+          estrategia que tiene pineada y fusionando los pesos con las reglas del
+          compuesto. No usa los filtros del screener, ni un corte por ranking, ni
+          un método de ponderación: nada de eso se elige acá.
+        </p>
+        <p className="text-xs text-blue-900/80">
+          Para cambiar las asignaciones o adoptar una versión más nueva de una
+          estrategia, usá la pestaña <strong>Mangas</strong> del portafolio.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Riel de mangas del preview compuesto (#204): con qué versión se resolvió
+ * cada una y cuánto pidió.
+ *
+ * `resolved: false` es lo importante de esta tabla — significa que la manga no
+ * pudo resolverse (universo vacío, cobertura baja, feed caído) y que el plan
+ * MANTUVO su último target en lugar de liquidar su parte. Sin este riel, ese
+ * caso sería invisible en el diff.
+ */
+function CompositeSleeveRail({ sleeves }: { sleeves: RebalanceSleeveResolved[] }) {
+  const unresolved = sleeves.filter((s) => !s.resolved).length;
+  return (
+    <div data-testid="rebalance-composite-sleeves">
+      <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">
+        Mangas usadas en este plan
+      </div>
+      <div className="overflow-auto border border-gray-200 rounded-lg">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50">
+            <tr className="text-left text-gray-500">
+              <th className="px-3 py-2 font-medium">Manga</th>
+              <th className="px-3 py-2 font-medium">Versión</th>
+              <th className="px-3 py-2 font-medium text-right">Asignación</th>
+              <th className="px-3 py-2 font-medium text-right">Peso objetivo</th>
+              <th className="px-3 py-2 font-medium text-right">Cobertura</th>
+              <th className="px-3 py-2 font-medium">Estado</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sleeves.map((s) => (
+              <tr key={s.strategy_id} className="border-t border-gray-100">
+                <td className="px-3 py-2 font-medium text-gray-900">
+                  {s.name}
+                  {s.warnings.length > 0 && (
+                    <div className="text-xs font-normal text-amber-700">
+                      {s.warnings.join(' · ')}
+                    </div>
+                  )}
+                </td>
+                <td className="px-3 py-2 text-gray-700 whitespace-nowrap">
+                  v{s.pinned_version}
+                  {s.outdated && (
+                    <span
+                      className="ml-1.5 inline-block px-1.5 py-0.5 rounded text-xs bg-amber-100 text-amber-800"
+                      title={`La estrategia ya va por la v${s.latest_version}`}
+                    >
+                      hay v{s.latest_version}
+                    </span>
+                  )}
+                </td>
+                <td className="px-3 py-2 text-right text-gray-700">
+                  {(s.allocation * 100).toFixed(2)}%
+                </td>
+                <td className="px-3 py-2 text-right text-gray-700">
+                  {fmtPct(s.target_weight_pct, 1)}
+                </td>
+                <td className="px-3 py-2 text-right text-gray-700">
+                  {fmtCoverage(s.coverage_pct)}
+                </td>
+                <td className="px-3 py-2">
+                  <span
+                    className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${
+                      s.resolved
+                        ? 'bg-green-100 text-green-700'
+                        : 'bg-amber-100 text-amber-800'
+                    }`}
+                  >
+                    {s.resolved ? 'Resuelta' : 'Último target'}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {unresolved > 0 && (
+        <p className="mt-1.5 text-xs text-amber-800">
+          {unresolved === 1
+            ? '1 manga no pudo resolverse'
+            : `${unresolved} mangas no pudieron resolverse`}{' '}
+          con los datos de hoy: el plan mantiene su último objetivo en vez de
+          vender su parte.
+        </p>
+      )}
+    </div>
+  );
+}
+
 export function RebalancePortfolioModal({
   isOpen,
   onClose,
@@ -165,6 +291,20 @@ export function RebalancePortfolioModal({
   const selectedTarget = useMemo(
     () => targets?.find((t) => t.portfolio.portfolio_id === selectedId) ?? null,
     [targets, selectedId],
+  );
+
+  /**
+   * Portafolio compuesto (#197): el modal cambia de modo entero.
+   *
+   * Un compuesto no se rebalancea con la selección del screener — su plan sale
+   * de las versiones pineadas de sus mangas — así que en este modo no hay
+   * filtros, ni ranking, ni método de ponderación, ni pregunta de
+   * `update_saved_spec`, y la cantidad de resultados del screener deja de
+   * condicionar el botón de preview.
+   */
+  const isCompositeTarget = useMemo(
+    () => isCompositePortfolio(selectedTarget?.portfolio),
+    [selectedTarget],
   );
 
   // Apply the redirect-flow prefills every time the modal opens (state is
@@ -255,6 +395,9 @@ export function RebalancePortfolioModal({
    * minus pagination — the backend collects every match regardless.
    */
   function buildRequest(): RebalanceRequest {
+    // Compuesto (#204): `{ use_saved: true }` y nada más — el body vive en el
+    // servicio para poder verificarlo sin montar el modal.
+    if (isCompositeTarget) return buildCompositeRebalanceRequest();
     const filters = { ...toApiPercentFilters(getApiRequest()) };
     delete filters.limit;
     delete filters.offset;
@@ -275,6 +418,9 @@ export function RebalancePortfolioModal({
 
   function validate(): string | null {
     if (!selectedId) return 'Pick the portfolio to rebalance.';
+    // En modo compuesto no hay ranking que validar: el corte lo hace el spec
+    // de cada manga.
+    if (isCompositeTarget) return null;
     if (rankingEnabled && parsedTopN() === null) {
       return 'Number of holdings must be a whole number of at least 1.';
     }
@@ -337,7 +483,9 @@ export function RebalancePortfolioModal({
    */
   function handleConfirmClick() {
     if (!preview) return;
-    if (selectionMatchesSavedSpec()) {
+    // Un compuesto nunca pasa por la pregunta de guardar el spec: no hay spec
+    // inline que guardar y el backend rechaza `update_saved_spec=true`.
+    if (isCompositeTarget || selectionMatchesSavedSpec()) {
       void doApply(false);
     } else {
       setError(null);
@@ -352,11 +500,16 @@ export function RebalancePortfolioModal({
     setConfirming(true);
     setApplyChoice(updateSavedSpec ? 'save' : 'skip');
     try {
-      const resp = await applyRebalance(selectedId, {
-        ...buildRequest(),
-        as_of: preview.as_of,
-        update_saved_spec: updateSavedSpec,
-      });
+      const resp = await applyRebalance(
+        selectedId,
+        isCompositeTarget
+          ? buildCompositeRebalanceApplyRequest(preview.as_of)
+          : {
+              ...buildRequest(),
+              as_of: preview.as_of,
+              update_saved_spec: updateSavedSpec,
+            },
+      );
       const name = selectedTarget?.portfolio.name ?? 'portfolio';
       toast(
         'success',
@@ -398,7 +551,9 @@ export function RebalancePortfolioModal({
       title="Rebalance Portfolio"
       description={
         step === 'setup'
-          ? 'Replace the holdings of an existing portfolio with the current screener selection.'
+          ? isCompositeTarget
+            ? 'Recalcula el portafolio compuesto desde las versiones pineadas de sus mangas.'
+            : 'Replace the holdings of an existing portfolio with the current screener selection.'
           : step === 'preview'
             ? 'Review the plan — nothing is executed until you confirm.'
             : 'One last thing before applying.'
@@ -473,175 +628,184 @@ export function RebalancePortfolioModal({
             )}
           </div>
 
-          {/* Optional ranking cut */}
-          <div className="p-3 rounded-lg border border-gray-200 space-y-3">
-            <label className="flex items-start gap-3 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={rankingEnabled}
-                onChange={(e) => setRankingEnabled(e.target.checked)}
-                className="mt-0.5 accent-[#1e3a5f]"
-              />
-              <div>
-                <div className="text-sm font-medium text-gray-900">
-                  Limit number of holdings
-                </div>
-                <div className="text-xs text-gray-500">
-                  Rank the matches and keep only the top N. Off = every match
-                  becomes a holding.
-                </div>
-              </div>
-            </label>
-
-            {rankingEnabled && (
-              <div className="grid grid-cols-3 gap-2">
-                <div>
-                  <label
-                    htmlFor="rebalance-top-n"
-                    className="block text-xs font-medium text-gray-700 mb-1"
-                  >
-                    Holdings
-                  </label>
+          {/* Un compuesto no elige nada acá: el plan sale de sus mangas. */}
+          {isCompositeTarget ? (
+            <CompositeRebalanceNotice
+              name={selectedTarget?.portfolio.name ?? 'Este portafolio'}
+            />
+          ) : (
+            <>
+              {/* Optional ranking cut */}
+              <div className="p-3 rounded-lg border border-gray-200 space-y-3">
+                <label className="flex items-start gap-3 cursor-pointer">
                   <input
-                    id="rebalance-top-n"
-                    type="number"
-                    min={1}
-                    step={1}
-                    value={topN}
-                    onChange={(e) => setTopN(e.target.value)}
-                    className={FIELD_CLS}
-                  />
-                </div>
-                <div>
-                  <label
-                    htmlFor="rebalance-sort-by"
-                    className="block text-xs font-medium text-gray-700 mb-1"
-                  >
-                    Rank by
-                  </label>
-                  <select
-                    id="rebalance-sort-by"
-                    value={sortBy}
-                    onChange={(e) => setSortBy(e.target.value)}
-                    className={FIELD_CLS}
-                  >
-                    {RANKING_SORT_GROUPS.map((g) => (
-                      <optgroup key={g.label} label={g.label}>
-                        {g.options.map((o) => (
-                          <option key={o.value} value={o.value}>
-                            {o.label}
-                          </option>
-                        ))}
-                      </optgroup>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label
-                    htmlFor="rebalance-sort-order"
-                    className="block text-xs font-medium text-gray-700 mb-1"
-                  >
-                    Order
-                  </label>
-                  <select
-                    id="rebalance-sort-order"
-                    value={sortOrder}
-                    onChange={(e) => setSortOrder(e.target.value as 'asc' | 'desc')}
-                    className={FIELD_CLS}
-                  >
-                    <option value="desc">Highest first</option>
-                    <option value="asc">Lowest first</option>
-                  </select>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Prioritize current holdings (#117/#118) */}
-          <div className="p-3 rounded-lg border border-gray-200">
-            <label className="flex items-start gap-3 cursor-pointer">
-              <input
-                type="checkbox"
-                data-testid="rebalance-prioritize-held"
-                checked={prioritizeHeld}
-                onChange={(e) => setPrioritizeHeld(e.target.checked)}
-                className="mt-0.5 accent-[#1e3a5f]"
-              />
-              <div>
-                <div className="flex items-center gap-1.5 text-sm font-medium text-gray-900">
-                  <Shield size={14} className="shrink-0 text-[#1e3a5f]" />
-                  Prioritize current holdings
-                </div>
-                <div className="text-xs text-gray-500">
-                  Holdings that still match the filters keep their spot no
-                  matter what; the ranking only decides which new names fill
-                  the remaining slots. Has no effect without a holdings limit.
-                </div>
-              </div>
-            </label>
-          </div>
-
-          {/* Weighting method */}
-          <div>
-            <div className="block text-sm font-medium text-gray-700 mb-2">
-              Weighting method
-            </div>
-            <div className="space-y-2">
-              {WEIGHTING_OPTIONS.map((opt) => (
-                <label
-                  key={opt.value}
-                  className={`
-                    flex items-start gap-3 p-2.5 rounded-lg border cursor-pointer transition-colors
-                    ${
-                      weighting === opt.value
-                        ? 'border-[#1e3a5f] bg-[#f0f4fa]'
-                        : 'border-gray-200 hover:border-gray-300'
-                    }
-                  `}
-                >
-                  <input
-                    type="radio"
-                    name="rebalance-weighting"
-                    value={opt.value}
-                    checked={weighting === opt.value}
-                    onChange={() => setWeighting(opt.value)}
-                    className="mt-1 accent-[#1e3a5f]"
+                    type="checkbox"
+                    checked={rankingEnabled}
+                    onChange={(e) => setRankingEnabled(e.target.checked)}
+                    className="mt-0.5 accent-[#1e3a5f]"
                   />
                   <div>
-                    <div className="text-sm font-medium text-gray-900">{opt.label}</div>
-                    <div className="text-xs text-gray-500">{opt.hint}</div>
+                    <div className="text-sm font-medium text-gray-900">
+                      Limit number of holdings
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      Rank the matches and keep only the top N. Off = every match
+                      becomes a holding.
+                    </div>
                   </div>
                 </label>
-              ))}
-            </div>
-          </div>
 
-          {/* Selection summary */}
-          <div
-            className={`
-              flex items-center gap-2 p-3 rounded-lg text-sm
-              ${
-                noResults && !resultsLoading
-                  ? 'bg-amber-50 text-amber-800 border border-amber-200'
-                  : 'bg-blue-50 text-blue-800 border border-blue-200'
-              }
-            `}
-          >
-            <RefreshCw size={16} />
-            {resultsLoading ? (
-              <span>Loading the stocks that match the current filters…</span>
-            ) : noResults ? (
-              <span>No stocks match the current filters.</span>
-            ) : (
-              <span>
-                <strong>{totalCount.toLocaleString()} stocks</strong> match the
-                current filters
-                {rankingEnabled && parsedTopN() !== null
-                  ? ` — the top ${parsedTopN()!.toLocaleString()} will become the new holdings.`
-                  : ' — all of them will become the new holdings.'}
-              </span>
-            )}
-          </div>
+                {rankingEnabled && (
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <label
+                        htmlFor="rebalance-top-n"
+                        className="block text-xs font-medium text-gray-700 mb-1"
+                      >
+                        Holdings
+                      </label>
+                      <input
+                        id="rebalance-top-n"
+                        type="number"
+                        min={1}
+                        step={1}
+                        value={topN}
+                        onChange={(e) => setTopN(e.target.value)}
+                        className={FIELD_CLS}
+                      />
+                    </div>
+                    <div>
+                      <label
+                        htmlFor="rebalance-sort-by"
+                        className="block text-xs font-medium text-gray-700 mb-1"
+                      >
+                        Rank by
+                      </label>
+                      <select
+                        id="rebalance-sort-by"
+                        value={sortBy}
+                        onChange={(e) => setSortBy(e.target.value)}
+                        className={FIELD_CLS}
+                      >
+                        {RANKING_SORT_GROUPS.map((g) => (
+                          <optgroup key={g.label} label={g.label}>
+                            {g.options.map((o) => (
+                              <option key={o.value} value={o.value}>
+                                {o.label}
+                              </option>
+                            ))}
+                          </optgroup>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label
+                        htmlFor="rebalance-sort-order"
+                        className="block text-xs font-medium text-gray-700 mb-1"
+                      >
+                        Order
+                      </label>
+                      <select
+                        id="rebalance-sort-order"
+                        value={sortOrder}
+                        onChange={(e) => setSortOrder(e.target.value as 'asc' | 'desc')}
+                        className={FIELD_CLS}
+                      >
+                        <option value="desc">Highest first</option>
+                        <option value="asc">Lowest first</option>
+                      </select>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Prioritize current holdings (#117/#118) */}
+              <div className="p-3 rounded-lg border border-gray-200">
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    data-testid="rebalance-prioritize-held"
+                    checked={prioritizeHeld}
+                    onChange={(e) => setPrioritizeHeld(e.target.checked)}
+                    className="mt-0.5 accent-[#1e3a5f]"
+                  />
+                  <div>
+                    <div className="flex items-center gap-1.5 text-sm font-medium text-gray-900">
+                      <Shield size={14} className="shrink-0 text-[#1e3a5f]" />
+                      Prioritize current holdings
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      Holdings that still match the filters keep their spot no
+                      matter what; the ranking only decides which new names fill
+                      the remaining slots. Has no effect without a holdings limit.
+                    </div>
+                  </div>
+                </label>
+              </div>
+
+              {/* Weighting method */}
+              <div>
+                <div className="block text-sm font-medium text-gray-700 mb-2">
+                  Weighting method
+                </div>
+                <div className="space-y-2">
+                  {WEIGHTING_OPTIONS.map((opt) => (
+                    <label
+                      key={opt.value}
+                      className={`
+                        flex items-start gap-3 p-2.5 rounded-lg border cursor-pointer transition-colors
+                        ${
+                          weighting === opt.value
+                            ? 'border-[#1e3a5f] bg-[#f0f4fa]'
+                            : 'border-gray-200 hover:border-gray-300'
+                        }
+                      `}
+                    >
+                      <input
+                        type="radio"
+                        name="rebalance-weighting"
+                        value={opt.value}
+                        checked={weighting === opt.value}
+                        onChange={() => setWeighting(opt.value)}
+                        className="mt-1 accent-[#1e3a5f]"
+                      />
+                      <div>
+                        <div className="text-sm font-medium text-gray-900">{opt.label}</div>
+                        <div className="text-xs text-gray-500">{opt.hint}</div>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Selection summary */}
+              <div
+                className={`
+                  flex items-center gap-2 p-3 rounded-lg text-sm
+                  ${
+                    noResults && !resultsLoading
+                      ? 'bg-amber-50 text-amber-800 border border-amber-200'
+                      : 'bg-blue-50 text-blue-800 border border-blue-200'
+                  }
+                `}
+              >
+                <RefreshCw size={16} />
+                {resultsLoading ? (
+                  <span>Loading the stocks that match the current filters…</span>
+                ) : noResults ? (
+                  <span>No stocks match the current filters.</span>
+                ) : (
+                  <span>
+                    <strong>{totalCount.toLocaleString()} stocks</strong> match the
+                    current filters
+                    {rankingEnabled && parsedTopN() !== null
+                      ? ` — the top ${parsedTopN()!.toLocaleString()} will become the new holdings.`
+                      : ' — all of them will become the new holdings.'}
+                  </span>
+                )}
+              </div>
+            </>
+          )}
 
           {error && (
             <div className="p-3 rounded-lg bg-red-50 text-red-800 border border-red-200 text-sm">
@@ -662,7 +826,12 @@ export function RebalancePortfolioModal({
               type="button"
               onClick={handleContinue}
               isLoading={previewing}
-              disabled={noResults || resultsLoading || !selectedId || previewing}
+              disabled={
+                // Un compuesto no depende de los resultados del screener.
+                (!isCompositeTarget && (noResults || resultsLoading)) ||
+                !selectedId ||
+                previewing
+              }
             >
               {previewing ? 'Computing preview…' : 'Preview Rebalance'}
             </Button>
@@ -737,6 +906,11 @@ export function RebalancePortfolioModal({
               </span>
             )}
           </div>
+
+          {/* Riel de mangas (#204): solo llega en planes compuestos. */}
+          {preview.sleeves && preview.sleeves.length > 0 && (
+            <CompositeSleeveRail sleeves={preview.sleeves} />
+          )}
 
           {/* Diff table */}
           <div className="max-h-72 overflow-auto border border-gray-200 rounded-lg">

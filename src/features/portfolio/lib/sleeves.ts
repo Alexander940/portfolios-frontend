@@ -56,6 +56,45 @@ export function isBalanced(pcts: (number | null)[]): boolean {
 }
 
 /**
+ * The one rule both allocation editors obey, as data instead of copy.
+ *
+ * The «Create from Strategies» modal (#207) and the «Cambiar asignaciones»
+ * editor of the composite's Sleeves tab (#208) validate the SAME thing — every
+ * sleeve has a positive allocation and the set adds up to 100 % — but they
+ * speak different languages to the user. So the rule returns a CODE and each
+ * caller renders its own message; there is exactly one place where the rule can
+ * drift from the backend's (`Σ = 1 ± 1e-6`, each allocation in (0, 1]).
+ *
+ * Checks run item by item (missing → non-positive → above 100) and only then
+ * the total, so the first thing the user is told is the first thing that is
+ * actually wrong.
+ */
+export type AllocationIssue =
+  | { code: 'missing' }
+  | { code: 'non_positive' }
+  | { code: 'above_100' }
+  /** `total` in percentage POINTS, for the message. */
+  | { code: 'unbalanced'; total: number };
+
+/** First problem with a set of allocation percentages, or `null` if valid. */
+export function checkAllocationPercents(
+  pcts: (number | null | undefined)[],
+): AllocationIssue | null {
+  for (const p of pcts) {
+    if (p === null || p === undefined || !Number.isFinite(p)) {
+      return { code: 'missing' };
+    }
+    if (p <= 0) return { code: 'non_positive' };
+    if (p > 100) return { code: 'above_100' };
+  }
+  const finite = pcts as number[];
+  if (!isBalanced(finite)) {
+    return { code: 'unbalanced', total: sumAllocations(finite) };
+  }
+  return null;
+}
+
+/**
  * Percentages → the fractions the backend wants.
  *
  * When the input is already balanced, the LAST fraction absorbs the float
@@ -71,6 +110,25 @@ export function toAllocationFractions(pcts: number[]): number[] {
   if (!isBalanced(pcts)) return out;
   const head = out.slice(0, -1).reduce((a, b) => a + b, 0);
   out[out.length - 1] = 1 - head;
+  return out;
+}
+
+/**
+ * Fractions → the percentages the UI edits. The inverse of
+ * `toAllocationFractions`, and it has to undo the same rounding problem: three
+ * equal sleeves come back from the backend as 0.333333…, which naively rounds
+ * to 33.33 × 3 = 99.99 and would open the editor already "unbalanced". So the
+ * values are rounded to two decimals and the LAST one absorbs the residue
+ * whenever the input adds up to 1 — the editor opens balanced, exactly the way
+ * the backend stored it.
+ */
+export function fractionsToPercents(fractions: number[]): number[] {
+  if (fractions.length === 0) return [];
+  const out = fractions.map((f) => Math.round(f * 10000) / 100);
+  const sumIn = fractions.reduce((a, b) => a + b, 0);
+  if (Math.abs(sumIn - 1) > 1e-6) return out;
+  const head = out.slice(0, -1).reduce((a, b) => a + b, 0);
+  out[out.length - 1] = Math.round((100 - head) * 100) / 100;
   return out;
 }
 
@@ -136,17 +194,12 @@ export function validateCompositeDraft(draft: CompositeDraft): string | null {
     return 'Each strategy can only be used once.';
   }
 
-  const pcts = strategyIds.map((id) => allocationsPct[id]);
-  for (const p of pcts) {
-    if (p === undefined || !Number.isFinite(p)) {
-      return 'Every strategy needs an allocation.';
-    }
-    if (p <= 0) return 'Every allocation must be above 0 %.';
-    if (p > 100) return 'No allocation can exceed 100 %.';
-  }
-  if (!isBalanced(pcts)) {
-    const total = sumAllocations(pcts);
-    return `The allocations add up to ${total.toFixed(2)} % — they must add up to 100 %.`;
+  const issue = checkAllocationPercents(strategyIds.map((id) => allocationsPct[id]));
+  if (issue) {
+    if (issue.code === 'missing') return 'Every strategy needs an allocation.';
+    if (issue.code === 'non_positive') return 'Every allocation must be above 0 %.';
+    if (issue.code === 'above_100') return 'No allocation can exceed 100 %.';
+    return `The allocations add up to ${issue.total.toFixed(2)} % — they must add up to 100 %.`;
   }
 
   if (!draft.name.trim()) return 'Portfolio name is required.';
@@ -168,6 +221,24 @@ export function validateCompositeDraft(draft: CompositeDraft): string | null {
 
   return null;
 }
+
+/**
+ * Etiquetas de las reglas del compuesto, en español. Viven acá porque las usan
+ * la pestaña «Mangas» y el detalle del historial (#208): una sola traducción
+ * para el mismo vocabulario del backend (`CompositeRules`).
+ */
+export const CADENCE_LABELS: Record<string, string> = {
+  weekly: 'Semanal',
+  monthly: 'Mensual',
+  quarterly: 'Trimestral',
+  semiannual: 'Semestral',
+  annual: 'Anual',
+};
+
+export const REBALANCE_ON_LABELS: Record<string, string> = {
+  period_start: 'al inicio del período',
+  period_end: 'al cierre del período',
+};
 
 /**
  * Coverage for display. The contract names it `coverage_pct` but ships a
