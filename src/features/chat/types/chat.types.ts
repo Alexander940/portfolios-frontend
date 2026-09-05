@@ -47,7 +47,7 @@ export interface ChatFile {
  * camelCase at the SSE / history boundary in `useChat`, like ChatFile.
  */
 export interface ChatChart {
-  /** Stable per-turn id — also the dedupe key inside a message. */
+  /** The model's label for the chart; not guaranteed unique within a turn. */
   id: string;
   type: 'line' | 'bar';
   title?: string;

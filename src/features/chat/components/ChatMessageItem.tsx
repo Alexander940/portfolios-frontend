@@ -41,8 +41,10 @@ export function ChatMessageItem({ message }: { message: ChatMessage }) {
 
         {message.charts && message.charts.length > 0 && (
           <div className="chart-cards">
-            {message.charts.map((c) => (
-              <ChatChartCard key={c.id} chart={c} />
+            {/* Keyed by position: the id is the model's label and two calls
+                in one turn may reuse it. */}
+            {message.charts.map((c, i) => (
+              <ChatChartCard key={`${c.id}-${i}`} chart={c} />
             ))}
           </div>
         )}

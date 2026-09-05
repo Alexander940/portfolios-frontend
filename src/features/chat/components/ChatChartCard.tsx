@@ -10,6 +10,7 @@ import {
   Tooltip,
   XAxis,
   YAxis,
+  type AxisDomainItem,
 } from 'recharts';
 import type { ChatChart } from '../types';
 
@@ -85,6 +86,18 @@ function fmtCategory(v: unknown): string {
   return s.length > 12 ? `${s.slice(0, 11)}…` : s;
 }
 
+/**
+ * A value whose two neighbours are both null draws no segment (`connectNulls`
+ * is off), so with `dot={false}` recharts renders it as literally nothing.
+ * Sparse series — a metric reported on different dates per ticker, or a single
+ * point — need their markers to be visible at all.
+ */
+function hasIsolatedPoint(values: (number | null)[]): boolean {
+  return values.some(
+    (v, i) => v != null && values[i - 1] == null && values[i + 1] == null,
+  );
+}
+
 export function ChatChartCard({ chart }: { chart: ChatChart }) {
   const series = useMemo(
     () => chart.series.slice(0, SERIES_COLORS.length),
@@ -116,11 +129,14 @@ export function ChatChartCard({ chart }: { chart: ChatChart }) {
   const margin = { top: 8, right: 16, bottom: chart.xLabel ? 22 : 4, left: 0 };
   const axisTick = { fontSize: 10, fill: 'var(--c-text-dim)' };
 
-  // Bars are read by length, so they keep the zero baseline unless the data
-  // actually goes negative. Lines only care about the shape → 'auto' both ends.
-  const hasNegative = series.some((s) => s.values.some((v) => v != null && v < 0));
-  const yDomain: [number | 'auto', 'auto'] =
-    chart.type === 'bar' && !hasNegative ? [0, 'auto'] : ['auto', 'auto'];
+  // Bars are read by length, so their axis must ALWAYS contain zero: recharts
+  // measures a bar from the edge of the domain when 0 falls outside it, so an
+  // all-negative series (say three tickers' YTD returns) would draw no bar at
+  // all for the smallest loss. Lines only care about the shape → 'auto'.
+  const yDomain: [AxisDomainItem, AxisDomainItem] =
+    chart.type === 'bar'
+      ? [(min: number) => Math.min(0, min), (max: number) => Math.max(0, max)]
+      : ['auto', 'auto'];
 
   const xAxis = (
     <XAxis
@@ -227,8 +243,8 @@ export function ChatChartCard({ chart }: { chart: ChatChart }) {
                   stroke={SERIES_COLORS[i]}
                   strokeWidth={2}
                   strokeDasharray={SERIES_DASH[i]}
-                  // A single point draws no segment, so show its marker.
-                  dot={rows.length === 1 ? { r: 3 } : false}
+                  // Points with no neighbour draw no segment — show their marker.
+                  dot={hasIsolatedPoint(s.values) ? { r: 3 } : false}
                   connectNulls={false}
                   isAnimationActive={false}
                 />

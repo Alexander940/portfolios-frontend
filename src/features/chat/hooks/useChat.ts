@@ -133,24 +133,11 @@ function toChatChart(raw: unknown, toolName?: string): ChatChart | null {
 }
 
 /**
- * Append charts to a message. Unlike files, a repeated id *replaces* the
- * earlier chart in place: the `done` event resends what already streamed, so
- * the same id must update the card instead of duplicating it.
+ * Rehydrate the charts of a reloaded session from its tool_calls audit — one
+ * entry per `show_chart` call, in call order. Nothing is deduped: the id is
+ * the model's label, not a key, and two calls that happen to reuse one are
+ * still two charts the user asked for.
  */
-function mergeCharts(
-  current: ChatChart[] | undefined,
-  incoming: ChatChart[],
-): ChatChart[] {
-  const merged = [...(current ?? [])];
-  for (const c of incoming) {
-    const i = merged.findIndex((x) => x.id === c.id);
-    if (i === -1) merged.push(c);
-    else merged[i] = c;
-  }
-  return merged;
-}
-
-/** Rehydrate the charts of a reloaded session from its tool_calls audit. */
 function mapToolCharts(
   toolCalls: Array<Record<string, unknown>> | null,
 ): ChatChart[] | undefined {
@@ -160,8 +147,7 @@ function mapToolCharts(
     const c = toChatChart(t.chart, typeof t.name === 'string' ? t.name : undefined);
     if (c) charts.push(c);
   }
-  const merged = mergeCharts(undefined, charts);
-  return merged.length > 0 ? merged : undefined;
+  return charts.length > 0 ? charts : undefined;
 }
 
 /** Map a persisted tool_calls audit array into display chips. */
@@ -328,12 +314,15 @@ export function useChat(options?: UseChatOptions) {
               }
 
               case 'chart': {
+                // One event per show_chart call, in order — just append. The
+                // `done` event below resends the full list and replaces this
+                // one, so a repeated id never collapses two charts into one.
                 const c = toChatChart(data);
                 if (c) {
                   patch(assistantId, (m) => ({
                     ...m,
                     thinking: false,
-                    charts: mergeCharts(m.charts, [c]),
+                    charts: [...(m.charts ?? []), c],
                   }));
                 }
                 break;
@@ -359,10 +348,10 @@ export function useChat(options?: UseChatOptions) {
                   content: m.content || String(data.content ?? ''),
                   files:
                     doneFiles.length > 0 ? mergeFiles(m.files, doneFiles) : m.files,
-                  charts:
-                    doneCharts.length > 0
-                      ? mergeCharts(m.charts, doneCharts)
-                      : m.charts,
+                  // `done.charts` is the turn's complete, ordered list — it
+                  // wins over what streamed (and covers a missed `chart`
+                  // event). Empty/absent means the turn drew nothing.
+                  charts: doneCharts.length > 0 ? doneCharts : m.charts,
                   streaming: false,
                   thinking: false,
                 }));
