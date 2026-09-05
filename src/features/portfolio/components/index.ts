@@ -6,6 +6,7 @@ export { PortfolioPerformanceChart } from './PortfolioPerformanceChart';
 export { PortfolioOverviewTab } from './PortfolioOverviewTab';
 export { PortfolioEventsTab } from './PortfolioEventsTab';
 export { PortfolioRebalancesTab } from './PortfolioRebalancesTab';
+export { CompositeBacktestView } from './CompositeBacktestView';
 export { RebalanceDetailModal } from './RebalanceDetailModal';
 export { PortfolioStatCards } from './PortfolioStatCards';
 export { RelevantEventsRail } from './RelevantEventsRail';
