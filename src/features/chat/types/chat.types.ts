@@ -41,6 +41,26 @@ export interface ChatFile {
   expiresAt?: string;
 }
 
+/**
+ * An interactive chart the assistant asked to render inline (show_chart).
+ * Backend fields are snake_case (x_label / y_label); they're mapped to
+ * camelCase at the SSE / history boundary in `useChat`, like ChatFile.
+ */
+export interface ChatChart {
+  /** Stable per-turn id — also the dedupe key inside a message. */
+  id: string;
+  type: 'line' | 'bar';
+  title?: string;
+  /** Categories / periods on the X axis (1..500 points). */
+  x: (string | number)[];
+  /** 1..8 series; each `values` has the same length as `x`, `null` = hueco. */
+  series: { name: string; values: (number | null)[] }[];
+  xLabel?: string;
+  yLabel?: string;
+  /** Tool that produced it (show_chart). */
+  tool: string;
+}
+
 export interface ChatUsage {
   input_tokens?: number;
   output_tokens?: number;
@@ -62,6 +82,8 @@ export interface ChatMessage {
   usage?: ChatUsage;
   /** Downloadable files generated during the turn. */
   files?: ChatFile[];
+  /** Interactive charts rendered inline during the turn. */
+  charts?: ChatChart[];
 }
 
 export type ChatStreamEventName =
@@ -70,6 +92,7 @@ export type ChatStreamEventName =
   | 'token'
   | 'tool'
   | 'file'
+  | 'chart'
   | 'usage'
   | 'done'
   | 'error';
