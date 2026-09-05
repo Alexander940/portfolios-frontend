@@ -1195,6 +1195,9 @@ export async function createPortfolioFromStrategies(
     { signal },
   );
   return data;
+}
+
+// =============================================================================
 // Composite backtest (#206/#209) — mezcla de las curvas de los backtests hijos
 // =============================================================================
 
