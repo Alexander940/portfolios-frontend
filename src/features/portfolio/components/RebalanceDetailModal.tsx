@@ -4,14 +4,21 @@ import { Modal, Button } from '@/components/ui';
 import { getErrorMessage } from '@/lib/apiErrors';
 import { fmtDate, fmtMoney, fmtNumber, fmtPct } from '@/lib/format';
 import {
+  COMPOSITE_SPEC_VERSION,
   getRebalanceDetail,
   type RebalanceDiffAction,
   type RebalanceHistoryDetail,
   type RebalanceHistoryItem,
   type RebalancePreStateHolding,
   type RebalanceSkipReason,
+  type RebalanceSpecSleeve,
   type RebalanceSpecUsed,
 } from '@/services/portfolioService';
+import {
+  CADENCE_LABELS,
+  REBALANCE_ON_LABELS,
+  fmtCoverage,
+} from '../lib/sleeves';
 
 interface RebalanceDetailModalProps {
   isOpen: boolean;
@@ -56,12 +63,50 @@ const WEIGHTING_LABELS: Record<string, string> = {
 const DASH = '—';
 
 /**
+ * ¿El rebalanceo corrió por la rama compuesta? (#204). Se acepta cualquiera de
+ * los dos marcadores, igual que `isCompositePortfolio`: un futuro v4 que
+ * conserve el `kind` sigue leyéndose como compuesto.
+ */
+function isCompositeSpec(spec: RebalanceSpecUsed | null): boolean {
+  if (!spec) return false;
+  return spec.version === COMPOSITE_SPEC_VERSION || spec.kind === 'composite';
+}
+
+/** Lee una clave de `rules` (untyped: es un registro inmutable) como string. */
+function ruleStr(
+  rules: Record<string, unknown> | null | undefined,
+  key: string,
+): string | null {
+  const v = rules?.[key];
+  return typeof v === 'string' && v ? v : null;
+}
+
+/**
+ * Una línea para un rebalanceo compuesto: cuántas mangas y con qué cadencia se
+ * fusionaron. NO menciona ponderación — un compuesto se guarda como `manual` y
+ * decir «Weighting: manual» sería ruido, no auditoría.
+ */
+function compositeSummary(spec: RebalanceSpecUsed): string {
+  const parts: string[] = ['Portafolio compuesto'];
+  const n = spec.sleeves?.length ?? 0;
+  if (n > 0) parts.push(`${n} ${n === 1 ? 'manga' : 'mangas'}`);
+  const cadence = ruleStr(spec.rules, 'cadence');
+  const on = ruleStr(spec.rules, 'on');
+  if (cadence) {
+    const label = CADENCE_LABELS[cadence] ?? cadence;
+    parts.push(on ? `${label}, ${REBALANCE_ON_LABELS[on] ?? on}` : label);
+  }
+  return parts.join(' · ');
+}
+
+/**
  * Human-readable one-liner for the stored selection spec, e.g.
  * "Weighting: Equal Weight · Top 20 by rating desc". Null when the spec
  * carries neither weighting nor ranking (nothing worth showing).
  */
 function specSummary(spec: RebalanceSpecUsed | null): string | null {
   if (!spec) return null;
+  if (isCompositeSpec(spec)) return compositeSummary(spec);
   const parts: string[] = [];
   if (typeof spec.weighting_method === 'string' && spec.weighting_method) {
     parts.push(
@@ -165,6 +210,10 @@ export function RebalanceDetailModal({
 
   const summary = detail?.diff_summary ?? item.diff_summary;
   const spec = detail ? specSummary(detail.spec_used) : null;
+  // Compuesto (#204): el historial muestra las mangas usadas en vez de filtros.
+  const specSleeves = isCompositeSpec(detail?.spec_used ?? null)
+    ? (detail?.spec_used?.sleeves ?? [])
+    : [];
 
   return (
     <Modal
@@ -229,6 +278,10 @@ export function RebalanceDetailModal({
             {spec}
           </div>
         )}
+
+        {/* Mangas con las que se armó el target (#204): reemplazan a los
+            filtros de screener, que un compuesto no tiene. */}
+        {specSleeves.length > 0 && <SpecSleevesTable sleeves={specSleeves} />}
 
         {/* Sector allocation a sector-balanced plan targeted (audit #125) */}
         {detail?.spec_used?.sector_weights &&
@@ -436,5 +489,79 @@ export function RebalanceDetailModal({
         </div>
       </div>
     </Modal>
+  );
+}
+
+/**
+ * Las mangas que produjeron el target de un rebalanceo compuesto (#204).
+ *
+ * Sale de `spec_used.sleeves`, que es AUDITORÍA: guarda la versión y la
+ * asignación con las que se resolvió cada manga, no el desglose vivo. Puede
+ * venir sin el nombre de la estrategia (el spec guarda ids), así que la
+ * columna degrada a un id corto en vez de quedar vacía. `resolved: false`
+ * significa que ese día la manga no resolvió y el plan mantuvo su último
+ * objetivo — nunca que se vendió su parte.
+ */
+function SpecSleevesTable({ sleeves }: { sleeves: RebalanceSpecSleeve[] }) {
+  return (
+    <div data-testid="rebalance-spec-sleeves">
+      <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">
+        Mangas usadas
+      </div>
+      <div className="overflow-auto border border-gray-200 rounded-lg">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50">
+            <tr className="text-left text-gray-500">
+              <th className="px-3 py-2 font-medium">Manga</th>
+              <th className="px-3 py-2 font-medium">Versión</th>
+              <th className="px-3 py-2 font-medium text-right">Asignación</th>
+              <th className="px-3 py-2 font-medium text-right">Cobertura</th>
+              <th className="px-3 py-2 font-medium">Datos al</th>
+              <th className="px-3 py-2 font-medium">Estado</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sleeves.map((s, i) => {
+              const id = s.strategy_id ?? '';
+              return (
+                <tr key={id || i} className="border-t border-gray-100">
+                  <td
+                    className="px-3 py-2 font-medium text-gray-900"
+                    title={id || undefined}
+                  >
+                    {s.name ?? (id ? `${id.slice(0, 8)}…` : DASH)}
+                  </td>
+                  <td className="px-3 py-2 text-gray-700">
+                    {s.version != null ? `v${s.version}` : DASH}
+                  </td>
+                  <td className="px-3 py-2 text-right text-gray-700">
+                    {s.allocation != null && Number.isFinite(s.allocation)
+                      ? `${(s.allocation * 100).toFixed(2)}%`
+                      : DASH}
+                  </td>
+                  <td className="px-3 py-2 text-right text-gray-700">
+                    {fmtCoverage(s.coverage_pct)}
+                  </td>
+                  <td className="px-3 py-2 text-gray-700">
+                    {s.data_as_of ? fmtDate(s.data_as_of) : DASH}
+                  </td>
+                  <td className="px-3 py-2">
+                    <span
+                      className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${
+                        s.resolved === false
+                          ? 'bg-amber-100 text-amber-800'
+                          : 'bg-green-100 text-green-700'
+                      }`}
+                    >
+                      {s.resolved === false ? 'Último target' : 'Resuelta'}
+                    </span>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }

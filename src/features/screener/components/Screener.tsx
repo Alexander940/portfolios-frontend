@@ -4,6 +4,7 @@ import axios from 'axios';
 import { AlertTriangle, Bookmark, Download, Loader2, RefreshCw, X } from 'lucide-react';
 import { Button } from '@/components/ui';
 import {
+  isCompositePortfolio,
   parseCreationSpec,
   type PortfolioRankingSpec,
   type RebalanceRedirectState,
@@ -80,8 +81,17 @@ export function Screener() {
     redirectConsumedRef.current = true;
 
     const parsed = parseCreationSpec(payload.screenerFilters);
+    // Compuesto (#197): su spec v3 no lleva filtros de screener — el modal se
+    // abre en modo `use_saved` y el plan sale de las mangas, así que acá no hay
+    // nada que precargar (ni criterios, ni ranking, ni aviso de claves
+    // ignoradas). El screener queda limpio.
+    const composite = isCompositePortfolio({
+      screener_filters: payload.screenerFilters,
+    });
     const ignored: string[] = [];
-    if (parsed) {
+    if (composite) {
+      clearAllFilters();
+    } else if (parsed) {
       const { criteria, ignored: ignoredFilters } = specFiltersToCriteria(
         parsed.filters,
         useScreenerStore.getState().columnPreset,
@@ -96,7 +106,7 @@ export function Screener() {
 
     // Ranking prefill — validate the sort field against the current catalog.
     let ranking: PortfolioRankingSpec | null = null;
-    if (parsed?.ranking) {
+    if (!composite && parsed?.ranking) {
       const r = parsed.ranking;
       const topN = Math.floor(Number(r.top_n));
       if (Number.isFinite(topN) && topN >= 1) {
