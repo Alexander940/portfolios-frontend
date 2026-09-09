@@ -48,6 +48,8 @@ const SINGULAR: Record<RebalanceDiffAction, string> = {
 const SKIP_REASON: Record<RebalanceSkipReason, string> = {
   no_price: 'no current price data',
   too_small: 'allocation too small to buy one share',
+  // épica #175 — the name is the target of a pending acquisition.
+  pending_deal: 'pending acquisition (M&A)',
 };
 
 const WEIGHTING_LABELS: Record<string, string> = {

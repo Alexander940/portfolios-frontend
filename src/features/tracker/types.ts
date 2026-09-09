@@ -6,6 +6,8 @@
  * the enriched TrackerResponse ships; render '—' when missing.
  */
 
+import type { DealInfo } from '@/services/portfolioService';
+
 export type TrackerStatus = 'active' | 'paused' | 'error';
 
 /** Decimal-bearing field as the backend may serialize it. */
@@ -131,6 +133,8 @@ export interface PositionItem {
   current_rating: number | null;
   rating_changed: boolean;
   price_source?: PriceSource;
+  /** Pending M&A deal on this holding (épica #175); null/absent when none. */
+  deal?: DealInfo | null;
 }
 
 export interface PositionsResponse {

@@ -17,6 +17,7 @@ import type {
   PositionSortField,
   SortOrder,
 } from '@/services/portfolioService';
+import { DealBadge } from '@/components/ui';
 import { RatingBadge } from './RatingBadge';
 import { fmtNumber, fmtDate } from '../lib/format';
 
@@ -446,6 +447,8 @@ function PositionRow({
         <span title={pos.name} style={{ color: 'var(--c-text)' }}>
           {pos.name}
         </span>
+        {/* M&A (#185): renders nothing when the position has no deal. */}
+        <DealBadge deal={pos.deal} />
       </td>
       <td className="name-cell dim" style={cellStyle(2)}>
         {pos.sector ?? '—'}

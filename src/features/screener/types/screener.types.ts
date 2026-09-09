@@ -5,6 +5,8 @@
  * Based on API documentation in screener-api.md
  */
 
+import type { DealPaymentType, DealStatus } from '@/services/portfolioService';
+
 // =============================================================================
 // Filter Types
 // =============================================================================
@@ -247,6 +249,10 @@ export interface ScreenerRequest {
   maa?: RangeFilter;
   kama_er?: RangeFilter;
 
+  // M&A deals (épica #175). `true` drops every symbol under a pending
+  // acquisition from the results; `false`/absent keeps them.
+  exclude_pending_deals?: boolean;
+
   // Pagination & Sorting
   sort_by?: string;
   sort_order?: 'asc' | 'desc';
@@ -446,6 +452,16 @@ export interface Stock {
   tema_30: number | null;
   maa: number | null;
   kama_er: number | null;
+
+  // M&A deals (épica #175). Flat columns (the positions endpoint nests them in
+  // `deal` instead); every one is null when the symbol is not a deal target.
+  pending_deal: boolean | null;
+  deal_status: DealStatus | null;
+  deal_acquirer: string | null;
+  deal_payment_type: DealPaymentType | null;
+  deal_price: number | null;
+  deal_exchange_ratio: number | null;
+  deal_announced_date: string | null;
 }
 
 /**

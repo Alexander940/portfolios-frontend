@@ -10,8 +10,10 @@ import type {
 } from '../types';
 import {
   DEFAULT_COLUMN_PRESET,
+  DEFAULT_ON_BOOLEAN_FILTER_KEYS,
   DEFAULT_PAGE_SIZE,
   TABLE_COLUMN_PRESETS,
+  defaultAdditionalFilters,
   isMarketCapCategory,
   isValidRating,
   ratingsToApiFilter,
@@ -120,7 +122,9 @@ const initialState: ScreenerState = {
   countries: [],
   ratings: [],
   marketCapCategories: [],
-  additionalFilters: {},
+  // Not `{}`: filters that are ON by default (the M&A exclusion, #185) start
+  // applied and are only dropped when the user explicitly turns them off.
+  additionalFilters: defaultAdditionalFilters(),
   sortBy: 'ticker',
   sortOrder: 'asc',
   page: 1,
@@ -165,7 +169,9 @@ export const useScreenerStore = create<ScreenerState & ScreenerActions>((set, ge
       countries: [],
       ratings: [],
       marketCapCategories: [],
-      additionalFilters: {},
+      // "Clear all" returns to the DEFAULT screener, which still excludes
+      // pending deals — it does not turn a default-on filter off.
+      additionalFilters: defaultAdditionalFilters(),
       page: 1,
     }),
 
@@ -314,8 +320,11 @@ export const useScreenerStore = create<ScreenerState & ScreenerActions>((set, ge
       }
     }
 
-    // Parse additional filters (range filters format: key=min-max)
-    const additionalFilters: AdditionalFiltersState = {};
+    // Parse additional filters (range filters format: key=min-max).
+    // Seeded with the default-on filters so a link that only carries, say,
+    // `sector=Tech` still excludes pending deals; turning one off is encoded
+    // explicitly as `key=false` below.
+    const additionalFilters: AdditionalFiltersState = defaultAdditionalFilters();
     const rangeFilterKeys = [
       'pe_ratio', 'peg_ratio_trailing', 'peg_ratio_forward', 'peg_ratio_forward_cagr',
       'ps_ratio', 'pb_ratio', 'pcf_ratio', 'pd_ratio',
@@ -361,14 +370,20 @@ export const useScreenerStore = create<ScreenerState & ScreenerActions>((set, ge
       }
     }
 
-    // Boolean filters
+    // Boolean filters. HARDCODED list — a new boolean filter that is not added
+    // here silently disappears on refresh.
     const booleanFilterKeys = [
       'new_high', 'new_low', 'in_bull_cycle', 'bull_cycle_started',
+      ...DEFAULT_ON_BOOLEAN_FILTER_KEYS,
     ];
     for (const key of booleanFilterKeys) {
       const value = params.get(key);
       if (value === 'true') {
         additionalFilters[key] = true;
+      } else if (value === 'false' && DEFAULT_ON_BOOLEAN_FILTER_KEYS.includes(key)) {
+        // Only default-ON filters carry a meaningful `false`; for the rest the
+        // absence of the param IS the off state.
+        additionalFilters[key] = false;
       }
     }
 
@@ -416,7 +431,12 @@ export const useScreenerStore = create<ScreenerState & ScreenerActions>((set, ge
       countries: criteria.countries ?? [],
       ratings: criteria.ratings ?? [],
       marketCapCategories: criteria.marketCapCategories ?? [],
-      additionalFilters: criteria.additionalFilters ?? {},
+      // Presets saved before #185 have no `exclude_pending_deals` entry — they
+      // inherit the default (on); a preset that stored `false` keeps it.
+      additionalFilters: {
+        ...defaultAdditionalFilters(),
+        ...(criteria.additionalFilters ?? {}),
+      },
       sortBy: criteria.sortBy ?? 'ticker',
       sortOrder: criteria.sortOrder ?? 'asc',
       columnPreset: criteria.columnPreset ?? DEFAULT_COLUMN_PRESET,
@@ -426,8 +446,13 @@ export const useScreenerStore = create<ScreenerState & ScreenerActions>((set, ge
 }));
 
 /**
- * Get count of active additional filters
+ * Get count of active additional filters.
+ *
+ * Default-ON filters (the M&A exclusion, #185) are not counted: they are part
+ * of the baseline screener, not of what the user added.
  */
 export function getActiveFilterCount(state: ScreenerState): number {
-  return Object.keys(state.additionalFilters).length;
+  return Object.keys(state.additionalFilters).filter(
+    (k) => !DEFAULT_ON_BOOLEAN_FILTER_KEYS.includes(k),
+  ).length;
 }

@@ -909,6 +909,36 @@ export const PERFORMANCE_FILTERS: FilterDefinition[] = [
 ];
 
 /**
+ * Filter key of the M&A exclusion (épica #175).
+ *
+ * Unlike every other additional filter it is ON by default and has its own
+ * dedicated toggle in the filter bar, so it is deliberately kept OUT of
+ * `ADDITIONAL_FILTERS` (the "+ Add filter" menu) and out of the active-filter
+ * chips — exactly how the primary filters (market/sector/country/rating) are
+ * handled. `getFilterDefinition` still resolves it so saved screens and saved
+ * portfolio specs can label it.
+ */
+export const EXCLUDE_PENDING_DEALS_KEY = 'exclude_pending_deals';
+
+/**
+ * Additional filters that are ON unless the user turns them off. Seeded into
+ * the store's initial state, into `clearAllFilters`, and into every URL/preset
+ * hydration, so the default survives a refresh, a shared link and an old
+ * preset saved before the filter existed.
+ *
+ * Because "off" is not the absence of the key, these keys are also the ones
+ * whose `false` value gets written to the URL (see `useScreenerUrlSync`).
+ */
+export const DEFAULT_ON_BOOLEAN_FILTER_KEYS: readonly string[] = [
+  EXCLUDE_PENDING_DEALS_KEY,
+];
+
+/** Additional-filter state every fresh screener starts from. */
+export function defaultAdditionalFilters(): Record<string, boolean> {
+  return Object.fromEntries(DEFAULT_ON_BOOLEAN_FILTER_KEYS.map((k) => [k, true]));
+}
+
+/**
  * Other filter definitions
  */
 export const OTHER_FILTERS: FilterDefinition[] = [
@@ -953,6 +983,15 @@ export const OTHER_FILTERS: FilterDefinition[] = [
     apiKey: 'rating',
     description: 'Trend rating (-3 to +3, excluding 0)',
   },
+  {
+    key: EXCLUDE_PENDING_DEALS_KEY,
+    label: 'Excluir en adquisición',
+    category: 'others',
+    type: 'boolean',
+    apiKey: EXCLUDE_PENDING_DEALS_KEY,
+    description:
+      'Deja fuera los símbolos con una adquisición anunciada o en curso (M&A)',
+  },
 ];
 
 /**
@@ -966,8 +1005,14 @@ export const ADDITIONAL_FILTERS: FilterDefinition[] = [
   ...PERFORMANCE_FILTERS,
   ...INDICATORS_FILTERS,
   ...PRICES_FILTERS,
-  // Exclude primary filters from additional filters menu
-  ...OTHER_FILTERS.filter((f) => !['exchange', 'sector', 'country', 'rating'].includes(f.key)),
+  // Exclude primary filters — and the M&A exclusion, which has its own toggle —
+  // from the additional filters menu.
+  ...OTHER_FILTERS.filter(
+    (f) =>
+      !['exchange', 'sector', 'country', 'rating', EXCLUDE_PENDING_DEALS_KEY].includes(
+        f.key,
+      ),
+  ),
 ];
 
 /**
@@ -1070,6 +1115,30 @@ function formatDate(value: unknown): string {
 function formatBool(value: unknown): string {
   if (value === null || value === undefined) return '—';
   return value ? 'Yes' : 'No';
+}
+
+/** M&A deal lifecycle (épica #175) in Spanish; unknown values pass through. */
+function formatDealStatus(value: unknown): string {
+  if (value === null || value === undefined || value === '') return '—';
+  const labels: Record<string, string> = {
+    rumored: 'Rumor',
+    announced: 'Anunciada',
+    pending: 'En curso',
+    completed: 'Cerrada',
+    terminated: 'Cancelada',
+  };
+  return labels[String(value)] ?? String(value);
+}
+
+/** M&A payment type (cash / stock / mixed) in Spanish. */
+function formatDealPayment(value: unknown): string {
+  if (value === null || value === undefined || value === '') return '—';
+  const labels: Record<string, string> = {
+    cash: 'Efectivo',
+    stock: 'Acciones',
+    mixed: 'Mixto',
+  };
+  return labels[String(value)] ?? String(value);
 }
 
 /**
@@ -1293,6 +1362,17 @@ const PERFORMANCE_COLUMNS: TableColumn[] = [
   { key: 'liquidity_usd_m', label: 'Liquidity', sortable: true, align: 'right', width: '110px', format: formatLiquidity },
 ];
 
+/** M&A deal columns (épica #175) — same fields the xlsx export appends. */
+const DEAL_COLUMNS: TableColumn[] = [
+  { key: 'pending_deal', label: 'En adquisición', sortable: true, align: 'center', width: '150px', format: formatBool },
+  { key: 'deal_status', label: 'Estado deal', sortable: true, align: 'center', width: '120px', format: formatDealStatus },
+  { key: 'deal_acquirer', label: 'Comprador', sortable: true, align: 'left', width: '180px' },
+  { key: 'deal_payment_type', label: 'Tipo de pago', sortable: true, align: 'center', width: '120px', format: formatDealPayment },
+  { key: 'deal_price', label: 'Precio deal', sortable: true, align: 'right', width: '110px', format: (v) => formatNumber(v, 2) },
+  { key: 'deal_exchange_ratio', label: 'Ratio canje', sortable: true, align: 'right', width: '110px', format: (v) => formatNumber(v, 4) },
+  { key: 'deal_announced_date', label: 'Anuncio deal', sortable: true, align: 'center', width: '130px', format: formatDate },
+];
+
 const PRICES_COLUMNS: TableColumn[] = [
   { key: 'open', label: 'Open', sortable: true, align: 'right', width: '100px', format: (v) => formatNumber(v, 2) },
   { key: 'high', label: 'High', sortable: true, align: 'right', width: '100px', format: (v) => formatNumber(v, 2) },
@@ -1411,6 +1491,7 @@ export const TABLE_COLUMN_PRESETS: ColumnPreset[] = [
       ...FUNDAMENTALS_COLUMNS,
       ...INDICATORS_COLUMNS,
       ...PRICES_COLUMNS,
+      ...DEAL_COLUMNS,
     ],
   },
 ];

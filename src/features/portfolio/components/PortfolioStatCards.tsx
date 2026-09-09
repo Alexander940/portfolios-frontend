@@ -112,6 +112,11 @@ export function PortfolioStatCards() {
     ? `↑${summary.events_24h.upgrades} · ↓${summary.events_24h.downgrades}`
     : DASH;
 
+  // M&A exposure (#185). The card only exists when there IS exposure, so a
+  // user with no deals sees exactly the four cards that were here before.
+  const deals = ready ? summary.deals ?? null : null;
+  const showDeals = deals !== null && deals.positions > 0;
+
   return (
     <div className="stat-row">
       {/* Total AUM */}
@@ -166,6 +171,20 @@ export function PortfolioStatCards() {
           <span>Upgrades · Downgrades</span>
         </div>
       </div>
+
+      {/* En adquisición (M&A) — only when the user actually holds deal targets */}
+      {showDeals && (
+        <div className="stat-card" data-testid="deals-stat-card">
+          <div className="stat-label">En adquisición</div>
+          <div className="stat-value">{deals.positions}</div>
+          <div className="stat-delta">
+            <span>
+              {fmtCompactCurrency(deals.market_value)} ·{' '}
+              {fmtSignedPercent(deals.market_value_pct).replace('+', '')} del AUM
+            </span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

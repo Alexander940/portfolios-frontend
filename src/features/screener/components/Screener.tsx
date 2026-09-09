@@ -13,6 +13,7 @@ import {
 import { PrimaryFilters } from './PrimaryFilters';
 import { AdditionalFiltersMenu } from './AdditionalFiltersMenu';
 import { ActiveFilters } from './ActiveFilters';
+import { PendingDealsToggle } from './PendingDealsToggle';
 import { FilterModal } from './FilterModal';
 import { ResultsTable } from './ResultsTable';
 import { TablePagination } from './TablePagination';
@@ -235,7 +236,8 @@ export function Screener() {
             <div style={{ flex: 1, minWidth: 280 }}>
               <PrimaryFilters />
             </div>
-            <div style={{ flexShrink: 0 }}>
+            <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <PendingDealsToggle />
               <AdditionalFiltersMenu />
             </div>
           </div>

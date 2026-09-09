@@ -221,6 +221,39 @@ export interface PortfolioList {
   offset: number;
 }
 
+// =============================================================================
+// M&A deals (épica #175) — shared deal payload
+// =============================================================================
+
+/** Lifecycle of an announced M&A deal. `rumored` is surfaced but never excluded. */
+export type DealStatus = 'rumored' | 'announced' | 'pending' | 'completed' | 'terminated';
+
+/** How the acquirer pays: cash, acquirer stock, or a mix of both. */
+export type DealPaymentType = 'cash' | 'stock' | 'mixed';
+
+/**
+ * The pending-acquisition payload attached to a symbol (position, holding,
+ * screener row or event). Present only while the symbol is a deal target;
+ * `null`/absent means "no deal" and nothing is rendered.
+ *
+ * NOTE: `spread_pct` arrives as a PERCENT (e.g. 3.5 = 3.5%), not a fraction —
+ * do not multiply by 100.
+ */
+export interface DealInfo {
+  status: DealStatus;
+  acquirer: string | null;
+  payment_type: DealPaymentType | null;
+  /** Offer price per share, in USD (cash / mixed deals). */
+  deal_price: number | null;
+  /** Acquirer shares received per target share (stock / mixed deals). */
+  exchange_ratio: number | null;
+  announced_date: string | null;
+  expected_close_date: string | null;
+  closed_date: string | null;
+  /** (deal price − market price) / market price, ALREADY in percent. */
+  spread_pct: number | null;
+}
+
 export interface PortfolioPositionDetail {
   position_id: string;
   symbol_id: string;
@@ -239,6 +272,8 @@ export interface PortfolioPositionDetail {
   unrealized_pnl_pct: number | null;
   current_rating: number | null;
   rating_changed: boolean;
+  /** Pending M&A deal on this holding (épica #175); null/absent when there is none. */
+  deal?: DealInfo | null;
 }
 
 export interface PortfolioPositionDetailList {
@@ -422,7 +457,12 @@ export interface RebalanceDiffItem {
   amount: string;
   /** Target's screener rating; null when the symbol left the target. */
   rating: number | null;
+  /** Advisory markers on the row — `pending_deal` = the name is an M&A target. */
+  flags?: RebalanceDiffFlag[];
 }
+
+/** Advisory marker on a diff row (épica #175). */
+export type RebalanceDiffFlag = 'pending_deal';
 
 /** One executable order of the plan (sells listed before buys). */
 export interface RebalanceOrderItem {
@@ -434,7 +474,7 @@ export interface RebalanceOrderItem {
   total_amount: string;
 }
 
-export type RebalanceSkipReason = 'no_price' | 'too_small';
+export type RebalanceSkipReason = 'no_price' | 'too_small' | 'pending_deal';
 
 /** A target name dropped from the plan, with the reason. */
 export interface RebalanceSkippedItem {
@@ -842,10 +882,15 @@ export async function getPerformanceCurve(
 // =============================================================================
 
 export type EventPeriod = 'today' | 'week';
-export type RelevantEventType = 'all' | 'upgrades' | 'downgrades' | 'movers';
+export type RelevantEventType =
+  | 'all'
+  | 'upgrades'
+  | 'downgrades'
+  | 'movers'
+  | 'deals';
 
 export interface RelevantEvent {
-  event_type: 'upgrade' | 'downgrade' | 'mover';
+  event_type: 'upgrade' | 'downgrade' | 'mover' | 'deal';
   ticker: string;
   name: string;
   sector: string | null;
@@ -858,10 +903,13 @@ export interface RelevantEvent {
   rating_delta: number | null;
   /** Populated for movers; sign = direction (e.g. -4.8 = down 4.8%). */
   move_pct: number | null;
-  /** Rating change date for upgrades/downgrades; latest perf date for movers. */
+  /** Rating change date for upgrades/downgrades; latest perf date for movers;
+   *  the deal's announcement date for `deal` events. */
   as_of: string | null;
   /** How many of the user's portfolios hold this symbol. */
   held_in_portfolios: number;
+  /** Populated for `deal` events (épica #175). */
+  deal?: DealInfo | null;
 }
 
 export interface RelevantEventList {
@@ -908,6 +956,13 @@ export interface EventsCount {
   total: number;
 }
 
+/** Weight of the holdings currently under a pending acquisition (épica #175). */
+export interface DealsSummary {
+  positions: number;
+  market_value: number | string | null;
+  market_value_pct: number | string | null;
+}
+
 export interface PortfolioSummary {
   as_of: string | null;
   currency: string;
@@ -917,6 +972,8 @@ export interface PortfolioSummary {
   ytd_pct: number | null;
   ytd_anchor_date: string | null;
   events_24h: EventsCount;
+  /** Absent on backends older than épica #175. */
+  deals?: DealsSummary | null;
 }
 
 /**

@@ -3,7 +3,7 @@ import { useRelevantEvents } from '../hooks/useRelevantEvents';
 import { RelevantEventsList } from './RelevantEventsList';
 
 const PERIODS = ['Today', 'Week'] as const;
-const FILTERS = ['All', 'Upgrades', 'Downgrades', 'Movers'] as const;
+const FILTERS = ['All', 'Upgrades', 'Downgrades', 'Movers', 'Deals'] as const;
 
 type Period = (typeof PERIODS)[number];
 type Filter = (typeof FILTERS)[number];

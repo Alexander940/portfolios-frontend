@@ -7,6 +7,8 @@ import {
   TrendingUp,
   TrendingDown,
 } from 'lucide-react';
+import { DealBadge } from '@/components/ui';
+import type { DealInfo } from '@/services/portfolioService';
 import { useScreenerStore } from '../stores';
 import {
   formatCellValue,
@@ -343,6 +345,20 @@ function TableCell({
     );
   }
 
+  // En adquisición (#185): badge + tooltip en vez de "Yes/No".
+  if (column.key === 'pending_deal') {
+    const deal = stockDeal(stock);
+    return (
+      <td style={style}>
+        {deal ? (
+          <DealBadge deal={deal} />
+        ) : (
+          <span style={{ color: 'var(--c-text-dim)' }}>—</span>
+        )}
+      </td>
+    );
+  }
+
   // New High / Low: precio extremo de la racha del rating. El lado lo da el
   // signo del rating (≥ +1 → es un high de la racha alcista; ≤ −1 → un low).
   if (column.key === 'new_high_low') {
@@ -406,7 +422,8 @@ function TableCell({
     );
   }
 
-  // Name: truncate
+  // Name: truncate (+ the M&A badge, which renders nothing without a deal —
+  // relevant when the user turns the "Excluir en adquisición" toggle off).
   if (column.key === 'name') {
     const value = formatCellValue(stock, column);
     return (
@@ -414,6 +431,7 @@ function TableCell({
         <span title={String(value)} style={{ color: 'var(--c-text-soft)' }}>
           {value}
         </span>
+        <DealBadge deal={stockDeal(stock)} />
       </td>
     );
   }
@@ -483,4 +501,23 @@ function TableRowSkeleton({
       })}
     </tr>
   );
+}
+
+/** Rebuild the shared `DealInfo` shape from a row's flat deal columns (the
+ *  screener returns them flat; the positions endpoint nests them). Returns null
+ *  when the row carries no deal, so the badge renders nothing. Spread and close
+ *  dates are not part of the screener response. */
+function stockDeal(stock: Stock): DealInfo | null {
+  if (!stock.pending_deal && !stock.deal_status) return null;
+  return {
+    status: stock.deal_status ?? 'pending',
+    acquirer: stock.deal_acquirer,
+    payment_type: stock.deal_payment_type,
+    deal_price: stock.deal_price,
+    exchange_ratio: stock.deal_exchange_ratio,
+    announced_date: stock.deal_announced_date,
+    expected_close_date: null,
+    closed_date: null,
+    spread_pct: null,
+  };
 }

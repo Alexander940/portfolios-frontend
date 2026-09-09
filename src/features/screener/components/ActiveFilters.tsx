@@ -1,6 +1,6 @@
 import { X } from 'lucide-react';
 import { useScreenerStore } from '../stores';
-import { getFilterDefinition } from '../constants';
+import { EXCLUDE_PENDING_DEALS_KEY, getFilterDefinition } from '../constants';
 import type { DateRangeFilter, RangeFilter, FilterValue } from '../types';
 
 /**
@@ -15,7 +15,12 @@ export function ActiveFilters() {
   const clearAllFilters = useScreenerStore((state) => state.clearAllFilters);
   const openFilterModal = useScreenerStore((state) => state.openFilterModal);
 
-  const filterKeys = Object.keys(additionalFilters);
+  // Only filters the catalog can label get a chip — and never one that owns a
+  // dedicated control in the filter bar (the M&A exclusion, #185), whose chip
+  // would offer a "remove" that is not the same thing as turning it off.
+  const filterKeys = Object.keys(additionalFilters).filter(
+    (key) => key !== EXCLUDE_PENDING_DEALS_KEY && getFilterDefinition(key),
+  );
 
   if (filterKeys.length === 0) {
     return null;

@@ -49,7 +49,8 @@ export type FilterCategory =
   | 'Cycle & Trade'
   | 'Technical Indicators'
   | 'Price & Volume'
-  | 'Classification';
+  | 'Classification'
+  | 'Corporate Actions';
 
 /** Which builder section a filter may be added in. 'universe' = Additional rules
  *  (constrain the universe); 'selection' = Selection rules (post-universe phase). */
@@ -172,6 +173,10 @@ export const SCREENER_FILTERS: ScreenerFilterDef[] = [
   { key: 'bull_origin_active', label: 'Bull origin active', type: 'boolean', hint: 'Bull-origin latch is active.', category: 'Cycle & Trade' },
   { key: 'bear_origin_active', label: 'Bear origin active', type: 'boolean', hint: 'Bear-origin latch is active (can be true during a long).', category: 'Cycle & Trade' },
   { key: 'atr_spike', label: 'ATR spike', type: 'boolean', hint: 'Volatility-expansion (ATR spike) flagged.', category: 'Cycle & Trade' },
+  // M&A (épica #175). LIVE-ONLY for now: the PIT linter rejects it in a backtest
+  // until the backend has the deals history configured (MA_DEALS_HISTORY_FROM);
+  // its rejection message is shown to the user verbatim.
+  { key: 'exclude_pending_deals', label: 'Exclude pending acquisitions', type: 'boolean', boolTrueOnly: true, hint: 'Drop symbols with an announced/pending acquisition (M&A). Applies to LIVE tracking only for now — a backtest with this filter is rejected until the deals history is backfilled.', category: 'Corporate Actions' },
   // Date-range (alias ade). NULL out of cycle → implicitly excludes out-of-cycle names.
   { key: 'bull_cycle_origin_date', label: 'Bull cycle origin date', type: 'daterange', hint: 'Date the current bull cycle started (NULL out of cycle, so this excludes out-of-cycle names).', category: 'Cycle & Trade' },
   // Multiselect (alias sym; current-only classification — a documented PIT caveat).
@@ -193,6 +198,7 @@ export const FILTER_CATEGORIES: FilterCategory[] = [
   'Technical Indicators',
   'Price & Volume',
   'Classification',
+  'Corporate Actions',
 ];
 
 /** Human-readable bounds for a Selection-rules chip: "5 – 20 %", "≥ 5", "≤ 20",
