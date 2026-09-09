@@ -19,6 +19,48 @@ export interface ToolActivity {
   ticker?: string;
 }
 
+/**
+ * A file produced by the assistant during a turn (PDF / DOCX / XLSX).
+ * Backend fields are snake_case; they're mapped to camelCase at the SSE /
+ * history boundary in `useChat`.
+ */
+export interface ChatFile {
+  fileId: string;
+  filename: string;
+  /**
+   * Absolute API path, e.g. "/api/v1/chat/files/{file_id}" — it already
+   * includes the API prefix, so it must be resolved against the axios
+   * baseURL's own prefix before requesting (see `downloadChatFile`).
+   */
+  url: string;
+  mediaType: string;
+  sizeBytes: number;
+  /** Tool that generated it (create_document, export_screener_xlsx, ...). */
+  tool: string;
+  /** ISO timestamp; the backend keeps files for 7 days. */
+  expiresAt?: string;
+}
+
+/**
+ * An interactive chart the assistant asked to render inline (show_chart).
+ * Backend fields are snake_case (x_label / y_label); they're mapped to
+ * camelCase at the SSE / history boundary in `useChat`, like ChatFile.
+ */
+export interface ChatChart {
+  /** The model's label for the chart; not guaranteed unique within a turn. */
+  id: string;
+  type: 'line' | 'bar';
+  title?: string;
+  /** Categories / periods on the X axis (1..500 points). */
+  x: (string | number)[];
+  /** 1..8 series; each `values` has the same length as `x`, `null` = hueco. */
+  series: { name: string; values: (number | null)[] }[];
+  xLabel?: string;
+  yLabel?: string;
+  /** Tool that produced it (show_chart). */
+  tool: string;
+}
+
 export interface ChatUsage {
   input_tokens?: number;
   output_tokens?: number;
@@ -38,6 +80,10 @@ export interface ChatMessage {
   streaming?: boolean;
   error?: string;
   usage?: ChatUsage;
+  /** Downloadable files generated during the turn. */
+  files?: ChatFile[];
+  /** Interactive charts rendered inline during the turn. */
+  charts?: ChatChart[];
 }
 
 export type ChatStreamEventName =
@@ -45,6 +91,8 @@ export type ChatStreamEventName =
   | 'thinking'
   | 'token'
   | 'tool'
+  | 'file'
+  | 'chart'
   | 'usage'
   | 'done'
   | 'error';

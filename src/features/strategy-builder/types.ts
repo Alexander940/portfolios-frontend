@@ -19,7 +19,15 @@ export type FilterValueType = 'range' | 'boolean' | 'multiselect' | 'daterange';
 
 export type SortOrder = 'asc' | 'desc';
 export type WeightMethod = 'equal' | 'rating_weighted' | 'market_cap';
-export type Cadence = 'monthly' | 'weekly';
+/** Rebalance cadence (issue #157/#158). `weekly`/`monthly` are the original
+ *  pair; `quarterly`/`semiannual`/`annual` are the longer cadences added to cut
+ *  turnover/cost drag (epic #154). */
+export type Cadence = 'weekly' | 'monthly' | 'quarterly' | 'semiannual' | 'annual';
+/** Which trading day of the period a rebalance fires on. `period_start` (first
+ *  trading day) is the backend default — it reproduces the pre-#157 engine
+ *  behavior byte-identically, so it is the value omitted from a serialized spec
+ *  (see RebalanceSpec.on). */
+export type RebalanceOn = 'period_start' | 'period_end';
 export type Currency = 'USD';
 export type Benchmark = 'SPY';
 export type PerformanceMetric =
@@ -196,6 +204,44 @@ export interface FundamentalFilter {
   dateMax?: string; // daterange (ISO)
 }
 
+/** One alternative inside an OR group (issue #173): a small set of catalog
+ *  filters ANDed together — mirrors one backend `any_of[].options[]`
+ *  mini-screen. The builder UI only ever creates/edits single-field
+ *  alternatives (arrays of length 1), but a multi-field one — e.g. reloaded
+ *  from a spec some other client wrote — round-trips through the same shape. */
+export type FilterOption = FundamentalFilter[];
+
+/** A group of >= 2 alternative filter-sets, OR'd together: a symbol admits the
+ *  group when it matches ANY ONE option. Groups AND with everything else in
+ *  the rule list (loose rules + other groups) and with each other — mirrors
+ *  the backend's `any_of[]` semantics exactly (between groups = AND, within a
+ *  group = OR, within one option = AND). `id` is UI-only (a stable React key
+ *  and edit target) and is never sent to the backend — `cfgToSpec` builds the
+ *  wire `{options: UniverseSpec[]}` shape straight from `options` below. */
+export interface FilterGroup {
+  id: string;
+  options: FilterOption[];
+}
+
+/** One entry of an Additional/Selection rules list. A loose rule keeps the
+ *  exact pre-#173 `FundamentalFilter` shape (no wrapper, no discriminant) so
+ *  every config saved before this feature — local drafts and the 21 real
+ *  server-persisted strategies alike — is already a valid `RuleEntry[]` with
+ *  zero migration. A `FilterGroup` is distinguished structurally: it has an
+ *  `options` array (no `key`), which a `FundamentalFilter` never has. */
+export type RuleEntry = FundamentalFilter | FilterGroup;
+
+export function isFilterGroup(entry: RuleEntry): entry is FilterGroup {
+  return typeof entry === 'object' && entry !== null && 'options' in entry;
+}
+
+/** Wire shape of one `any_of` group (mirrors the backend's `OrGroup`: >= 2
+ *  mini-screens, enforced by the backend — the builder enforces it too by
+ *  construction, see `FundamentalFilterGroup`'s group/ungroup logic). */
+export interface OrGroupSpec {
+  options: UniverseSpec[];
+}
+
 export interface UniverseSpec {
   rating?: RangeFilter;
   trend_strength?: RangeFilter;
@@ -296,6 +342,12 @@ export interface UniverseSpec {
   exchange?: string[];
   // Date-range (ade): bull-cycle origin date, resolved as-of.
   bull_cycle_origin_date?: DateRange;
+  // ---- compound OR filters (issue #171/#173) ----
+  /** Optional OR groups, ANDed with every field above and with each other.
+   *  Omitted (never an empty array — the backend normalizes `[]` to `None`
+   *  and `cfgToSpec` never emits one either) so a spec without groups keeps
+   *  its legacy content_hash. */
+  any_of?: OrGroupSpec[];
 }
 
 /** A stock chosen for the Exclusion list (kept with ticker/name for display). */
@@ -387,6 +439,46 @@ export interface ResolveUniverseResponse {
 
 export interface RebalanceSpec {
   cadence: Cadence;
+  /** Day of the period the rebalance fires on. Optional — omitted when it
+   *  equals the backend default (`period_start`) so the content_hash of a
+   *  pre-#157 monthly/weekly spec stays byte-identical (same idiom as
+   *  `layer1.top_n` / `layer2.sector_caps`). */
+  on?: RebalanceOn;
+
+  // --- Reglas opcionales (épica #154). TODAS se omiten del spec cuando no se
+  // usan: el backend las popea de canonical_json con ese mismo criterio, así que
+  // emitirlas con null/0 cambiaría el content_hash de una estrategia existente.
+  // Los valores son los del BACKEND (fracciones, no porcentajes de UI).
+
+  // Permanencia en cartera
+  /** Un tenedor sobrevive mientras su rank ≤ top_n × este multiplicador (> 1). */
+  hold_rank_buffer?: number;
+  /** Los tenedores que siguen cumpliendo filtros entran sin pasar por el corte. */
+  prioritize_held?: boolean;
+  /** Días mínimos antes de poder vender. SOLO BACKTEST: necesita la fecha de
+   *  entrada por posición, que solo lleva el `_Book` del motor. */
+  min_holding_days?: number;
+  /** Tope de nombres nuevos por rebalanceo. SOLO BACKTEST (misma razón). */
+  max_entries_per_rebalance?: number;
+
+  // Ejecución
+  /** Techo de rotación por rebalanceo, fracción del valor del libro en (0, 1]. */
+  max_turnover_pct?: number;
+  /** Fracción del portafolio que se deja en caja, en (0, 1). */
+  cash_buffer_pct?: number;
+  /** Diferencia mínima para operar un nombre, fracción del total en (0, 1). */
+  min_trade_pct?: number;
+  /** Si ningún peso se desvió más que esta fracción, se salta el rebalanceo. */
+  drift_band_pct?: number;
+
+  // Salidas fuera de calendario
+  /** Caída desde el costo base que dispara la venta, fracción en (0, 1). */
+  stop_loss_pct?: number;
+  /** Trailing stop en múltiplos de ATR (> 0). */
+  trailing_stop_atr?: number;
+  /** Días de feed de precio muerto que fuerzan la salida de un tenedor.
+   *  Aplica al TRACKER en vivo; el backtest conserva los delistados a propósito. */
+  exit_on_stale_price_days?: number;
 }
 
 export interface CostsSpec {
@@ -513,6 +605,20 @@ export interface BacktestMetrics {
   oos_sharpe: number | null;
   low_sample_trades: boolean;
   low_sample_universe: boolean;
+  // ---- turnover / cost-drag metrics (issue #155/#156) — ALL optional: the 174
+  // results saved before #155 shipped don't have them and must keep rendering. ----
+  /** Annualized two-sided turnover as a percent (e.g. 976.3 = 976.3%; the
+   *  two-sided convention is (Σ sells + Σ buys) / (2 × avg equity) — 100% means
+   *  the whole book turned over once). */
+  turnover_pct_annual?: number;
+  /** Total commission + slippage paid over the whole window, in USD. */
+  total_costs?: number;
+  /** Annualized percent of return given up to trading costs (e.g. 2.5 = 2.5%/yr). */
+  cost_drag_pct_annual?: number;
+  /** Average number of calendar days a position was held, entry to exit. */
+  avg_holding_days?: number;
+  /** Number of position closes (mirrors n_trades' entries — a `>0 → 0` transition). */
+  n_exits?: number;
 }
 
 export interface EquityPoint {
@@ -554,6 +660,71 @@ export interface BacktestStatusResponse {
   result: BacktestResultOut | null;
 }
 
+// ---- selection trace / funnel (issue #174, Fase B) ----
+// `GET /backtests/{job_id}/selection-trace` — mirrors the section order the
+// engine actually runs in: Universe → Selection rules → Ranking → Weighting →
+// Execution. Fixed contract, see docs/loops-history/issue-174/design.md.
+
+export type SelectionStageKey =
+  | 'universe'
+  | 'selection_rules'
+  | 'ranking'
+  | 'weighting'
+  | 'execution';
+
+/** A short code for WHY a candidate didn't make it past a stage — always
+ *  translate this for display, never render it raw (see `reasonLabel`). */
+export type SelectionExitReason =
+  | 'top_n_cut'
+  | 'per_sector_full'
+  | 'below_floor'
+  | 'no_price'
+  | 'turnover_cap'
+  | 'min_trade'
+  | 'min_holding'
+  | 'max_entries'
+  // La etapa de ejecución solo nombra una causa concreta cuando es la única
+  // posible; si hay varias, el backend manda este código a propósito.
+  | 'execution_skip';
+
+export interface SelectionStage {
+  key: SelectionStageKey;
+  count: number;
+  dropped_from_prev: number;
+  /** false = the strategy has no rules in this section — the stage still shows
+   *  (greyed, "no rules") rather than disappearing; the count just carries over. */
+  applies: boolean;
+}
+
+export interface SelectionRow {
+  symbol_id: string;
+  ticker: string;
+  name: string;
+  sector: string | null;
+  /** The value of the `sort_by` ranking key for this candidate — null if it
+   *  never reached ranking (e.g. cut by the universe or selection rules). */
+  score: number | null;
+  /** Position in the `sort_by` ranking — null for the same reason as `score`. */
+  rank: number | null;
+  /** Stage key where this candidate exited the funnel; null = it made it into
+   *  the portfolio at the last rebalance. */
+  exit_stage: SelectionStageKey | null;
+  reason: SelectionExitReason | string | null;
+  weight_pct: number | null;
+}
+
+export interface SelectionTraceResponse {
+  as_of: string;
+  sort_by: string;
+  candidates_count: number;
+  total: number;
+  /** True if the backend's 5,000-row hard cap trimmed `rows` — must be surfaced
+   *  in the UI, never silently swallowed. */
+  truncated: boolean;
+  stages: SelectionStage[];
+  rows: SelectionRow[];
+}
+
 // ---- form config (UI-side) ----
 
 export interface BuilderConfig {
@@ -565,12 +736,14 @@ export interface BuilderConfig {
   excluded: ExcludedSymbol[];
   // "Additional rules" — fundamental/performance filters that CONSTRAIN the
   // investment universe (and therefore the Layer-1 sector weighting base). They
-  // map into spec.universe. Pre-existing strategies' filters load here.
-  additionalRules: FundamentalFilter[];
+  // map into spec.universe. Pre-existing strategies' filters load here. Each
+  // entry is a loose rule or an OR group of alternative rules (issue #173) —
+  // see `RuleEntry`.
+  additionalRules: RuleEntry[];
   // "Selection rules" — the SAME field catalog, but applied as a post-universe
   // phase: they narrow which names are ranked/picked WITHOUT shrinking the
   // universe or the weighting base. They map into spec.selection_filters.
-  selectionFilters: FundamentalFilter[];
+  selectionFilters: RuleEntry[];
   // universe (PIT-safe). rating / trend_strength / smart_momentum have no
   // dedicated knobs since issue #98 — they are ordinary catalog filters now.
   sector: string; // '' = all
@@ -605,8 +778,37 @@ export interface BuilderConfig {
   // Per-name min weight in PERCENT (5 = drop positions under 5%); '' = no floor.
   // Divided by 100 into spec.min_position_weight; must stay below maxPositionWeight.
   minPositionWeight: number | '';
-  // rebalance
+  // rebalance (Section 8 — issue #158)
   rebalance: Cadence;
+  /** Which trading day of the period the rebalance fires on. Always populated
+   *  in the form (default `period_start`) — cfgToSpec omits it from the wire
+   *  spec when it equals that default. */
+  rebalanceOn: RebalanceOn;
+  // --- Reglas de rebalanceo (épica #154). '' = sin usar (el spec las omite).
+  // OJO con las unidades: en el formulario se escriben en PORCENTAJE y
+  // cfgToSpec las divide por 100, salvo holdRankBuffer y trailingStopAtr
+  // (multiplicadores) y los tres campos en días (enteros).
+  /** Multiplicador sobre top_n; > 1. */
+  holdRankBuffer: number | '';
+  prioritizeHeld: boolean;
+  /** Días. Solo backtest. */
+  minHoldingDays: number | '';
+  /** Nombres nuevos por rebalanceo. Solo backtest. */
+  maxEntriesPerRebalance: number | '';
+  /** % del libro. */
+  maxTurnoverPct: number | '';
+  /** % del portafolio. */
+  cashBufferPct: number | '';
+  /** % del total. */
+  minTradePct: number | '';
+  /** Puntos porcentuales de desviación de peso. */
+  driftBandPct: number | '';
+  /** % de caída desde el costo. */
+  stopLossPct: number | '';
+  /** Múltiplos de ATR. */
+  trailingStopAtr: number | '';
+  /** Días de feed muerto. Solo tracker en vivo. */
+  exitOnStalePriceDays: number | '';
   // costs
   commission: number;
   slippage: number;

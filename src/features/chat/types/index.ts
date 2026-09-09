@@ -4,6 +4,8 @@ export type {
   ChatModelId,
   ToolActivity,
   ChatUsage,
+  ChatFile,
+  ChatChart,
   ChatMessage,
   ChatStreamEventName,
   ChatStreamEvent,

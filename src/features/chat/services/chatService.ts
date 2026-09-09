@@ -1,6 +1,7 @@
 import { apiClient } from '@/lib/axios';
+import { extractFilename } from '@/lib/download';
 import { useAuthStore } from '@/features/auth';
-import type { ChatModelId, ChatStreamEvent } from '../types';
+import type { ChatFile, ChatModelId, ChatStreamEvent } from '../types';
 
 /**
  * Chat API service.
@@ -189,4 +190,52 @@ export async function getSession(
 /** Delete a session and all its messages. */
 export async function deleteSession(sessionId: string): Promise<void> {
   await apiClient.delete(`/chat/sessions/${sessionId}`);
+}
+
+// ---------------------------------------------------------------------------
+// Generated files (PDF / DOCX / XLSX produced by the document tools)
+// ---------------------------------------------------------------------------
+
+/**
+ * Fetch one generated file as a blob. The endpoint requires the JWT, so it
+ * goes through the axios client instead of a plain link.
+ *
+ * A 404 means the file expired (TTL 7 days) or belongs to another user; the
+ * transformed `ApiError` keeps `status`, which the card turns into copy.
+ */
+export async function downloadChatFile(
+  file: ChatFile,
+  signal?: AbortSignal,
+): Promise<{ blob: Blob; filename: string }> {
+  const response = await apiClient.get<Blob>(toClientPath(file.url), {
+    responseType: 'blob',
+    signal,
+  });
+  return {
+    blob: response.data,
+    filename: extractFilename(
+      response.headers['content-disposition'] as string | undefined,
+      file.filename,
+    ),
+  };
+}
+
+/**
+ * The backend sends an absolute API path ("/api/v1/chat/files/{id}") while
+ * `VITE_API_URL` normally already ends in "/api/v1". Strip the overlap so the
+ * request hits the prefix exactly once, and keep working when the baseURL has
+ * no path prefix at all (local dev against http://localhost:8000).
+ */
+function toClientPath(url: string): string {
+  if (/^https?:\/\//i.test(url)) return url;
+  let prefix = '';
+  try {
+    prefix = new URL(
+      apiClient.defaults.baseURL ?? '',
+      window.location.origin,
+    ).pathname.replace(/\/+$/, '');
+  } catch {
+    /* non-parseable baseURL — send the path unchanged */
+  }
+  return prefix && url.startsWith(`${prefix}/`) ? url.slice(prefix.length) : url;
 }

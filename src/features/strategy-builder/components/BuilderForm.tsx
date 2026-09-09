@@ -3,15 +3,18 @@ import { useMemo, useState } from 'react';
 import { Icon } from '../icons';
 import {
   buildUniverse,
+  CADENCE_OPTIONS,
   LAYER3_OPTIONS,
   MARKET_CAP_BUCKETS,
   PERFORMANCE_METRICS,
+  REBALANCE_ON_OPTIONS,
+  ruleListError,
   SORT_FIELDS,
 } from '../mapping';
 import type { BuilderConfig } from '../types';
 import { ExclusionPicker } from './ExclusionPicker';
 import { FundamentalFilterGroup } from './FundamentalFilterGroup';
-import { NumField, Section, Tip } from './formBits';
+import { NumField, Section, ToggleRow, Tip } from './formBits';
 import { SectorWeighting } from './SectorWeighting';
 
 interface Props {
@@ -36,6 +39,7 @@ export function BuilderForm({ initialCfg, busy, preservedFilters, onCancel, onSa
     5: true,
     6: true,
     7: true,
+    8: true,
   });
   const set = (patch: Partial<BuilderConfig>) => setCfg((c) => ({ ...c, ...patch }));
   const toggleSection = (n: number) => setOpen((o) => ({ ...o, [n]: !o[n] }));
@@ -59,6 +63,38 @@ export function BuilderForm({ initialCfg, busy, preservedFilters, onCancel, onSa
         e.minPositionWeight = 'Must be below the max weight';
       }
     }
+    // Reglas de rebalanceo (épica #154) — se validan aquí con los MISMOS rangos
+    // que los validators de Pydantic, para que el usuario vea el error en el
+    // formulario en vez de comerse un 422 al guardar.
+    const pctRule = (v: number | '', key: string, maxInclusive = false) => {
+      if (v === '') return;
+      const overMax = maxInclusive ? v > 100 : v >= 100;
+      if (v <= 0 || overMax) e[key] = maxInclusive ? 'Must be between 0 and 100' : 'Must be above 0 and below 100';
+    };
+    if (cfg.holdRankBuffer !== '' && cfg.holdRankBuffer <= 1) {
+      e.holdRankBuffer = 'Must be above 1 (1.0 = no buffer — leave empty instead)';
+    }
+    if (cfg.minHoldingDays !== '' && cfg.minHoldingDays < 1) e.minHoldingDays = 'Must be at least 1 day';
+    if (cfg.maxEntriesPerRebalance !== '' && cfg.maxEntriesPerRebalance < 1) {
+      e.maxEntriesPerRebalance = 'Must be at least 1';
+    }
+    if (cfg.exitOnStalePriceDays !== '' && cfg.exitOnStalePriceDays < 0) {
+      e.exitOnStalePriceDays = 'Cannot be negative';
+    }
+    if (cfg.trailingStopAtr !== '' && cfg.trailingStopAtr <= 0) e.trailingStopAtr = 'Must be above 0';
+    pctRule(cfg.maxTurnoverPct, 'maxTurnoverPct', true); // (0, 100] en el backend
+    pctRule(cfg.cashBufferPct, 'cashBufferPct');
+    pctRule(cfg.minTradePct, 'minTradePct');
+    pctRule(cfg.driftBandPct, 'driftBandPct');
+    pctRule(cfg.stopLossPct, 'stopLossPct');
+    // OR groups (issue #173) — mirror the backend's own restrictions in the
+    // form so a bad rule list shows an error on the field instead of a 422 at
+    // save time (see `ruleListError`'s doc for why only 2 of the 6 `any_of`
+    // decisions need a runtime check at all).
+    const additionalRulesError = ruleListError(cfg.additionalRules);
+    if (additionalRulesError) e.additionalRules = additionalRulesError;
+    const selectionFiltersError = ruleListError(cfg.selectionFilters);
+    if (selectionFiltersError) e.selectionFilters = selectionFiltersError;
     return e;
   }, [cfg]);
 
@@ -78,6 +114,7 @@ export function BuilderForm({ initialCfg, busy, preservedFilters, onCancel, onSa
   const metricLabel =
     PERFORMANCE_METRICS.find((m) => m.k === cfg.performanceMetric)?.label ?? cfg.performanceMetric;
   const rankLabel = SORT_FIELDS.find((f) => f.k === cfg.sortBy)?.label ?? cfg.sortBy;
+  const cadenceLabel = CADENCE_OPTIONS.find((o) => o.k === cfg.rebalance)?.label ?? cfg.rebalance;
 
   return (
     <div className="sb-build-grid">
@@ -97,26 +134,11 @@ export function BuilderForm({ initialCfg, busy, preservedFilters, onCancel, onSa
         <Section
           num="1"
           title="General parameters"
-          sub="Rebalance, currency, performance, benchmark"
+          sub="Currency, performance, benchmark"
           open={open[1]}
           onToggle={() => toggleSection(1)}
         >
           <div className="sb-grid-3" style={{ marginTop: 14 }}>
-            <div className="sb-field" style={{ marginTop: 0 }}>
-              <div className="sb-field-label">Rebalance</div>
-              <div className="sb-segment full" style={{ marginTop: 2 }}>
-                {(['weekly', 'monthly'] as const).map((k) => (
-                  <button
-                    key={k}
-                    type="button"
-                    className={`sb-seg-btn ${cfg.rebalance === k ? 'active' : ''}`}
-                    onClick={() => set({ rebalance: k })}
-                  >
-                    {k === 'weekly' ? 'Weekly' : 'Monthly'}
-                  </button>
-                ))}
-              </div>
-            </div>
             <div className="sb-field" style={{ marginTop: 0 }}>
               <div className="sb-field-label">
                 Currency <Tip text="Locked to USD — the strategy invests in US equities only for now." />
@@ -227,10 +249,15 @@ export function BuilderForm({ initialCfg, busy, preservedFilters, onCancel, onSa
             </div>
             <FundamentalFilterGroup
               section="universe"
-              filters={cfg.additionalRules}
+              rules={cfg.additionalRules}
               onChange={(v) => set({ additionalRules: v })}
               emptyHint="No universe filters yet — pick a field to add one."
             />
+            {errors.additionalRules && (
+              <div className="sb-field-error">
+                <Icon name="warn" size={11} /> {errors.additionalRules}
+              </div>
+            )}
           </div>
         </Section>
 
@@ -254,10 +281,15 @@ export function BuilderForm({ initialCfg, busy, preservedFilters, onCancel, onSa
           </div>
           <FundamentalFilterGroup
             section="selection"
-            filters={cfg.selectionFilters}
+            rules={cfg.selectionFilters}
             onChange={(v) => set({ selectionFilters: v })}
             emptyHint="No selection filters yet — pick a field to add one."
           />
+          {errors.selectionFilters && (
+            <div className="sb-field-error">
+              <Icon name="warn" size={11} /> {errors.selectionFilters}
+            </div>
+          )}
         </Section>
 
         {/* 4. Ranking */}
@@ -441,6 +473,199 @@ export function BuilderForm({ initialCfg, busy, preservedFilters, onCancel, onSa
             />
           </div>
         </Section>
+
+        {/* 8. Rebalancing */}
+        <Section
+          num="8"
+          title="Rebalancing"
+          sub="How the book moves between rebalances"
+          open={open[8]}
+          onToggle={() => toggleSection(8)}
+        >
+          <div className="sb-field" style={{ marginTop: 14 }}>
+            <div className="sb-field-label">
+              Cadence <Tip text="How often the book is re-priced and re-sized. Longer cadences trade less often, cutting turnover and cost drag at the expense of reacting slower to new signals." />
+            </div>
+            <div className="sb-segment full" style={{ marginTop: 2 }} data-testid="sb-rebalance-cadence">
+              {CADENCE_OPTIONS.map((o) => (
+                <button
+                  key={o.k}
+                  type="button"
+                  data-testid={`sb-cadence-${o.k}`}
+                  className={`sb-seg-btn ${cfg.rebalance === o.k ? 'active' : ''}`}
+                  onClick={() => set({ rebalance: o.k })}
+                >
+                  {o.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="sb-field">
+            <div className="sb-field-label">
+              Fires on <Tip text="Which trading day of the period the rebalance is stamped on: the first session of the period, or the last. Start of period reproduces the engine's original behavior." />
+            </div>
+            <div className="sb-segment full" style={{ marginTop: 2 }} data-testid="sb-rebalance-on">
+              {REBALANCE_ON_OPTIONS.map((o) => (
+                <button
+                  key={o.k}
+                  type="button"
+                  data-testid={`sb-rebalance-on-${o.k}`}
+                  className={`sb-seg-btn ${cfg.rebalanceOn === o.k ? 'active' : ''}`}
+                  onClick={() => set({ rebalanceOn: o.k })}
+                >
+                  {o.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* --- Permanencia en cartera ------------------------------------ */}
+          <div className="sb-subhead" style={{ marginTop: 18 }}>
+            Holding rules
+            <Tip text="Which names survive a rebalance. Without these, a name that slips one place in the ranking is sold and often re-bought the next month — pure churn, and the bulk of a strategy's turnover." />
+          </div>
+          <div className="sb-grid-2" style={{ marginTop: 10 }}>
+            <NumField
+              label="Rank buffer for held names"
+              tip="A name you already hold is only sold once its rank falls beyond top-N × this multiplier. With top-N 30 and a buffer of 1.5, a holding survives down to rank 45. It keeps occupying a top-N slot, so the book never grows. Leave empty for the plain cutoff."
+              value={cfg.holdRankBuffer}
+              onChange={(v) => set({ holdRankBuffer: v })}
+              min={1}
+              step={0.1}
+              suffix="×"
+              hint="Empty = plain top-N cutoff"
+              error={errors.holdRankBuffer}
+            />
+            <NumField
+              label="Max new entries per rebalance"
+              tip="Hard cap on how many NEW names may enter in a single rebalance, taken in ranking order. BACKTEST ONLY: live trackers ignore it (it needs per-position entry dates that only the backtest engine keeps)."
+              value={cfg.maxEntriesPerRebalance}
+              onChange={(v) => set({ maxEntriesPerRebalance: v })}
+              min={1}
+              step={1}
+              hint="Backtest only · empty = no cap"
+              error={errors.maxEntriesPerRebalance}
+            />
+            <NumField
+              label="Minimum holding period"
+              tip="A position cannot be sold before this many days. It still exits if it stops matching the universe filters, or on a stop. BACKTEST ONLY: live trackers ignore it."
+              value={cfg.minHoldingDays}
+              onChange={(v) => set({ minHoldingDays: v })}
+              min={1}
+              step={1}
+              suffix="days"
+              hint="Backtest only · empty = no lockup"
+              error={errors.minHoldingDays}
+            />
+          </div>
+          <div style={{ marginTop: 8 }}>
+            <ToggleRow
+              name="Prioritise current holdings"
+              desc="Names you already hold and that still pass the filters enter the target unconditionally; new candidates compete for the slots left over."
+              tip="Stronger than the rank buffer: there is no rank cutoff at all for a holding. If the holdings alone already fill top-N, no new name enters and the book may exceed top-N. A holding that stops matching the filters is still sold."
+              on={cfg.prioritizeHeld}
+              onToggle={() => set({ prioritizeHeld: !cfg.prioritizeHeld })}
+            />
+          </div>
+
+          {/* --- Ejecución -------------------------------------------------- */}
+          <div className="sb-subhead" style={{ marginTop: 18 }}>
+            Execution limits
+            <Tip text="How much the book is allowed to move once the new target is known. Unspent budget stays in the current names or in cash — it is never redistributed." />
+          </div>
+          <div className="sb-grid-2" style={{ marginTop: 10 }}>
+            <NumField
+              label="Max turnover per rebalance"
+              tip="Ceiling on how much of the book may trade in one rebalance. Forced exits (a name that left the filters) always execute; then new entries fill in target-weight order until the budget runs out; resizes go last."
+              value={cfg.maxTurnoverPct}
+              onChange={(v) => set({ maxTurnoverPct: v })}
+              min={0}
+              max={100}
+              step={1}
+              suffix="%"
+              hint="Empty = unlimited"
+              error={errors.maxTurnoverPct}
+            />
+            <NumField
+              label="Skip rebalance within drift band"
+              tip="If no holding has drifted more than this many percentage points from its target weight, the whole rebalance is skipped — no new target, no trades. The very first rebalance always runs."
+              value={cfg.driftBandPct}
+              onChange={(v) => set({ driftBandPct: v })}
+              min={0}
+              max={100}
+              step={0.5}
+              suffix="pp"
+              hint="Empty = always rebalance"
+              error={errors.driftBandPct}
+            />
+            <NumField
+              label="Cash buffer"
+              tip="Share of the portfolio deliberately left uninvested. Applied after the per-name floor and cap; the cash is not reinvested until the next rebalance."
+              value={cfg.cashBufferPct}
+              onChange={(v) => set({ cashBufferPct: v })}
+              min={0}
+              max={100}
+              step={0.5}
+              suffix="%"
+              hint="Empty = fully invested"
+              error={errors.cashBufferPct}
+            />
+            <NumField
+              label="Minimum trade size"
+              tip="Differences smaller than this share of the portfolio are not traded — the position is left as it is. A full exit always executes, however small."
+              value={cfg.minTradePct}
+              onChange={(v) => set({ minTradePct: v })}
+              min={0}
+              max={100}
+              step={0.1}
+              suffix="%"
+              hint="Empty = trade any difference"
+              error={errors.minTradePct}
+            />
+          </div>
+
+          {/* --- Salidas fuera de calendario -------------------------------- */}
+          <div className="sb-subhead" style={{ marginTop: 18 }}>
+            Off-calendar exits
+            <Tip text="Without these a strategy can only sell on a rebalance date, whatever happens in between." />
+          </div>
+          <div className="sb-grid-2" style={{ marginTop: 10 }}>
+            <NumField
+              label="Stop loss"
+              tip="Sell a position on any day once it has fallen this much from its average cost. Checked daily at the close and filled at the next open, net of costs; the cash waits for the next rebalance."
+              value={cfg.stopLossPct}
+              onChange={(v) => set({ stopLossPct: v })}
+              min={0}
+              max={100}
+              step={1}
+              suffix="%"
+              hint="Empty = no stop"
+              error={errors.stopLossPct}
+            />
+            <NumField
+              label="Trailing stop (ATR)"
+              tip="A stop that follows the price up and never comes back down: it sits this many ATRs below the highest close since entry. The ATR is read as of the simulated date, never a later one."
+              value={cfg.trailingStopAtr}
+              onChange={(v) => set({ trailingStopAtr: v })}
+              min={0}
+              step={0.5}
+              suffix="× ATR"
+              hint="Empty = no trailing stop"
+              error={errors.trailingStopAtr}
+            />
+            <NumField
+              label="Exit on dead price feed"
+              tip="Sell a holding whose price feed has not moved for this many days — a renamed ticker, a delisting not yet flagged, a frozen provider. Applies to live trackers; a backtest keeps delisted names on purpose, otherwise it would be measuring only today's survivors."
+              value={cfg.exitOnStalePriceDays}
+              onChange={(v) => set({ exitOnStalePriceDays: v })}
+              min={0}
+              step={1}
+              suffix="days"
+              hint="Live tracker only · empty = off"
+              error={errors.exitOnStalePriceDays}
+            />
+          </div>
+        </Section>
       </div>
 
       {/* SUMMARY */}
@@ -470,7 +695,7 @@ export function BuilderForm({ initialCfg, busy, preservedFilters, onCancel, onSa
           </div>
           <div className="sb-summary-row">
             <span className="k">Rebalance</span>
-            <span className="v">{cfg.rebalance === 'weekly' ? 'Weekly' : 'Monthly'}</span>
+            <span className="v">{cadenceLabel}</span>
           </div>
           <div className="sb-summary-row">
             <span className="k">Performance</span>

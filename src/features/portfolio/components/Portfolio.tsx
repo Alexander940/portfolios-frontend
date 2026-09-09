@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import {
   getPortfolio,
+  isCompositePortfolio,
   listPortfolioPositions,
   type PortfolioResponse,
   type PortfolioPositionDetail,
@@ -17,9 +18,25 @@ import { PortfolioOverviewTab } from './PortfolioOverviewTab';
 import { PortfolioEventsTab } from './PortfolioEventsTab';
 import { PortfolioRebalancesTab } from './PortfolioRebalancesTab';
 import { ImportPortfolioFromExcelModal } from './ImportPortfolioFromExcelModal';
+import { CreateFromStrategiesModal } from './CreateFromStrategiesModal';
+import { CompositeBacktestView } from './CompositeBacktestView';
+import { SleevesTab } from './SleevesTab';
 
 const DETAIL_TABS = ['overview', 'holdings', 'events', 'rebalances'] as const;
-type DetailTab = (typeof DETAIL_TABS)[number];
+/** Composite portfolios (#197) get two extra tabs — the sleeve breakdown
+ *  (#203/#208) and the blended backtest (#209). */
+const COMPOSITE_ONLY_TABS = ['sleeves', 'composite'] as const;
+const COMPOSITE_DETAIL_TABS = [...DETAIL_TABS, ...COMPOSITE_ONLY_TABS] as const;
+type DetailTab = (typeof COMPOSITE_DETAIL_TABS)[number];
+
+const TAB_LABELS: Record<DetailTab, string> = {
+  overview: 'Overview',
+  holdings: 'Holdings',
+  events: 'Events',
+  rebalances: 'Rebalances',
+  sleeves: 'Mangas',
+  composite: 'Backtest compuesto',
+};
 
 /**
  * Portfolio feature root — renders the Portfolio Analysis page.
@@ -35,8 +52,9 @@ interface PortfolioProps {
   portfoliosLoading?: boolean;
   portfoliosError?: string | null;
   onDeletePortfolio?: (id: string) => Promise<void>;
+  /** A portfolio was created from this view (Excel import or strategy sleeves). */
   onImportCreated?: (p: PortfolioResponse) => void;
-  /** Import creates owned portfolios — hidden in the "shared with me" list. */
+  /** Creation flows produce OWNED portfolios — hidden in "shared with me". */
   showImport?: boolean;
 }
 
@@ -63,6 +81,7 @@ export function Portfolio({
   const [pageSize, setPageSize] = useState(25);
 
   const [importModalOpen, setImportModalOpen] = useState(false);
+  const [strategiesModalOpen, setStrategiesModalOpen] = useState(false);
 
   const [activeTab, setActiveTab] = useState<DetailTab>('overview');
 
@@ -182,19 +201,46 @@ export function Portfolio({
           portfolios={portfolios}
           onDelete={onDeletePortfolio}
           onImportClick={showImport ? () => setImportModalOpen(true) : undefined}
+          onCreateFromStrategiesClick={
+            showImport ? () => setStrategiesModalOpen(true) : undefined
+          }
         />
         {showImport && (
-          <ImportPortfolioFromExcelModal
-            isOpen={importModalOpen}
-            onClose={() => setImportModalOpen(false)}
-            onCreated={(p) => onImportCreated?.(p)}
-          />
+          <>
+            <ImportPortfolioFromExcelModal
+              isOpen={importModalOpen}
+              onClose={() => setImportModalOpen(false)}
+              onCreated={(p) => onImportCreated?.(p)}
+            />
+            {/* Composite portfolio from strategy sleeves (épica #197, #207).
+                It navigates to the new portfolio's page on success. */}
+            <CreateFromStrategiesModal
+              isOpen={strategiesModalOpen}
+              onClose={() => setStrategiesModalOpen(false)}
+              onCreated={(p) => onImportCreated?.(p)}
+            />
+          </>
         )}
       </>
     );
   }
 
   // ===== Detail view =====
+  // The composite tabs only exist for portfolios created from strategy sleeves;
+  // if the selected portfolio changes to a non-composite one while one of them
+  // is active, fall back to Overview instead of rendering nothing.
+  const isComposite = isCompositePortfolio(portfolio);
+  const tabs = isComposite ? COMPOSITE_DETAIL_TABS : DETAIL_TABS;
+  const isCompositeOnlyTab = (COMPOSITE_ONLY_TABS as readonly string[]).includes(
+    activeTab,
+  );
+  const currentTab: DetailTab =
+    isCompositeOnlyTab && !isComposite ? 'overview' : activeTab;
+  // Cambiar la mezcla o re-pinear una versión necesita escritura (#205); un
+  // viewer ve el desglose igual, pero sin acciones.
+  const canEditSleeves =
+    portfolio?.is_owner === true || portfolio?.permission === 'co_owner';
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <button
@@ -212,25 +258,25 @@ export function Portfolio({
       )}
 
       <div className="tabs" role="tablist">
-        {DETAIL_TABS.map((t) => (
+        {tabs.map((t) => (
           <button
             key={t}
             type="button"
             role="tab"
-            aria-selected={activeTab === t}
-            className={`tab ${activeTab === t ? 'active' : ''}`}
+            aria-selected={currentTab === t}
+            className={`tab ${currentTab === t ? 'active' : ''}`}
             onClick={() => setActiveTab(t)}
           >
-            {t[0].toUpperCase() + t.slice(1)}
+            {TAB_LABELS[t]}
           </button>
         ))}
       </div>
 
-      {activeTab === 'overview' && (
+      {currentTab === 'overview' && (
         <PortfolioOverviewTab portfolioId={portfolioId} />
       )}
 
-      {activeTab === 'holdings' && (
+      {currentTab === 'holdings' && (
         <PortfolioPositionsTable
           positions={positions}
           isLoading={positionsLoading}
@@ -247,11 +293,24 @@ export function Portfolio({
         />
       )}
 
-      {activeTab === 'events' && <PortfolioEventsTab portfolioId={portfolioId} />}
+      {currentTab === 'events' && <PortfolioEventsTab portfolioId={portfolioId} />}
 
       {/* US7 (#115): rebalance history — visible to every role, viewers included. */}
-      {activeTab === 'rebalances' && (
+      {currentTab === 'rebalances' && (
         <PortfolioRebalancesTab portfolioId={portfolioId} />
+      )}
+
+      {/* #208: sleeve breakdown of the composite + the two mix actions (#205). */}
+      {currentTab === 'sleeves' && (
+        <SleevesTab portfolioId={portfolioId} canEdit={canEditSleeves} />
+      )}
+
+      {/* #209: composite backtest — sleeves overlaid + declared approximations. */}
+      {currentTab === 'composite' && portfolio && (
+        <CompositeBacktestView
+          portfolioId={portfolioId}
+          portfolioName={portfolio.name}
+        />
       )}
     </div>
   );

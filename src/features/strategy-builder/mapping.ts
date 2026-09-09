@@ -1,21 +1,28 @@
 // Constants + mapping between the UI form config and the backend StrategySpec,
 // and adaptation of the backend backtest result into the results-view shape.
-import type {
-  BacktestResultOut,
-  BuilderConfig,
-  DateRange,
-  FilterValueType,
-  FundamentalFilter,
-  Layer1Method,
-  Layer1Spec,
-  Layer3Method,
-  LayeredWeightingSpec,
-  MarketCapBucket,
-  PerformanceMetric,
-  RangeFilter,
-  ScreenerFieldKey,
-  StrategySpec,
-  UniverseSpec,
+import {
+  isFilterGroup,
+  type BacktestResultOut,
+  type BuilderConfig,
+  type Cadence,
+  type DateRange,
+  type FilterGroup,
+  type FilterValueType,
+  type FundamentalFilter,
+  type Layer1Method,
+  type Layer1Spec,
+  type Layer3Method,
+  type LayeredWeightingSpec,
+  type MarketCapBucket,
+  type OrGroupSpec,
+  type PerformanceMetric,
+  type RangeFilter,
+  type RebalanceOn,
+  type RebalanceSpec,
+  type RuleEntry,
+  type ScreenerFieldKey,
+  type StrategySpec,
+  type UniverseSpec,
 } from './types';
 
 // Company-size buckets (mirror the backend MarketCapCategory enum + thresholds).
@@ -259,6 +266,16 @@ export function isEmptyFilter(f: FundamentalFilter, def: ScreenerFilterDef): boo
 // Catalog lookup by key — cfgToSpec needs each active filter's `kind`/`type`.
 const FIELD_BY_KEY = new Map(SCREENER_FILTERS.map((f) => [f.key, f]));
 
+// UI-only id generator for a new OR group (issue #173). Never serialized —
+// cfgToSpec builds the wire `{options: [...]}` shape straight from
+// `group.options`, dropping `id` entirely. Not a crypto id: it only has to be
+// unique within one form session (React key + edit-target lookup).
+let groupIdSeq = 0;
+export function newGroupId(): string {
+  groupIdSeq += 1;
+  return `grp_${Date.now().toString(36)}_${groupIdSeq}_${Math.random().toString(36).slice(2, 7)}`;
+}
+
 // Options for the General-parameters "Performance" select (the metric the
 // strategy is compared to the benchmark on).
 export const PERFORMANCE_METRICS: { k: PerformanceMetric; label: string }[] = [
@@ -331,6 +348,21 @@ export const SECTORS_LIST = [
 // Rating is numeric −3..+3 in this product (not letter grades).
 export const RATING_OPTIONS = [3, 2, 1, 0, -1, -2, -3];
 
+// Rebalance cadence + day-of-period options (Section 8, issue #158). `period_start`
+// is the backend default (first trading day of the period — pre-#157 behavior).
+export const CADENCE_OPTIONS: { k: Cadence; label: string }[] = [
+  { k: 'weekly', label: 'Weekly' },
+  { k: 'monthly', label: 'Monthly' },
+  { k: 'quarterly', label: 'Quarterly' },
+  { k: 'semiannual', label: 'Semiannual' },
+  { k: 'annual', label: 'Annual' },
+];
+export const DEFAULT_REBALANCE_ON: RebalanceOn = 'period_start';
+export const REBALANCE_ON_OPTIONS: { k: RebalanceOn; label: string }[] = [
+  { k: 'period_start', label: 'Start of period' },
+  { k: 'period_end', label: 'End of period' },
+];
+
 export const DEFAULT_CONFIG: BuilderConfig = {
   name: 'Untitled strategy',
   performanceMetric: 'total_return',
@@ -358,6 +390,20 @@ export const DEFAULT_CONFIG: BuilderConfig = {
   maxPositionWeight: '',
   minPositionWeight: '',
   rebalance: 'monthly',
+  rebalanceOn: DEFAULT_REBALANCE_ON,
+  // Reglas de rebalanceo: TODAS apagadas por defecto — una estrategia que no las
+  // toca produce el mismo spec (y el mismo content_hash) que antes de la épica.
+  holdRankBuffer: '',
+  prioritizeHeld: false,
+  minHoldingDays: '',
+  maxEntriesPerRebalance: '',
+  maxTurnoverPct: '',
+  cashBufferPct: '',
+  minTradePct: '',
+  driftBandPct: '',
+  stopLossPct: '',
+  trailingStopAtr: '',
+  exitOnStalePriceDays: '',
   commission: 5,
   slippage: 8,
   startDate: '2019-01-01',
@@ -393,7 +439,10 @@ export function normalizeCfg(cfg: BuilderConfig): BuilderConfig {
     ['smart_momentum', saved.minMomentum],
   ];
   for (const [key, v] of legacyKnobs) {
-    if (typeof v === 'number' && !additionalRules.some((f) => f.key === key)) {
+    if (
+      typeof v === 'number' &&
+      !additionalRules.some((f) => !isFilterGroup(f) && f.key === key)
+    ) {
       additionalRules = [...additionalRules, { key, type: 'range', min: v, max: '' }];
     }
   }
@@ -404,7 +453,23 @@ export function normalizeCfg(cfg: BuilderConfig): BuilderConfig {
   // `sectorCaps` was added after per-sector tilts; an older config lacks it.
   const sectorCaps =
     saved.sectorCaps && typeof saved.sectorCaps === 'object' ? saved.sectorCaps : {};
-  const out = { ...DEFAULT_CONFIG, ...cfg, additionalRules, selectionFilters, sectorDeltas, sectorCaps };
+  // `rebalanceOn` was added with Section 8 (#158); every one of the 21 previously
+  // saved strategies lacks it. Validate rather than trust `...cfg` below — a
+  // stray/garbage value must still fall back to the backend default instead of
+  // reaching cfgToSpec and serializing something the backend rejects.
+  const rebalanceOn: RebalanceOn =
+    saved.rebalanceOn === 'period_start' || saved.rebalanceOn === 'period_end'
+      ? saved.rebalanceOn
+      : DEFAULT_REBALANCE_ON;
+  const out = {
+    ...DEFAULT_CONFIG,
+    ...cfg,
+    additionalRules,
+    selectionFilters,
+    sectorDeltas,
+    sectorCaps,
+    rebalanceOn,
+  };
   // Strip the migrated knob props so the knob→row migration above runs at most
   // once per stored config (a re-normalize must not resurrect a deleted row).
   const rec = out as Record<string, unknown>;
@@ -414,11 +479,48 @@ export function normalizeCfg(cfg: BuilderConfig): BuilderConfig {
   return out;
 }
 
-/** Write each active filter onto a screen object (universe or the selection-phase
- *  screen), dispatched on the catalog `type`: range (% margins stored ÷100),
- *  boolean, multiselect (string[]), or daterange. A filter whose catalog def isn't
- *  allowed in `section` is skipped (a safety net for the sector selection-only rule).
- *  Shared by buildUniverse + buildSelectionFilters so both screens encode identically. */
+/** Convert one filter's value into a `[key, value]` screen entry, dispatched on
+ *  the catalog `type` (range % margins stored ÷100, boolean, multiselect
+ *  (string[]), daterange) — or `null` when the filter is out-of-section
+ *  (a safety net for the sector selection-only rule) or carries no effective
+ *  constraint. The single conversion both `addFilters` (a flat screen) and an
+ *  OR group's per-option mini-screen build from. */
+function filterToEntry(
+  f: FundamentalFilter,
+  section: FilterSection,
+): [ScreenerFieldKey, unknown] | null {
+  const meta = FIELD_BY_KEY.get(f.key);
+  if (!meta || !sectionAllows(meta, section)) return null;
+  const type: FilterValueType = meta.type ?? 'range';
+  if (type === 'boolean') {
+    return typeof f.value === 'boolean' ? [f.key, f.value] : null;
+  }
+  if (type === 'multiselect') {
+    return f.values && f.values.length ? [f.key, [...f.values]] : null;
+  }
+  if (type === 'daterange') {
+    const dr: DateRange = {};
+    if (f.dateMin) dr.min = f.dateMin;
+    if (f.dateMax) dr.max = f.dateMax;
+    return dr.min !== undefined || dr.max !== undefined ? [f.key, dr] : null;
+  }
+  const div = meta.kind === 'pct' ? 100 : 1;
+  const range: RangeFilter = {};
+  if (f.min !== '' && f.min != null) range.min = Number(f.min) / div;
+  if (f.max !== '' && f.max != null) range.max = Number(f.max) / div;
+  return range.min !== undefined || range.max !== undefined ? [f.key, range] : null;
+}
+
+/** Write each active LOOSE filter onto a screen object (universe, the
+ *  selection-phase screen, or one OR-group option), dispatched via
+ *  `filterToEntry`. Two rules for the SAME field would otherwise collapse
+ *  into one screen key — issue #173's dup-key fix: the FIRST rule for a field
+ *  wins and later ones for that key are silently ignored here (deterministic,
+ *  same as before this fix was in place — the difference is `addRuleEntries`
+ *  now makes that state impossible to save at the top level: see
+ *  `findDuplicateRuleKeys`, wired into the form's validation). Shared by
+ *  `addRuleEntries` (top-level rules) and `buildOrGroup` (one option's own
+ *  small AND'd field set) so every screen in the spec encodes identically. */
 function addFilters(
   target: UniverseSpec,
   filters: FundamentalFilter[],
@@ -426,26 +528,94 @@ function addFilters(
 ): void {
   const t = target as Record<string, unknown>;
   for (const f of filters) {
-    const meta = FIELD_BY_KEY.get(f.key);
-    if (!meta || !sectionAllows(meta, section)) continue;
-    const type: FilterValueType = meta.type ?? 'range';
-    if (type === 'boolean') {
-      if (typeof f.value === 'boolean') t[f.key] = f.value;
-    } else if (type === 'multiselect') {
-      if (f.values && f.values.length) t[f.key] = [...f.values];
-    } else if (type === 'daterange') {
-      const dr: DateRange = {};
-      if (f.dateMin) dr.min = f.dateMin;
-      if (f.dateMax) dr.max = f.dateMax;
-      if (dr.min !== undefined || dr.max !== undefined) t[f.key] = dr;
-    } else {
-      const div = meta.kind === 'pct' ? 100 : 1;
-      const range: RangeFilter = {};
-      if (f.min !== '' && f.min != null) range.min = Number(f.min) / div;
-      if (f.max !== '' && f.max != null) range.max = Number(f.max) / div;
-      if (range.min !== undefined || range.max !== undefined) t[f.key] = range;
-    }
+    const entry = filterToEntry(f, section);
+    if (!entry) continue;
+    const [key, value] = entry;
+    if (!(key in t)) t[key] = value;
   }
+}
+
+/** Top-level (ungrouped) rule keys that appear more than once in `rules` —
+ *  each duplicate would silently overwrite the first inside the screen object
+ *  `addFilters` builds (they all write into the SAME field of the SAME
+ *  UniverseSpec). Keys reused across an OR group's own alternatives, or
+ *  between a loose rule and a group's option, are NOT flagged: those live in
+ *  separate mini-screen objects and never collide (e.g. "PE < 10" at the top
+ *  level AND a group with "PE < 5 OR sector = Tech" is a perfectly valid,
+ *  if slightly redundant, combination). Feeds the form's validation (issue
+ *  #173 item 4) so the error shows on the field instead of silently picking
+ *  a winner. */
+export function findDuplicateRuleKeys(rules: RuleEntry[]): ScreenerFieldKey[] {
+  const seen = new Set<ScreenerFieldKey>();
+  const dupes = new Set<ScreenerFieldKey>();
+  for (const r of rules) {
+    if (isFilterGroup(r)) continue;
+    if (seen.has(r.key)) dupes.add(r.key);
+    seen.add(r.key);
+  }
+  return [...dupes];
+}
+
+/** Validate one rule list (`additionalRules` or `selectionFilters`) against
+ *  the backend's own `any_of` restrictions PLUS the pre-existing dup-key
+ *  defect, so the builder form can show the error inline instead of a 422 at
+ *  save time (issue #173 item 5) — or, for a group with < 2 options, so the
+ *  round-trip check can assert the bad group is rejected here even though
+ *  `cfgToSpec` already drops it silently (see `buildOrGroup`). Returns
+ *  `undefined` when the list is valid.
+ *
+ *  Only 2 of the backend's 6 `any_of` decisions need a RUNTIME check here:
+ *  nesting, `exclude`, and limit/offset/sort_by/sort_order inside an option
+ *  are unrepresentable in form state by construction (`FilterOption` is a
+ *  `FundamentalFilter[]`, and `FundamentalFilter.key` is a `ScreenerFieldKey`
+ *  — none of those fields exist in that union); every option field also comes
+ *  from the same PIT-safe `SCREENER_FILTERS` catalog the loose rules already
+ *  use, so PIT-safety is structural too. That leaves the minimum-2-options
+ *  rule (normally unreachable anyway — see `FundamentalFilterGroup`'s
+ *  group/ungroup logic) and the dup-key fix. */
+export function ruleListError(rules: RuleEntry[]): string | undefined {
+  const dupes = findDuplicateRuleKeys(rules);
+  const badGroup = rules.some((r) => isFilterGroup(r) && r.options.length < 2);
+  const msgs: string[] = [];
+  if (dupes.length) {
+    msgs.push(`Duplicate filter${dupes.length > 1 ? 's' : ''}: ${dupes.join(', ')}.`);
+  }
+  if (badGroup) msgs.push('An OR group needs at least 2 alternatives.');
+  return msgs.length ? msgs.join(' ') : undefined;
+}
+
+/** Build one OR group's wire shape from its form options, or `null` when it
+ *  doesn't survive with >= 2 non-empty options (e.g. every filter in an
+ *  option was cleared down to nothing) — the same "just don't emit it"
+ *  posture as the rest of this module rather than shipping an invalid < 2
+ *  option group the backend would 422 on. In practice the group/ungroup UI
+ *  in `FundamentalFilterGroup` never leaves a group in this state (shrinking
+ *  to 1 option auto-dissolves it), so this is defense-in-depth for a
+ *  hand-edited/legacy local draft, not the common path. */
+function buildOrGroup(group: FilterGroup, section: FilterSection): OrGroupSpec | null {
+  const options = group.options
+    .map((opt) => {
+      const screen: UniverseSpec = {};
+      addFilters(screen, opt, section);
+      return screen;
+    })
+    .filter((screen) => Object.keys(screen).length > 0);
+  return options.length >= 2 ? { options } : null;
+}
+
+/** Write every rule entry — loose filters AND OR groups — onto a screen
+ *  object. `any_of` is set ONLY when at least one group survives
+ *  `buildOrGroup`, so a rule list without groups never gains the key (keeps
+ *  the backend content_hash of a spec without `any_of` byte-identical — the
+ *  same omit-when-empty idiom as every other optional clause in this file). */
+function addRuleEntries(target: UniverseSpec, rules: RuleEntry[], section: FilterSection): void {
+  const loose = rules.filter((r): r is FundamentalFilter => !isFilterGroup(r));
+  addFilters(target, loose, section);
+  const anyOf = rules
+    .filter(isFilterGroup)
+    .map((g) => buildOrGroup(g, section))
+    .filter((g): g is OrGroupSpec => g !== null);
+  if (anyOf.length > 0) target.any_of = anyOf;
 }
 
 /** Build the PIT-safe UniverseSpec from the form config. Exported so the Layer-2
@@ -460,7 +630,7 @@ export function buildUniverse(cfg: BuilderConfig): UniverseSpec {
   if (cfg.sector) universe.sector = [cfg.sector];
   if (cfg.companySizes.length) universe.market_cap_category = cfg.companySizes;
   if (cfg.excluded.length) universe.exclude = cfg.excluded.map((e) => e.symbolId);
-  addFilters(universe, cfg.additionalRules, 'universe');
+  addRuleEntries(universe, cfg.additionalRules, 'universe');
   return universe;
 }
 
@@ -470,7 +640,7 @@ export function buildUniverse(cfg: BuilderConfig): UniverseSpec {
  *  `selection_filters` from canonical_json, exactly like `layered`). */
 export function buildSelectionFilters(cfg: BuilderConfig): UniverseSpec | undefined {
   const screen: UniverseSpec = {};
-  addFilters(screen, cfg.selectionFilters, 'selection');
+  addRuleEntries(screen, cfg.selectionFilters, 'selection');
   return Object.keys(screen).length > 0 ? screen : undefined;
 }
 
@@ -518,6 +688,54 @@ export function buildLayered(cfg: BuilderConfig): LayeredWeightingSpec | undefin
       method: cfg.layer3Method,
       ...(hasGamma ? { gamma: Number(cfg.layer3Gamma) } : {}),
     },
+  };
+}
+
+/** Las 11 reglas opcionales de rebalanceo, en unidades del BACKEND.
+ *
+ *  Cada una se emite SOLO cuando el usuario la puso: un campo vacío (o el
+ *  toggle apagado) desaparece del spec, que es exactamente lo que hace
+ *  `StrategySpec.canonical_json` del backend al popearlas. Emitirlas como
+ *  `null` cambiaría el `content_hash` de las estrategias ya guardadas y
+ *  rompería el dedupe de backtests.
+ *
+ *  Conversión de unidades: el formulario recoge porcentajes (más legibles) y
+ *  aquí se dividen por 100, salvo los multiplicadores (`holdRankBuffer`,
+ *  `trailingStopAtr`) y los tres campos en días, que van tal cual. */
+/** Fracción del spec → porcentaje del formulario; `undefined` → '' (apagada).
+ *  El redondeo a 6 decimales evita que 0.07 vuelva como 6.999999999999999. */
+function pctFromFraction(v: number | undefined): number | '' {
+  return v == null ? '' : Math.round(v * 100 * 1e6) / 1e6;
+}
+
+function rebalanceRules(cfg: BuilderConfig): Partial<RebalanceSpec> {
+  const num = (v: number | '') => (v !== '' && Number.isFinite(v) ? (v as number) : null);
+  const frac = (v: number | '') => {
+    const n = num(v);
+    return n !== null && n > 0 ? n / 100 : null;
+  };
+  const holdRankBuffer = num(cfg.holdRankBuffer);
+  const minHoldingDays = num(cfg.minHoldingDays);
+  const maxEntries = num(cfg.maxEntriesPerRebalance);
+  const staleDays = num(cfg.exitOnStalePriceDays);
+  const trailingAtr = num(cfg.trailingStopAtr);
+  const maxTurnover = frac(cfg.maxTurnoverPct);
+  const cashBuffer = frac(cfg.cashBufferPct);
+  const minTrade = frac(cfg.minTradePct);
+  const driftBand = frac(cfg.driftBandPct);
+  const stopLoss = frac(cfg.stopLossPct);
+  return {
+    ...(holdRankBuffer !== null && holdRankBuffer > 1 ? { hold_rank_buffer: holdRankBuffer } : {}),
+    ...(cfg.prioritizeHeld ? { prioritize_held: true } : {}),
+    ...(minHoldingDays !== null && minHoldingDays >= 1 ? { min_holding_days: minHoldingDays } : {}),
+    ...(maxEntries !== null && maxEntries >= 1 ? { max_entries_per_rebalance: maxEntries } : {}),
+    ...(maxTurnover !== null ? { max_turnover_pct: maxTurnover } : {}),
+    ...(cashBuffer !== null ? { cash_buffer_pct: cashBuffer } : {}),
+    ...(minTrade !== null ? { min_trade_pct: minTrade } : {}),
+    ...(driftBand !== null ? { drift_band_pct: driftBand } : {}),
+    ...(stopLoss !== null ? { stop_loss_pct: stopLoss } : {}),
+    ...(trailingAtr !== null && trailingAtr > 0 ? { trailing_stop_atr: trailingAtr } : {}),
+    ...(staleDays !== null && staleDays >= 0 ? { exit_on_stale_price_days: staleDays } : {}),
   };
 }
 
@@ -570,7 +788,16 @@ export function cfgToSpec(cfg: BuilderConfig): StrategySpec {
     // Omitted when empty so a strategy without selection filters keeps the legacy
     // content_hash (the backend pops a null `selection_filters` from canonical_json).
     ...(selectionFilters ? { selection_filters: selectionFilters } : {}),
-    rebalance: { cadence: cfg.rebalance },
+    rebalance: {
+      cadence: cfg.rebalance,
+      // Omitted when it's the backend default so a pre-#158 monthly/weekly spec
+      // keeps its legacy content_hash (same idiom as layer1.top_n).
+      ...(cfg.rebalanceOn !== DEFAULT_REBALANCE_ON ? { on: cfg.rebalanceOn } : {}),
+      // Reglas de la épica #154 — cada una se OMITE cuando está sin usar. El
+      // backend las popea de canonical_json con el mismo criterio, así que
+      // mandarlas como null rompería el content_hash de los specs guardados.
+      ...rebalanceRules(cfg),
+    },
     costs: { commission_bps: cfg.commission, slippage_bps: cfg.slippage },
     validation: {
       start: cfg.startDate,
@@ -620,6 +847,29 @@ function screenToFilters(
   return out;
 }
 
+/** Reverse of `addRuleEntries`: rebuild a screen's rule list — loose filters
+ *  PLUS its `any_of` groups — back into the form's `RuleEntry[]`. Each
+ *  option is decoded with the same `screenToFilters` used for a flat screen
+ *  (an option IS one), so a group round-trips through the exact catalog the
+ *  form understands. A group is best-effort DROPPED (not partially shown)
+ *  when it doesn't survive with >= 2 options that each decode to at least one
+ *  recognized filter — e.g. an option written by some other client with a
+ *  non-catalog or non-PIT-safe field — mirroring the existing
+ *  `unsupportedUniverseFilters` posture for fields this form doesn't expose.
+ *  Nothing writes `any_of` outside this builder today, so that path is
+ *  defense-in-depth, not the common case. */
+function screenToRuleEntries(fields: Record<string, unknown>, section: FilterSection): RuleEntry[] {
+  const loose: RuleEntry[] = screenToFilters(fields, section);
+  const anyOf = fields.any_of as { options: Record<string, unknown>[] }[] | undefined;
+  const groups: FilterGroup[] = (anyOf ?? [])
+    .map((g) => ({
+      id: newGroupId(),
+      options: (g.options ?? []).map((opt) => screenToFilters(opt, section)),
+    }))
+    .filter((g) => g.options.length >= 2 && g.options.every((opt) => opt.length > 0));
+  return [...loose, ...groups];
+}
+
 /** Reverse of cfgToSpec: rebuild a BuilderConfig from a backend StrategySpec so
  *  a server-persisted strategy (e.g. one the AI assistant created) can be shown
  *  and opened in the builder. Best-effort — universe filters the builder form
@@ -636,10 +886,10 @@ export function specToConfig(spec: StrategySpec, name: string): BuilderConfig {
   // Universe fundamentals → "Additional rules" (where they have always lived): a
   // server/legacy strategy's universe filters constrain the universe, so they
   // surface in the universe section, not the post-universe selection phase.
-  const additionalRules = screenToFilters(ufields, 'universe');
+  const additionalRules = screenToRuleEntries(ufields, 'universe');
   // spec.selection_filters → "Selection rules" (the post-universe phase).
   const sf = (spec.selection_filters ?? {}) as Record<string, unknown>;
-  const selectionFilters = screenToFilters(sf, 'selection');
+  const selectionFilters = screenToRuleEntries(sf, 'selection');
 
   return {
     ...DEFAULT_CONFIG,
@@ -686,6 +936,20 @@ export function specToConfig(spec: StrategySpec, name: string): BuilderConfig {
     maxPositionWeight: spec.max_position_weight != null ? spec.max_position_weight * 100 : '',
     minPositionWeight: spec.min_position_weight != null ? spec.min_position_weight * 100 : '',
     rebalance: spec.rebalance?.cadence ?? DEFAULT_CONFIG.rebalance,
+    rebalanceOn: spec.rebalance?.on ?? DEFAULT_REBALANCE_ON,
+    // Inversa de rebalanceRules: fracción → % para los que el formulario
+    // muestra en porcentaje; ausente → '' (input vacío = regla apagada).
+    holdRankBuffer: spec.rebalance?.hold_rank_buffer ?? '',
+    prioritizeHeld: spec.rebalance?.prioritize_held ?? false,
+    minHoldingDays: spec.rebalance?.min_holding_days ?? '',
+    maxEntriesPerRebalance: spec.rebalance?.max_entries_per_rebalance ?? '',
+    maxTurnoverPct: pctFromFraction(spec.rebalance?.max_turnover_pct),
+    cashBufferPct: pctFromFraction(spec.rebalance?.cash_buffer_pct),
+    minTradePct: pctFromFraction(spec.rebalance?.min_trade_pct),
+    driftBandPct: pctFromFraction(spec.rebalance?.drift_band_pct),
+    stopLossPct: pctFromFraction(spec.rebalance?.stop_loss_pct),
+    trailingStopAtr: spec.rebalance?.trailing_stop_atr ?? '',
+    exitOnStalePriceDays: spec.rebalance?.exit_on_stale_price_days ?? '',
     commission: spec.costs?.commission_bps ?? DEFAULT_CONFIG.commission,
     slippage: spec.costs?.slippage_bps ?? DEFAULT_CONFIG.slippage,
     startDate: val?.start ?? DEFAULT_CONFIG.startDate,
@@ -709,12 +973,32 @@ export interface DisplayMetrics {
   beta: number;
   trades: number;
   lowConf: boolean;
+  // ---- turnover / cost-drag (issue #156) — undefined for the 174 pre-#155
+  // results, which must render without NaN/undefined (see ResultsView). Both
+  // `*PctAnnual` fields carry the backend's `_pct` convention verbatim (already
+  // a percent value, e.g. 976.3 — NOT a 0–1 fraction), matching every other
+  // `_pct` screener field in this codebase (mapping.ts SCREENER_FILTERS). ----
+  turnoverPctAnnual?: number; // % annual, two-sided convention
+  totalCosts?: number; // USD
+  costDragPctAnnual?: number; // % annual
+  avgHoldingDays?: number; // days
+  nExits?: number;
 }
 
 export interface DisplayResult {
   metrics: DisplayMetrics;
-  /** equity-curve rows for recharts: rebased index + benchmark. */
-  curve: { date: string; portfolio: number; benchmark: number | null; drawdown: number }[];
+  /** equity-curve rows for recharts: rebased index + benchmark, plus the raw
+   *  capital values so the chart can toggle Base 100 ↔ Capital without
+   *  re-fetching (#134). */
+  curve: {
+    date: string;
+    portfolio: number;
+    benchmark: number | null;
+    drawdown: number;
+    totalValue: number;
+    benchmarkValue: number | null;
+  }[];
+  initialCash: number;
   fills: BacktestResultOut['trades'];
 }
 
@@ -740,6 +1024,11 @@ export function adaptResult(r: BacktestResultOut): DisplayResult {
       beta: m.beta ?? 0,
       trades: m.n_trades,
       lowConf: m.low_sample_trades,
+      turnoverPctAnnual: m.turnover_pct_annual,
+      totalCosts: m.total_costs,
+      costDragPctAnnual: m.cost_drag_pct_annual,
+      avgHoldingDays: m.avg_holding_days,
+      nExits: m.n_exits,
     },
     curve: eq.map((p) => ({
       date: p.date,
@@ -747,7 +1036,15 @@ export function adaptResult(r: BacktestResultOut): DisplayResult {
       benchmark:
         p.benchmark_value != null && benchBase ? (p.benchmark_value / benchBase) * 100 : null,
       drawdown: p.drawdown * 100,
+      totalValue: p.total_value,
+      // Benchmark in $ is anchored at the run's initial cash so both series
+      // share the same starting point (same rule as the portfolio curve).
+      benchmarkValue:
+        p.benchmark_value != null && benchBase
+          ? (p.benchmark_value / benchBase) * r.initial_cash
+          : null,
     })),
+    initialCash: r.initial_cash,
     fills: r.trades,
   };
 }
@@ -767,17 +1064,23 @@ export function sparkFromResult(r: BacktestResultOut, points = 16): number[] {
  *  every catalog filter offered in that section. For these, the form's output is
  *  the whole truth — including ABSENCE (the user deleted the filter row), so the
  *  merge below must not resurrect them from the original spec. */
+//  `any_of` (issue #173) is form-managed in BOTH screens too — like `layered`,
+//  the group/ungroup UI owns that clause end-to-end, so a form output with no
+//  groups must delete an original `any_of` rather than let it survive the
+//  `...preserved` spread below.
 const FORM_MANAGED_UNIVERSE_KEYS: ReadonlySet<string> = new Set([
   'country',
   'sector',
   'market_cap_category',
   'exclude',
+  'any_of',
   ...SCREENER_FILTERS.filter((d) => sectionAllows(d, 'universe')).map((d) => d.key),
 ]);
 /** Same idea for the selection-phase screen (its only controls are catalog rows). */
-const FORM_MANAGED_SELECTION_KEYS: ReadonlySet<string> = new Set(
-  SCREENER_FILTERS.filter((d) => sectionAllows(d, 'selection')).map((d) => d.key),
-);
+const FORM_MANAGED_SELECTION_KEYS: ReadonlySet<string> = new Set([
+  'any_of',
+  ...SCREENER_FILTERS.filter((d) => sectionAllows(d, 'selection')).map((d) => d.key),
+]);
 
 /** Keep the original screen's live-only entries (fields the form cannot express:
  *  dividend_yield, vol caps, FCF yield… — the specToConfig gap documented in #34)

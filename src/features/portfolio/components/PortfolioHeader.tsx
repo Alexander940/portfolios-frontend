@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Briefcase, Calendar, RefreshCw, Share2, Users, Wallet } from 'lucide-react';
-import type {
-  PortfolioResponse,
-  RebalanceRedirectState,
+import {
+  isCompositePortfolio,
+  type PortfolioResponse,
+  type RebalanceRedirectState,
 } from '@/services/portfolioService';
 import { toLocalDate } from '@/features/portfolio/lib/format';
+import { CompositeBadge } from './CompositeBadge';
 import { SharePortfolioModal } from './SharePortfolioModal';
 
 interface PortfolioHeaderProps {
@@ -42,6 +44,9 @@ export function PortfolioHeader({ portfolio, onTransferred }: PortfolioHeaderPro
   const weighting =
     WEIGHTING_LABELS[portfolio.weighting_method] ?? portfolio.weighting_method;
   const typeClass = portfolio.portfolio_type.toLowerCase();
+  // Compuesto (#197): además de la insignia, el botón «Rebalance» explica otra
+  // cosa — el plan sale de las mangas pineadas, no de filtros de screener.
+  const isComposite = isCompositePortfolio(portfolio);
 
   const isOwner = portfolio.is_owner === true;
   const isShared = portfolio.is_owner === false;
@@ -179,6 +184,7 @@ export function PortfolioHeader({ portfolio, onTransferred }: PortfolioHeaderPro
               </span>
             </span>
           )}
+          {isComposite && <CompositeBadge />}
           <span
             className={`type-badge ${
               ['model', 'custom', 'virtual'].includes(typeClass)
@@ -188,22 +194,31 @@ export function PortfolioHeader({ portfolio, onTransferred }: PortfolioHeaderPro
           >
             {portfolio.portfolio_type}
           </span>
-          <span
-            className="type-badge"
-            style={{
-              background: 'var(--c-bg-soft)',
-              color: 'var(--c-text-soft)',
-              border: '1px solid var(--c-border)',
-            }}
-          >
-            {weighting}
-          </span>
+          {/* Un compuesto se guarda con `weighting_method = "manual"` (el sizing
+              es la fusión de las mangas, no una regla del portafolio), así que
+              la insignia diría literalmente «manual»: se omite. */}
+          {!isComposite && (
+            <span
+              className="type-badge"
+              style={{
+                background: 'var(--c-bg-soft)',
+                color: 'var(--c-text-soft)',
+                border: '1px solid var(--c-border)',
+              }}
+            >
+              {weighting}
+            </span>
+          )}
           {canRebalance && (
             <button
               type="button"
               className="topbar-btn"
               onClick={handleRebalanceClick}
-              title="Open the screener with this portfolio's saved filters preloaded and rebalance it"
+              title={
+                isComposite
+                  ? 'Rebalancear el compuesto: el plan se recalcula desde las versiones pineadas de sus mangas'
+                  : "Open the screener with this portfolio's saved filters preloaded and rebalance it"
+              }
               style={{ border: '1px solid var(--c-border)' }}
             >
               <RefreshCw size={14} />
