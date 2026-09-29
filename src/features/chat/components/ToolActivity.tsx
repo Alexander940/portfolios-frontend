@@ -1,3 +1,4 @@
+import { Fragment } from 'react';
 import { Check, Database, Loader2 } from 'lucide-react';
 import type { ToolActivity } from '../types';
 
@@ -33,17 +34,24 @@ export function ToolActivityRow({ tools }: { tools: ToolActivity[] }) {
             ? ` · ${t.rowCount}`
             : '';
         return (
-          <span key={`${t.name}-${i}`} className={`tool-chip ${t.status}`}>
-            {t.status === 'running' ? (
-              <Loader2 size={11} className="spin" />
-            ) : t.status === 'error' ? (
-              <Database size={11} />
-            ) : (
-              <Check size={11} />
+          <Fragment key={`${t.name}-${i}`}>
+            {t.progress && (
+              <p className="tool-progress" data-testid="tool-progress">
+                {t.progress}
+              </p>
             )}
-            {label}
-            {detail}
-          </span>
+            <span className={`tool-chip ${t.status}`}>
+              {t.status === 'running' ? (
+                <Loader2 size={11} className="spin" />
+              ) : t.status === 'error' ? (
+                <Database size={11} />
+              ) : (
+                <Check size={11} />
+              )}
+              {label}
+              {detail}
+            </span>
+          </Fragment>
         );
       })}
     </div>

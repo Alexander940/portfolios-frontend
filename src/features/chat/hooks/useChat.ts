@@ -160,6 +160,8 @@ function mapToolCalls(
     status: (t.error ? 'error' : 'done') as ToolStatus,
     rowCount: typeof t.row_count === 'number' ? (t.row_count as number) : undefined,
     ticker: typeof t.ticker === 'string' ? (t.ticker as string) : undefined,
+    progress:
+      typeof t.progress === 'string' && t.progress ? (t.progress as string) : undefined,
   }));
 }
 
@@ -254,6 +256,10 @@ export function useChat(options?: UseChatOptions) {
       const controller = new AbortController();
       abortRef.current = controller;
 
+      // Notes from `progress` events waiting for the next running tool (the
+      // backend emits them right before that tool's `tool` event).
+      let pendingProgress: string[] = [];
+
       await streamMessage(
         { message: content, session_id: sessionIdRef.current, model },
         {
@@ -269,7 +275,14 @@ export function useChat(options?: UseChatOptions) {
                 patch(assistantId, (m) => ({ ...m, thinking: true }));
                 break;
 
+              case 'progress': {
+                const note = String(data.text ?? '').trim();
+                if (note) pendingProgress.push(note);
+                break;
+              }
+
               case 'token':
+                pendingProgress = []; // a note before the answer is not shown
                 patch(assistantId, (m) => ({
                   ...m,
                   thinking: false,
@@ -280,6 +293,13 @@ export function useChat(options?: UseChatOptions) {
               case 'tool': {
                 const name = String(data.name ?? '');
                 const status = String(data.status ?? 'running') as ToolStatus;
+                // Take the pending note NOW: the updater below runs later
+                // (batched), after further events may have touched the queue.
+                const note =
+                  status === 'running' && pendingProgress.length > 0
+                    ? pendingProgress.join('\n')
+                    : undefined;
+                if (note) pendingProgress = [];
                 patch(assistantId, (m) => {
                   const tools = [...(m.tools ?? [])];
                   const entry: ToolActivity = {
@@ -290,10 +310,12 @@ export function useChat(options?: UseChatOptions) {
                     ticker: typeof data.ticker === 'string' ? data.ticker : undefined,
                   };
                   if (status === 'running') {
+                    if (note) entry.progress = note;
                     tools.push(entry);
                   } else {
                     const i = tools.map((t) => t.name).lastIndexOf(name);
-                    if (i !== -1) tools[i] = entry;
+                    // keep the note the running card already carries
+                    if (i !== -1) tools[i] = { ...entry, progress: tools[i].progress };
                     else tools.push(entry);
                   }
                   return { ...m, thinking: false, tools };
@@ -345,7 +367,10 @@ export function useChat(options?: UseChatOptions) {
                   : [];
                 patch(assistantId, (m) => ({
                   ...m,
-                  content: m.content || String(data.content ?? ''),
+                  // `done.content` is authoritative when present: it equals the
+                  // streamed tokens except after a refusal, where the backend
+                  // discards the refused iteration's text that already streamed.
+                  content: typeof data.content === 'string' ? data.content : m.content,
                   files:
                     doneFiles.length > 0 ? mergeFiles(m.files, doneFiles) : m.files,
                   // `done.charts` is the turn's complete, ordered list — it

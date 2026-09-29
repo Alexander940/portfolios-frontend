@@ -17,6 +17,12 @@ export interface ToolActivity {
   status: ToolStatus;
   rowCount?: number;
   ticker?: string;
+  /**
+   * Short note the model wrote right before this call (`progress` SSE event /
+   * persisted `tool_calls[].progress`). Shown dimmed above the tool card;
+   * never part of the answer text.
+   */
+  progress?: string;
 }
 
 /**
@@ -89,6 +95,7 @@ export interface ChatMessage {
 export type ChatStreamEventName =
   | 'session'
   | 'thinking'
+  | 'progress'
   | 'token'
   | 'tool'
   | 'file'
