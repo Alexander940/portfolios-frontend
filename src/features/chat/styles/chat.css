@@ -158,6 +158,11 @@
 .tool-chip.running { color: var(--c-accent-text); border-color: color-mix(in oklch, var(--c-accent) 25%, transparent); background: var(--c-accent-soft); }
 .tool-chip.done svg { color: var(--c-pos); }
 .tool-chip.error { color: var(--c-neg); border-color: color-mix(in oklch, var(--c-neg) 25%, transparent); }
+/* Nota del modelo justo antes de una herramienta: línea tenue, fila completa. */
+.tool-progress {
+  flex-basis: 100%; margin: 2px 0 0; font-size: 12.5px; line-height: 1.5;
+  color: var(--c-text-soft); font-style: italic; white-space: pre-line;
+}
 .tool-chip .spin { animation: chat-spin 0.9s linear infinite; }
 @keyframes chat-spin { to { transform: rotate(360deg); } }
 

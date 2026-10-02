@@ -32,7 +32,7 @@ function getToken(): string | null {
 
 /**
  * Open the SSE stream for one user turn and invoke `onEvent` for every
- * parsed frame (session, thinking, token, tool, usage, done, error).
+ * parsed frame (session, thinking, progress, token, tool, usage, done, error).
  * Resolves when the stream ends. Aborting via `signal` resolves quietly.
  */
 export async function streamMessage(
