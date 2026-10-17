@@ -6,3 +6,12 @@ export { MultiSelect, type MultiSelectOption } from './MultiSelect';
 export { Toaster, toast, useToastStore, type ToastKind } from './Toast';
 export { RatingBadge, RATING_CONFIG, formatRatingLabel } from './RatingBadge';
 export { DealBadge, dealBadgeLabel, dealTooltip } from './DealBadge';
+export {
+  NewsLevelBadge,
+  newsBadgeLabel,
+  newsTooltip,
+  normalizeNewsLevel,
+  formatNewsScore,
+  type NewsLevelBadgeProps,
+  type NewsTopNews,
+} from './NewsLevelBadge';

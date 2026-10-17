@@ -6,6 +6,7 @@
  */
 
 import type { DealPaymentType, DealStatus } from '@/services/portfolioService';
+import type { NewsLevel, NewsTag } from '@/lib/newsTaxonomy';
 
 // =============================================================================
 // Filter Types
@@ -72,6 +73,7 @@ export type FilterCategory =
   | 'performance'
   | 'indicators'
   | 'prices'
+  | 'news'
   | 'others';
 
 // =============================================================================
@@ -252,6 +254,19 @@ export interface ScreenerRequest {
   // M&A deals (épica #175). `true` drops every symbol under a pending
   // acquisition from the results; `false`/absent keeps them.
   exclude_pending_deals?: boolean;
+
+  // Indicador de noticias (épica #262, #268). Ninguno tiene default (#98): solo
+  // viajan si el usuario los tocó. Valores ⊆ `src/lib/newsTaxonomy.ts`.
+  /** Niveles admitidos: alcista | neutral | bajista | sin_cobertura. */
+  news_level?: NewsLevel[];
+  /** Score del flujo de 30 días, −100..+100 (sin fila = 0). */
+  news_score?: RangeFilter;
+  /** Evidencia (Σ pesos, ≥ 0; sin fila = 0). */
+  news_evidence?: RangeFilter;
+  /** Las etiquetas de los últimos 7 días tocan alguna de estas. */
+  news_events_any?: NewsTag[];
+  /** Las etiquetas de los últimos 7 días no tocan ninguna de estas. */
+  news_events_none?: NewsTag[];
 
   // Pagination & Sorting
   sort_by?: string;
@@ -462,6 +477,18 @@ export interface Stock {
   deal_price: number | null;
   deal_exchange_ratio: number | null;
   deal_announced_date: string | null;
+
+  // Indicador de noticias (épica #262, #268) — última fila de `news_indicator`.
+  // Un símbolo sin fila llega como `sin_cobertura` con score/evidencia 0 (el
+  // nivel nunca es null). Los Decimal llegan como string.
+  news_score: number | string | null;
+  news_level: NewsLevel | null;
+  news_evidence: number | string | null;
+  news_n_notes_30d: number | null;
+  news_events_7d: string[];
+  news_top_news_id: string | null;
+  /** Fecha (`YYYY-MM-DD`) de la fila; null = sin fila. */
+  news_date: string | null;
 }
 
 /**
