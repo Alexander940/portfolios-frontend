@@ -470,7 +470,7 @@ export const useScreenerStore = create<ScreenerState & ScreenerActions>((set, ge
  */
 export function parseSignedRangeParam(param: string | null): RangeFilter | null {
   if (!param) return null;
-  const m = /^(-?\d*\.?\d*)-(-?\d*\.?\d*)$/.exec(param);
+  const m = /^(-?\d+(?:\.\d*)?)?-(-?\d+(?:\.\d*)?)?$/.exec(param);
   if (!m) return null;
   const filter: RangeFilter = {};
   const min = m[1] ? parseFloat(m[1]) : NaN;
