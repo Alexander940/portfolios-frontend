@@ -10,6 +10,8 @@ const CATEGORY_LABELS: Record<string, string> = {
   rating_tendencia: 'Rating / Tendencia',
   precio: 'Precio / Técnicos',
   eventos_fundamentales: 'Fundamentales / Eventos',
+  // Épica #262 (#269): campos del flujo de noticias; vienen de GET /alerts/fields.
+  noticias: 'Noticias',
 };
 
 /** Sufijo del input de umbral según la unidad del catálogo. El usuario SIEMPRE

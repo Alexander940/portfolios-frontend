@@ -232,9 +232,11 @@ export function FundamentalFilterGroup({ rules, onChange, section, emptyHint }: 
         ? draft?.[editing.index] != null
         : editing.index >= 0
     : false;
-  const modalOptions = editingDef?.optionsKey
-    ? (options?.[editingDef.optionsKey] ?? (editingDef.optionsKey === 'sectors' ? SECTORS_LIST : []))
-    : undefined;
+  const modalOptions = editingDef?.staticOptions
+    ? [...editingDef.staticOptions]
+    : editingDef?.optionsKey
+      ? (options?.[editingDef.optionsKey] ?? (editingDef.optionsKey === 'sectors' ? SECTORS_LIST : []))
+      : undefined;
 
   return (
     <>

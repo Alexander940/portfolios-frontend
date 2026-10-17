@@ -4,6 +4,12 @@ import { useScreenerStore } from '../stores';
 import { useScreenerOptions } from '../hooks';
 import { getFilterDefinition } from '../constants';
 import type { DateRangeFilter, RangeFilter, FilterValue } from '../types';
+import {
+  NEWS_LEVELS,
+  NEWS_LEVEL_LABELS,
+  NEWS_TAGS,
+  shortTagDescription,
+} from '@/lib/newsTaxonomy';
 
 /**
  * FilterModal Component
@@ -369,6 +375,18 @@ const CYCLE_CLASS_OPTIONS: MultiSelectOption[] = [
   { value: 'no_trades', label: 'No Trades' },
 ];
 
+// Indicador de noticias (#271): niveles y las 12 etiquetas de la taxonomía
+// (copia local de `app/indicators/news_taxonomy.py`). El valor viaja crudo
+// (`bajista`, `oferta`); el label es solo para leer.
+const NEWS_LEVEL_OPTIONS: MultiSelectOption[] = NEWS_LEVELS.map((l) => ({
+  value: l,
+  label: NEWS_LEVEL_LABELS[l],
+}));
+const NEWS_TAG_OPTIONS: MultiSelectOption[] = NEWS_TAGS.map((t) => ({
+  value: t,
+  label: `${t} — ${shortTagDescription(t)}`,
+}));
+
 function MultiselectFilterInput({
   value,
   onChange,
@@ -381,6 +399,10 @@ function MultiselectFilterInput({
     if (filterKey === 'pf_verdict') return PF_VERDICT_OPTIONS;
     if (filterKey === 'cycle_class' || filterKey === 'effective_cycle_class') {
       return CYCLE_CLASS_OPTIONS;
+    }
+    if (filterKey === 'news_level') return NEWS_LEVEL_OPTIONS;
+    if (filterKey === 'news_events_any' || filterKey === 'news_events_none') {
+      return NEWS_TAG_OPTIONS;
     }
 
     if (!options) return [];

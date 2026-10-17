@@ -254,6 +254,22 @@ export interface DealInfo {
   spread_pct: number | null;
 }
 
+/**
+ * Indicador de noticias de una posición (épica #262). OJO: a la fecha (#271) el
+ * endpoint de posiciones NO lo devuelve todavía — el tipo deja el lugar listo
+ * con los mismos nombres que `news_indicator` / `get_news_indicator` y el badge
+ * no pinta nada mientras el campo falte (follow-up de backend).
+ */
+export interface NewsIndicatorInfo {
+  level: string | null;
+  score: number | string | null;
+  evidence: number | string | null;
+  n_notes_30d: number | null;
+  events_7d: string[];
+  top_news_id: string | null;
+  date: string | null;
+}
+
 export interface PortfolioPositionDetail {
   position_id: string;
   symbol_id: string;
@@ -274,6 +290,8 @@ export interface PortfolioPositionDetail {
   rating_changed: boolean;
   /** Pending M&A deal on this holding (épica #175); null/absent when there is none. */
   deal?: DealInfo | null;
+  /** Indicador de noticias (épica #262); absent hasta que el backend lo exponga. */
+  news?: NewsIndicatorInfo | null;
 }
 
 export interface PortfolioPositionDetailList {

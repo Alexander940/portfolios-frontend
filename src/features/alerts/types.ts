@@ -1,6 +1,6 @@
 /** Tipos del módulo de alertas — contrato del backend (epic portfolios-backend#94). */
 
-export type AlertCategory = 'rating_tendencia' | 'precio' | 'eventos_fundamentales';
+export type AlertCategory = 'rating_tendencia' | 'precio' | 'eventos_fundamentales' | 'noticias';
 
 export interface AlertField {
   key: string;
