@@ -19,6 +19,7 @@ import {
   ratingsToApiFilter,
 } from '../constants';
 import type { ColumnPresetId } from '../constants';
+import { isNewsLevel, isNewsTag } from '@/lib/newsTaxonomy';
 
 const COLUMN_PRESET_STORAGE_KEY = 'screener.columnPreset';
 
@@ -355,6 +356,24 @@ export const useScreenerStore = create<ScreenerState & ScreenerActions>((set, ge
       }
     }
 
+    // Indicador de noticias (#271). `news_score` puede ser negativo, así que el
+    // "min-max" de la URL ("-30-50", "--10") se parsea con signo; los
+    // multiselect se filtran contra la taxonomía local (un valor desconocido
+    // daría 422 en el backend).
+    for (const key of ['news_score', 'news_evidence']) {
+      const filter = parseSignedRangeParam(params.get(key));
+      if (filter) additionalFilters[key] = filter;
+    }
+    const newsMulti: [string, (v: string) => boolean][] = [
+      ['news_level', isNewsLevel],
+      ['news_events_any', isNewsTag],
+      ['news_events_none', isNewsTag],
+    ];
+    for (const [key, valid] of newsMulti) {
+      const values = (params.get(key) ?? '').split(',').filter((v) => v && valid(v));
+      if (values.length > 0) additionalFilters[key] = values;
+    }
+
     // Date range filters (format: key=YYYY-MM-DD~YYYY-MM-DD, either side optional)
     const dateRangeFilterKeys = ['bull_cycle_origin_date'];
     for (const key of dateRangeFilterKeys) {
@@ -444,6 +463,22 @@ export const useScreenerStore = create<ScreenerState & ScreenerActions>((set, ge
     });
   },
 }));
+
+/**
+ * Parse a "min-max" URL range whose bounds may be negative ("-30-50", "--10",
+ * "5-"). Returns null when neither side is a number.
+ */
+export function parseSignedRangeParam(param: string | null): RangeFilter | null {
+  if (!param) return null;
+  const m = /^(-?\d*\.?\d*)-(-?\d*\.?\d*)$/.exec(param);
+  if (!m) return null;
+  const filter: RangeFilter = {};
+  const min = m[1] ? parseFloat(m[1]) : NaN;
+  const max = m[2] ? parseFloat(m[2]) : NaN;
+  if (!isNaN(min)) filter.min = min;
+  if (!isNaN(max)) filter.max = max;
+  return filter.min !== undefined || filter.max !== undefined ? filter : null;
+}
 
 /**
  * Get count of active additional filters.

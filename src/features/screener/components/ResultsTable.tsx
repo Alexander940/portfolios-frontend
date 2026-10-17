@@ -7,7 +7,7 @@ import {
   TrendingUp,
   TrendingDown,
 } from 'lucide-react';
-import { DealBadge } from '@/components/ui';
+import { DealBadge, NewsLevelBadge } from '@/components/ui';
 import type { DealInfo } from '@/services/portfolioService';
 import { useScreenerStore } from '../stores';
 import {
@@ -355,6 +355,22 @@ function TableCell({
         ) : (
           <span style={{ color: 'var(--c-text-dim)' }}>—</span>
         )}
+      </td>
+    );
+  }
+
+  // Noticias (#271): badge de nivel + tooltip; la columna ordena por score.
+  if (column.key === 'news_score') {
+    return (
+      <td style={style}>
+        <NewsLevelBadge
+          level={stock.news_level}
+          score={stock.news_score}
+          evidence={stock.news_evidence}
+          nNotes30d={stock.news_n_notes_30d}
+          events7d={stock.news_events_7d}
+          date={stock.news_date}
+        />
       </td>
     );
   }

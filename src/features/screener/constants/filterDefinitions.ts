@@ -939,6 +939,58 @@ export function defaultAdditionalFilters(): Record<string, boolean> {
 }
 
 /**
+ * Indicador de noticias (épica #262, #268). Sin defaults (#98): ninguno entra
+ * en `defaultAdditionalFilters`. Las opciones de los multiselect son la copia
+ * local de la taxonomía del backend (`src/lib/newsTaxonomy.ts`).
+ */
+export const NEWS_FILTERS: FilterDefinition[] = [
+  {
+    key: 'news_level',
+    label: 'Nivel de noticias',
+    category: 'news',
+    type: 'multiselect',
+    apiKey: 'news_level',
+    description:
+      'Nivel del flujo de noticias de 30 días: alcista / neutral / bajista / sin cobertura (un símbolo sin noticias es "sin cobertura")',
+  },
+  {
+    key: 'news_score',
+    label: 'Score de noticias',
+    category: 'news',
+    type: 'range',
+    apiKey: 'news_score',
+    description: 'Score del flujo de noticias de 30 días, −100..+100 (sin noticias = 0)',
+  },
+  {
+    key: 'news_evidence',
+    label: 'Evidencia de noticias',
+    category: 'news',
+    type: 'range',
+    apiKey: 'news_evidence',
+    description: 'Suma de pesos de las notas que respaldan el score (≥ 0; 0 = sin cobertura). Usá el mínimo.',
+  },
+  {
+    key: 'news_events_any',
+    label: 'Eventos (incluir)',
+    category: 'news',
+    type: 'multiselect',
+    apiKey: 'news_events_any',
+    description: 'Hubo en los últimos 7 días alguna nota con al menos una de estas etiquetas',
+  },
+  {
+    key: 'news_events_none',
+    label: 'Eventos (excluir)',
+    category: 'news',
+    type: 'multiselect',
+    apiKey: 'news_events_none',
+    description: 'Ninguna nota de los últimos 7 días tiene estas etiquetas (sin noticias pasa)',
+  },
+];
+
+/** Keys de los filtros de noticias (hidratación de URL, checks). */
+export const NEWS_FILTER_KEYS: readonly string[] = NEWS_FILTERS.map((f) => f.key);
+
+/**
  * Other filter definitions
  */
 export const OTHER_FILTERS: FilterDefinition[] = [
@@ -1005,6 +1057,7 @@ export const ADDITIONAL_FILTERS: FilterDefinition[] = [
   ...PERFORMANCE_FILTERS,
   ...INDICATORS_FILTERS,
   ...PRICES_FILTERS,
+  ...NEWS_FILTERS,
   // Exclude primary filters — and the M&A exclusion, which has its own toggle —
   // from the additional filters menu.
   ...OTHER_FILTERS.filter(
@@ -1048,6 +1101,7 @@ export const FILTER_CATEGORIES = [
   { key: 'performance', label: 'Performance' },
   { key: 'indicators', label: 'Indicators' },
   { key: 'prices', label: 'Prices' },
+  { key: 'news', label: 'Noticias' },
   { key: 'others', label: 'Others' },
 ] as const;
 
@@ -1062,6 +1116,7 @@ export function getFilterDefinition(key: string): FilterDefinition | undefined {
     ...PERFORMANCE_FILTERS,
     ...INDICATORS_FILTERS,
     ...PRICES_FILTERS,
+    ...NEWS_FILTERS,
     ...OTHER_FILTERS,
   ].find((f) => f.key === key);
 }
@@ -1255,7 +1310,7 @@ export const DEFAULT_PAGE_SIZE = 50;
 // Table Column Presets
 // =============================================================================
 
-export type ColumnPresetId = 'overview' | 'trendrating' | 'ade' | 'performance' | 'fundamentals' | 'indicators' | 'prices' | 'all';
+export type ColumnPresetId = 'overview' | 'trendrating' | 'ade' | 'performance' | 'fundamentals' | 'indicators' | 'prices' | 'news' | 'all';
 
 export interface ColumnPreset {
   id: ColumnPresetId;
@@ -1373,6 +1428,15 @@ const DEAL_COLUMNS: TableColumn[] = [
   { key: 'deal_announced_date', label: 'Anuncio deal', sortable: true, align: 'center', width: '130px', format: formatDate },
 ];
 
+// Indicador de noticias (#271). `news_score` se pinta con `NewsLevelBadge` en
+// ResultsTable (columna «Noticias»); ordenar por ella = `sort_by: news_score`.
+// `news_n_notes_30d` no es una clave de orden del backend → no sortable.
+const NEWS_COLUMNS: TableColumn[] = [
+  { key: 'news_score', label: 'Noticias', sortable: true, align: 'center', width: '150px' },
+  { key: 'news_evidence', label: 'Evidencia', sortable: true, align: 'right', width: '100px', format: (v) => formatNumber(v, 1) },
+  { key: 'news_n_notes_30d', label: 'Notas 30d', sortable: false, align: 'right', width: '100px', format: (v) => formatNumber(v, 0) },
+];
+
 const PRICES_COLUMNS: TableColumn[] = [
   { key: 'open', label: 'Open', sortable: true, align: 'right', width: '100px', format: (v) => formatNumber(v, 2) },
   { key: 'high', label: 'High', sortable: true, align: 'right', width: '100px', format: (v) => formatNumber(v, 2) },
@@ -1440,6 +1504,7 @@ export const TABLE_COLUMN_PRESETS: ColumnPreset[] = [
       { key: 'pe_ratio', label: 'P/E', sortable: true, align: 'right', width: '80px', format: (v) => formatNumber(v, 1) },
       { key: 'dividend_yield', label: 'Div Yield', sortable: true, align: 'right', width: '100px', format: formatPercent },
       { key: 'liquidity_usd_m', label: 'Liquidity', sortable: true, align: 'right', width: '110px', format: formatLiquidity },
+      NEWS_COLUMNS[0],
     ],
   },
   {
@@ -1479,6 +1544,12 @@ export const TABLE_COLUMN_PRESETS: ColumnPreset[] = [
     columns: [...PINNED_COLUMNS, ...PRICES_COLUMNS],
   },
   {
+    id: 'news',
+    label: 'Noticias',
+    description: 'Indicador de noticias: nivel, score, evidencia y notas de 30 días',
+    columns: [...PINNED_COLUMNS, ...NEWS_COLUMNS],
+  },
+  {
     id: 'all',
     label: 'All',
     description: 'Every available metric (scroll horizontal)',
@@ -1492,6 +1563,7 @@ export const TABLE_COLUMN_PRESETS: ColumnPreset[] = [
       ...INDICATORS_COLUMNS,
       ...PRICES_COLUMNS,
       ...DEAL_COLUMNS,
+      ...NEWS_COLUMNS,
     ],
   },
 ];
