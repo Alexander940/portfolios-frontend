@@ -1,5 +1,6 @@
 // Constants + mapping between the UI form config and the backend StrategySpec,
 // and adaptation of the backend backtest result into the results-view shape.
+import { NEWS_LEVELS, NEWS_TAGS } from '@/lib/newsTaxonomy';
 import {
   isFilterGroup,
   type BacktestResultOut,
@@ -50,7 +51,8 @@ export type FilterCategory =
   | 'Technical Indicators'
   | 'Price & Volume'
   | 'Classification'
-  | 'Corporate Actions';
+  | 'Corporate Actions'
+  | 'News';
 
 /** Which builder section a filter may be added in. 'universe' = Additional rules
  *  (constrain the universe); 'selection' = Selection rules (post-universe phase). */
@@ -69,6 +71,9 @@ export interface ScreenerFilterDef {
   unit?: string; // shown in the chip/modal (e.g. '%'); margins are also ÷100 (kind 'pct')
   /** For type 'multiselect': which option list (from GET /screener/options) feeds it. */
   optionsKey?: 'sectors' | 'exchanges' | 'countries';
+  /** For type 'multiselect' with a closed, known value set (not from
+   *  /screener/options): the values offered verbatim. */
+  staticOptions?: readonly string[];
   /** Sections this filter may be added in (default: both). `sector` is selection-only
    *  to avoid colliding with the dedicated universe sector control. */
   sections?: FilterSection[];
@@ -185,6 +190,15 @@ export const SCREENER_FILTERS: ScreenerFilterDef[] = [
   // (universe is locked to US).
   { key: 'exchange', label: 'Exchange', type: 'multiselect', optionsKey: 'exchanges', hint: 'Listing exchange (e.g. NASDAQ, NYSE). Classification is current-only (not point-in-time).', category: 'Classification' },
   { key: 'sector', label: 'Sector', type: 'multiselect', optionsKey: 'sectors', sections: ['selection'], hint: 'GICS / FMP sector. Selection-rules only — the universe already has its own sector control. Current-only classification.', category: 'Classification' },
+  // Indicador de noticias (épica #262, alias `news`, lag 1 día). Ambas secciones.
+  // En un backtest el linter PIT lo rechaza hasta que el backend tenga
+  // NEWS_INDICATOR_HISTORY_FROM; su mensaje se muestra tal cual (como M&A).
+  // Opciones = copia local de la taxonomía del backend (src/lib/newsTaxonomy.ts).
+  { key: 'news_level', label: 'News level', type: 'multiselect', staticOptions: NEWS_LEVELS, hint: '30-day news-flow level: alcista / neutral / bajista / sin_cobertura (a symbol without news is sin_cobertura). A backtest needs the news history (NEWS_INDICATOR_HISTORY_FROM) — otherwise it is rejected.', category: 'News' },
+  { key: 'news_score', label: 'News score', kind: 'ratio', hint: '30-day news-flow score, −100…+100 (no news = 0). A backtest needs the news history (NEWS_INDICATOR_HISTORY_FROM).', category: 'News' },
+  { key: 'news_evidence', label: 'News evidence', kind: 'ratio', hint: 'Sum of note weights behind the score (≥ 0; 0 = no coverage). A backtest needs the news history (NEWS_INDICATOR_HISTORY_FROM).', category: 'News' },
+  { key: 'news_events_any', label: 'News events (any of)', type: 'multiselect', staticOptions: NEWS_TAGS, hint: 'Some note in the last 7 days carries at least one of these tags. A backtest needs the news history (NEWS_INDICATOR_HISTORY_FROM).', category: 'News' },
+  { key: 'news_events_none', label: 'News events (none of)', type: 'multiselect', staticOptions: NEWS_TAGS, hint: 'No note in the last 7 days carries any of these tags (no news passes). A backtest needs the news history (NEWS_INDICATOR_HISTORY_FROM).', category: 'News' },
 ];
 
 // Ordered category list for the add-selector's <optgroup>s.
@@ -199,6 +213,7 @@ export const FILTER_CATEGORIES: FilterCategory[] = [
   'Price & Volume',
   'Classification',
   'Corporate Actions',
+  'News',
 ];
 
 /** Human-readable bounds for a Selection-rules chip: "5 – 20 %", "≥ 5", "≤ 20",
@@ -302,6 +317,8 @@ export const SORT_FIELDS: { k: string; label: string }[] = [
   { k: 'adx', label: 'ADX' },
   { k: 'market_cap', label: 'Market Cap' },
   { k: 'alpha', label: 'Alpha (12M vs S&P)' },
+  // Indicador de noticias (#268): en un backtest exige NEWS_INDICATOR_HISTORY_FROM.
+  { k: 'news_score', label: 'News score' },
 ];
 
 // Layer-3 intra-sector methods. `market_cap` is point-in-time via symbol_valuation

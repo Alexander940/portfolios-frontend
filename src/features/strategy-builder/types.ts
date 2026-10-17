@@ -172,6 +172,16 @@ export type ClassificationKey = 'sector' | 'exchange';
 /** Date-range (ade) fields, PIT via the `ade` series. */
 export type DateRangeFieldKey = 'bull_cycle_origin_date';
 
+/** Indicador de noticias (épica #262, alias `news`). PIT con lag de 1 día, pero
+ *  el linter del backend RECHAZA cualquiera en un backtest mientras no esté
+ *  `NEWS_INDICATOR_HISTORY_FROM` (su mensaje se muestra tal cual); en vivo sí. */
+export type NewsFieldKey =
+  | 'news_level'
+  | 'news_score'
+  | 'news_evidence'
+  | 'news_events_any'
+  | 'news_events_none';
+
 /** Any screener field the user can add as a filter (Additional or Selection
  *  rules). All are PIT-safe in a backtest — the backend's PIT linter accepts the
  *  ade/ti/tr/price/sym aliases; Profit-Factor, non-quarterly fundamentals, and
@@ -186,7 +196,8 @@ export type ScreenerFieldKey =
   | PriceKey
   | BooleanFieldKey
   | ClassificationKey
-  | DateRangeFieldKey;
+  | DateRangeFieldKey
+  | NewsFieldKey;
 
 /** One active filter the user added (the rule sections are dynamic — the user
  *  picks fields from a catalog). The shape carries every value type; the catalog's
