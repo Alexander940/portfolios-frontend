@@ -651,6 +651,10 @@ export interface TradeRow {
   price: number;
   value: number;
   cost: number;
+  /** Off-calendar exit reason (#280): `null`/absent = rebalance fill;
+   *  `"stop_loss"` / `"trailing_stop_atr"` = stop sale. Legacy results
+   *  (before #280) do not carry the key at all. */
+  reason?: string | null;
 }
 
 export interface BacktestResultOut {

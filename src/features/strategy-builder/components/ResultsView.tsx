@@ -143,7 +143,7 @@ function FillsTable({ fills }: { fills: DisplayResult['fills'] }) {
   return (
     <>
       <div style={{ overflowX: 'auto' }}>
-        <table className="tbl">
+        <table className="tbl" data-testid="sb-fills-table">
           <thead>
             <tr>
               <th>Symbol</th>
@@ -153,6 +153,7 @@ function FillsTable({ fills }: { fills: DisplayResult['fills'] }) {
               <th className="num">Price</th>
               <th className="num">Value</th>
               <th className="num">Cost</th>
+              <th>Motivo</th>
             </tr>
           </thead>
           <tbody>
@@ -165,6 +166,9 @@ function FillsTable({ fills }: { fills: DisplayResult['fills'] }) {
                 <td className="num">${fmtNum(t.price)}</td>
                 <td className="num">${fmtNum(t.value)}</td>
                 <td className="num dim">${fmtNum(t.cost)}</td>
+                <td data-testid="sb-fill-reason">
+                  {t.reason ? <span className="sb-chip neg">{t.reason}</span> : null}
+                </td>
               </tr>
             ))}
           </tbody>
