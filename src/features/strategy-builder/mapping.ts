@@ -1062,8 +1062,23 @@ export function adaptResult(r: BacktestResultOut): DisplayResult {
           : null,
     })),
     initialCash: r.initial_cash,
-    fills: r.trades,
+    fills: sortFills(r.trades),
   };
+}
+
+/** Trade-log order (#281): date asc, then ticker, then side (`buy` before
+ *  `sell` — a same-day rebalance top-up followed by a stop of the same name).
+ *  Same criterion as the backend's `BacktestResult.trades` `order_by`; kept
+ *  here as defense in depth while the flat log exists (#278 retires it).
+ *  Returns a copy — never mutates the API payload. */
+export function sortFills(trades: BacktestResultOut['trades']): BacktestResultOut['trades'] {
+  const key = (s: string | null) => s ?? '';
+  return [...trades].sort(
+    (a, b) =>
+      a.date.localeCompare(b.date) ||
+      key(a.ticker).localeCompare(key(b.ticker)) ||
+      a.side.localeCompare(b.side),
+  );
 }
 
 /** Build a short sparkline (rebased) from a backtest's equity for the list card. */

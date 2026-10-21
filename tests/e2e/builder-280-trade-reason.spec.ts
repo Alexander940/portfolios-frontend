@@ -9,6 +9,8 @@ import { test, expect, type Page } from '@playwright/test';
  *    that row and the rebalance rows (`reason: null`) stay empty;
  *  - a LEGACY result whose trades lack the `reason` key (every backtest saved
  *    before #280) → the column renders empty, never "undefined"/"null".
+ *  - #281: trades arriving shuffled from the API render sorted by date
+ *    (then ticker, then buy before sell).
  */
 
 const USER = {
@@ -195,5 +197,38 @@ test.describe('Builder — motivo de salida en el trade log (#280)', () => {
     const tableText = await table.innerText();
     expect(tableText).not.toContain('undefined');
     expect(tableText).not.toContain('null');
+  });
+
+  test('#281 — trades desordenados en la API se pintan por fecha ascendente', async ({ page }) => {
+    await seedAuth(page);
+    await mockApi(page, {
+      sid: 'sid-shuffled',
+      name: 'E2E Shuffled Fills',
+      costs: COSTS,
+      result: resultWith([
+        trade('MMM', '2024-03-04', 'buy'),
+        trade('ZZZ', '2024-01-03', 'buy'),
+        trade('AAA', '2024-02-05', 'sell', { reason: 'stop_loss' }),
+        trade('AAA', '2024-01-03', 'buy'),
+        trade('AAA', '2024-02-05', 'buy'),
+      ]),
+    });
+
+    await backtestFromList(page, 'E2E Shuffled Fills');
+
+    const rows = page.getByTestId('sb-fills-table').locator('tbody tr');
+    await expect(rows).toHaveCount(5);
+    const got: string[] = [];
+    for (const row of await rows.all()) {
+      const cells = row.locator('td');
+      got.push(`${await cells.nth(1).innerText()} ${await cells.nth(0).innerText()} ${await cells.nth(2).innerText()}`);
+    }
+    expect(got).toEqual([
+      '2024-01-03 AAA buy',
+      '2024-01-03 ZZZ buy',
+      '2024-02-05 AAA buy',
+      '2024-02-05 AAA sell',
+      '2024-03-04 MMM buy',
+    ]);
   });
 });
