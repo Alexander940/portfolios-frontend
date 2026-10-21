@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 
 import { Icon } from '../icons';
-import { formatUsd, type DisplayResult } from '../mapping';
+import { classifyFills, formatUsd, type DisplayResult } from '../mapping';
 import { Tip } from './formBits';
 import { EquityChart, type EquityChartMode } from './EquityChart';
 import { SelectionTraceView } from './SelectionTraceView';
@@ -170,11 +170,21 @@ function TurnoverGrid({ m }: { m: DisplayResult['metrics'] }) {
   );
 }
 
-function FillsTable({ fills }: { fills: DisplayResult['fills'] }) {
+function FillsTable({ fills, curve }: { fills: DisplayResult['fills']; curve: DisplayResult['curve'] }) {
   const [page, setPage] = useState(0);
+  // #282: hide the sub-0.5 %-of-book adjustments (entries/exits always show).
+  const [hideSmall, setHideSmall] = useState(false);
   const perPage = 10;
-  const pages = Math.ceil(fills.length / perPage);
-  const rows = useMemo(() => fills.slice(page * perPage, page * perPage + perPage), [fills, page]);
+  const annotated = useMemo(() => {
+    const kinds = classifyFills(fills, curve);
+    return fills.map((t, i) => ({ t, ...kinds[i] }));
+  }, [fills, curve]);
+  const visible = useMemo(
+    () => (hideSmall ? annotated.filter((r) => !(r.kind === 'ajuste' && r.small)) : annotated),
+    [annotated, hideSmall],
+  );
+  const pages = Math.ceil(visible.length / perPage);
+  const rows = useMemo(() => visible.slice(page * perPage, page * perPage + perPage), [visible, page]);
 
   if (fills.length === 0) {
     return <div className="sb-trades-empty">No trades were generated for this configuration.</div>;
@@ -182,6 +192,17 @@ function FillsTable({ fills }: { fills: DisplayResult['fills'] }) {
 
   return (
     <>
+      <label className="sb-fills-filter" style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+        <input
+          type="checkbox"
+          checked={hideSmall}
+          onChange={(e) => {
+            setHideSmall(e.target.checked);
+            setPage(0);
+          }}
+        />
+        Ocultar ajustes &lt; 0,5 % del libro
+      </label>
       <div style={{ overflowX: 'auto' }}>
         <table className="tbl" data-testid="sb-fills-table">
           <thead>
@@ -189,6 +210,7 @@ function FillsTable({ fills }: { fills: DisplayResult['fills'] }) {
               <th>Symbol</th>
               <th>Date</th>
               <th>Side</th>
+              <th>Tipo</th>
               <th className="num">Shares</th>
               <th className="num">Price</th>
               <th className="num">Value</th>
@@ -197,11 +219,12 @@ function FillsTable({ fills }: { fills: DisplayResult['fills'] }) {
             </tr>
           </thead>
           <tbody>
-            {rows.map((t, i) => (
+            {rows.map(({ t, kind }, i) => (
               <tr key={`${t.symbol_id}-${t.date}-${i}`}>
                 <td style={{ fontWeight: 600 }}>{t.ticker ?? '—'}</td>
                 <td className="dim">{t.date}</td>
                 <td className={t.side === 'buy' ? 'pos' : 'neg'}>{t.side}</td>
+                <td className="dim" data-testid="sb-fill-kind">{kind}</td>
                 <td className="num">{fmtNum(t.shares)}</td>
                 <td className="num">${fmtNum(t.price)}</td>
                 <td className="num">${fmtNum(t.value)}</td>
@@ -223,7 +246,8 @@ function FillsTable({ fills }: { fills: DisplayResult['fills'] }) {
         </button>
         <div style={{ flex: 1 }} />
         <span className="sb-page-info">
-          {page * perPage + 1}–{Math.min((page + 1) * perPage, fills.length)} of {fills.length} fills
+          {visible.length === 0 ? 0 : page * perPage + 1}–{Math.min((page + 1) * perPage, visible.length)} of{' '}
+          {visible.length} fills
         </span>
       </div>
     </>
@@ -395,7 +419,7 @@ export function ResultsView({
                 <div className="card-sub">Every fill the strategy executed (next-open, net of costs)</div>
               </div>
             </div>
-            <FillsTable fills={result.fills} />
+            <FillsTable fills={result.fills} curve={result.curve} />
           </div>
         </>
       )}

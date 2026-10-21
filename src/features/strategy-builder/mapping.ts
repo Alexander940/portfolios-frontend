@@ -416,7 +416,12 @@ export const DEFAULT_CONFIG: BuilderConfig = {
   maxEntriesPerRebalance: '',
   maxTurnoverPct: '',
   cashBufferPct: '',
-  minTradePct: '',
+  // #282 (A-282-1, aprobada por el dueño): 0,5 % sugerido SÓLO en estrategias
+  // nuevas — evita re-operar cada posición a su peso exacto en cada rebalanceo.
+  // Es una sugerencia de ejecución, no un filtro. Las guardadas sin la cláusula
+  // NO la heredan: specToConfig carga `pctFromFraction(undefined) → ''` y
+  // normalizeCfg no la rellena en configs viejos (ver abajo).
+  minTradePct: 0.5,
   driftBandPct: '',
   stopLossPct: '',
   trailingStopAtr: '',
@@ -478,6 +483,11 @@ export function normalizeCfg(cfg: BuilderConfig): BuilderConfig {
     saved.rebalanceOn === 'period_start' || saved.rebalanceOn === 'period_end'
       ? saved.rebalanceOn
       : DEFAULT_REBALANCE_ON;
+  // #282: the 0.5 % `minTradePct` default is for NEW strategies only. A config
+  // saved before the field existed has no key at all — it ran without the rule,
+  // so it must stay off ('') instead of inheriting DEFAULT_CONFIG's suggestion
+  // (that would silently change its spec and content_hash on the next run).
+  const minTradePct: number | '' = 'minTradePct' in saved ? (saved.minTradePct ?? '') : '';
   const out = {
     ...DEFAULT_CONFIG,
     ...cfg,
@@ -486,6 +496,7 @@ export function normalizeCfg(cfg: BuilderConfig): BuilderConfig {
     sectorDeltas,
     sectorCaps,
     rebalanceOn,
+    minTradePct,
   };
   // Strip the migrated knob props so the knob→row migration above runs at most
   // once per stored config (a re-normalize must not resurrect a deleted row).
@@ -1081,6 +1092,56 @@ export function sortFills(trades: BacktestResultOut['trades']): BacktestResultOu
       key(a.ticker).localeCompare(key(b.ticker)) ||
       a.side.localeCompare(b.side),
   );
+}
+
+/** Position-flat threshold — same `_EPS` as the backend engine and
+ *  `app/backtest/rebalance_snapshots.py`. */
+export const FILL_EPS = 1e-9;
+/** D5 of the trade-log epic: an adjustment worth < 0.5 % of the book is "small". */
+export const SMALL_FILL_THRESHOLD = 0.005;
+
+export type FillKind = 'entrada' | 'salida' | 'ajuste';
+
+/** TS mirror of the backend's `classify_fill` (#282): `entrada` when the fill
+ *  opens the position (before ≤ ε < after), `salida` when it closes it
+ *  (before > ε ≥ after), `ajuste` otherwise (top-up / trim of an open
+ *  position). `small` = value < threshold × book value — strict, so a fill
+ *  exactly at the threshold is NOT small. Keep both in lockstep. */
+export function classifyFill(
+  sharesBefore: number,
+  sharesAfter: number,
+  value: number,
+  bookValue: number,
+  smallThreshold = SMALL_FILL_THRESHOLD,
+): { kind: FillKind; small: boolean } {
+  const wasOpen = sharesBefore > FILL_EPS;
+  const isOpen = sharesAfter > FILL_EPS;
+  const kind: FillKind = !wasOpen && isOpen ? 'entrada' : wasOpen && !isOpen ? 'salida' : 'ajuste';
+  return { kind, small: value < smallThreshold * bookValue };
+}
+
+/** Classify every fill of an (already `sortFills`-ordered) log by replaying the
+ *  per-symbol share balance; the book value is the equity curve's
+ *  `totalValue` on the fill's date (as-of: the last point on or before it).
+ *  With no curve point at all the book is unknown and nothing is `small`. */
+export function classifyFills(
+  fills: BacktestResultOut['trades'],
+  curve: { date: string; totalValue: number }[],
+): { kind: FillKind; small: boolean }[] {
+  const held = new Map<string, number>();
+  let ci = 0;
+  let book = Number.NaN;
+  return fills.map((f) => {
+    while (ci < curve.length && curve[ci].date <= f.date) {
+      book = curve[ci].totalValue;
+      ci += 1;
+    }
+    const key = f.symbol_id ?? f.ticker ?? '';
+    const before = held.get(key) ?? 0;
+    const after = f.side === 'buy' ? before + f.shares : before - f.shares;
+    held.set(key, after);
+    return classifyFill(before, after, f.value, book);
+  });
 }
 
 /** Build a short sparkline (rebased) from a backtest's equity for the list card. */
