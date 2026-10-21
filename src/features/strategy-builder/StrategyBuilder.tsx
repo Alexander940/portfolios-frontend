@@ -90,6 +90,10 @@ interface RunOpts {
   /** Local draft card that this run persists server-side: drop it from the
    *  local store on success so the list doesn't show draft + backtested twins. */
   draftId?: string;
+  /** Skip the backend dedupe (`POST …/backtest?force=true`, #278 D2): re-run a
+   *  result persisted before the per-rebalance table so the «Rebalanceos» tab
+   *  has data. Always creates a new job. */
+  force?: boolean;
 }
 
 export function StrategyBuilder() {
@@ -180,7 +184,7 @@ export function StrategyBuilder() {
           if (opts.draftId) void remove(opts.draftId);
         }
         activeIdRef.current = strategyId;
-        const submit = await runBacktest(strategyId);
+        const submit = await runBacktest(strategyId, opts.force ? { force: true } : {});
         setActiveJobId(submit.job_id);
         if (submit.cached && opts.existingId) {
           setNotice(
@@ -291,6 +295,18 @@ export function StrategyBuilder() {
       setErrorMsg(errMessage(e));
     }
   };
+
+  // «Volver a correr» from the Rebalanceos tab (#278, D2): the SAME persisted
+  // strategy, as saved (no PUT), with the dedupe skipped — then the usual poll.
+  const rerunForced = useCallback(() => {
+    const id = activeIdRef.current;
+    if (!id) return;
+    void runFlow(activeCfg, {
+      existingId: id,
+      baseSpec: activeSpecRef.current ?? undefined,
+      force: true,
+    });
+  }, [activeCfg, runFlow]);
 
   const handleDelete = useCallback(
     async (s: SavedStrategy) => {
@@ -424,6 +440,8 @@ export function StrategyBuilder() {
           notice={notice}
           costsAreZero={activeCfg.commission === 0 && activeCfg.slippage === 0}
           jobId={activeJobId}
+          cadence={activeCfg.rebalance}
+          onRerun={rerunForced}
           onRetry={() => {
             // Replay the SAME flow (incl. existingId/update) — retrying an edit
             // of a persisted strategy must never fall back to create.

@@ -4,6 +4,7 @@ import { Icon } from '../icons';
 import { classifyFills, formatUsd, type DisplayResult } from '../mapping';
 import { Tip } from './formBits';
 import { EquityChart, type EquityChartMode } from './EquityChart';
+import { RebalancesView } from './RebalancesView';
 import { SelectionTraceView } from './SelectionTraceView';
 
 const fmtPct = (v: number, d = 1) => `${v > 0 ? '+' : ''}${v.toFixed(d)}%`;
@@ -41,11 +42,18 @@ interface Props {
    *  'done', but the tab degrades to an empty state rather than crashing). */
   jobId?: string | null;
   progressStep?: string;
+  /** Rebalance cadence of the spec behind this result (header of the
+   *  «Rebalanceos» tab, #278). */
+  cadence?: string | null;
+  /** Re-run the active strategy skipping the dedupe (`force: true`) — the
+   *  «Volver a correr» button of a result saved before the rebalances table
+   *  (#278, D2). */
+  onRerun?: () => void;
   onRetry: () => void;
   onEdit: () => void;
 }
 
-type ResultsTab = 'overview' | 'selection';
+type ResultsTab = 'overview' | 'selection' | 'rebalances';
 
 function MetricsGrid({ m, fillsCount }: { m: DisplayResult['metrics']; fillsCount: number }) {
   const cells: {
@@ -263,6 +271,8 @@ export function ResultsView({
   costsAreZero,
   jobId,
   progressStep,
+  cadence,
+  onRerun,
   onRetry,
   onEdit,
 }: Props) {
@@ -371,6 +381,16 @@ export function ResultsView({
         >
           Selection
         </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === 'rebalances'}
+          className={`tab ${tab === 'rebalances' ? 'active' : ''}`}
+          onClick={() => setTab('rebalances')}
+          data-testid="sb-tab-rebalances"
+        >
+          Rebalanceos
+        </button>
       </div>
 
       {tab === 'overview' && (
@@ -425,6 +445,10 @@ export function ResultsView({
       )}
 
       {tab === 'selection' && <SelectionTraceView jobId={jobId ?? null} />}
+
+      {tab === 'rebalances' && (
+        <RebalancesView jobId={jobId ?? null} cadence={cadence} onRerun={onRerun} />
+      )}
     </div>
   );
 }

@@ -1,11 +1,14 @@
 // API calls for the Strategy Builder (backend Loop 4 endpoints).
 import { apiClient } from '@/lib/axios';
+import { extractFilename, triggerDownload } from '@/lib/download';
 
 import type {
   AlphaWindow,
   BacktestStatusResponse,
   BacktestSubmitResponse,
   Layer1Spec,
+  RebalanceDetailOut,
+  RebalancesIndexResponse,
   ResolveUniverseResponse,
   SelectionTraceResponse,
   StrategyCreatedResponse,
@@ -115,9 +118,17 @@ export async function resolveUniverse(
   return res.data;
 }
 
-export async function runBacktest(strategyId: string): Promise<BacktestSubmitResponse> {
+/** Run (or dedupe to a cached result) the strategy's latest version.
+ *  `force` (#278, D2) skips the dedupe and always creates a new job — used to
+ *  re-run a result persisted before the per-rebalance table existed. */
+export async function runBacktest(
+  strategyId: string,
+  opts: { force?: boolean } = {},
+): Promise<BacktestSubmitResponse> {
   const res = await apiClient.post<BacktestSubmitResponse>(
     `/strategies/${strategyId}/backtest`,
+    undefined,
+    opts.force ? { params: { force: true } } : undefined,
   );
   return res.data;
 }
@@ -135,6 +146,39 @@ export async function getBacktest(jobId: string): Promise<BacktestStatusResponse
 export async function getSelectionTrace(jobId: string): Promise<SelectionTraceResponse> {
   const res = await apiClient.get<SelectionTraceResponse>(`/backtests/${jobId}/selection-trace`);
   return res.data;
+}
+
+/** Per-rebalance index + summary cards (#278). 409 = result persisted before
+ *  the rebalances table — the caller offers a `force` re-run. */
+export async function getRebalances(jobId: string): Promise<RebalancesIndexResponse> {
+  const res = await apiClient.get<RebalancesIndexResponse>(`/backtests/${jobId}/rebalances`);
+  return res.data;
+}
+
+/** One rebalance's detail: books before/after, its fills and the period's
+ *  stops (#278, fase 4). 404 for an unknown `seq`, 409 like the index. */
+export async function getRebalance(jobId: string, seq: number): Promise<RebalanceDetailOut> {
+  const res = await apiClient.get<RebalanceDetailOut>(`/backtests/${jobId}/rebalances/${seq}`);
+  return res.data;
+}
+
+/** The CSV endpoints are JWT-protected, so a plain `<a href>` would 401: fetch
+ *  the blob through the axios client (it carries the token) and hand it to the
+ *  browser from memory. */
+async function downloadCsv(path: string, fallbackName: string): Promise<void> {
+  const res = await apiClient.get<Blob>(path, { responseType: 'blob' });
+  const disposition = res.headers?.['content-disposition'] as string | undefined;
+  triggerDownload(res.data, extractFilename(disposition, fallbackName));
+}
+
+/** `GET /backtests/{job_id}/rebalances.csv` — one row per rebalance. */
+export function downloadRebalancesCsv(jobId: string): Promise<void> {
+  return downloadCsv(`/backtests/${jobId}/rebalances.csv`, `rebalances-${jobId}.csv`);
+}
+
+/** `GET /backtests/{job_id}/trades.csv` — every fill of the run. */
+export function downloadTradesCsv(jobId: string): Promise<void> {
+  return downloadCsv(`/backtests/${jobId}/trades.csv`, `trades-${jobId}.csv`);
 }
 
 export interface SymbolSearchItem {

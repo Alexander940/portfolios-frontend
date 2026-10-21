@@ -748,6 +748,105 @@ export interface SelectionTraceResponse {
   rows: SelectionRow[];
 }
 
+// ---- per-rebalance trade log (issue #278) ----
+// `GET /backtests/{job_id}/rebalances` (+ `/{seq}`). Mirrors
+// app/schemas/backtest.py: EVERY ratio is a FRACTION (0.05 = 5 %), never a
+// percent. A result persisted before the rebalances table answers 409.
+
+export interface RebalanceIndexRow {
+  seq: number;
+  decision_date: string;
+  /** Always present (the session after the decision), even when `skipped`. */
+  fill_date: string;
+  period_end: string;
+  skipped: boolean;
+  period_return: number | null;
+  bench_return: number | null;
+  excess: number | null;
+  max_drawdown: number | null;
+  turnover_pct: number | null;
+  costs: number | null;
+  n_entries: number | null;
+  n_exits: number | null;
+  n_adjust: number | null;
+  n_stops: number | null;
+  cash_after: number | null;
+  value_after: number | null;
+  n_positions_before: number | null;
+  n_positions_after: number | null;
+}
+
+export interface RebalancePeriodRef {
+  seq: number;
+  decision_date: string;
+  period_return: number;
+}
+
+export interface RebalancesSummary {
+  n_executed: number;
+  n_skipped: number;
+  /** Share of periods (executed AND skipped) with `excess > 0`, over those
+   *  with a benchmark; null when no period has one. */
+  pct_periods_beating_bench: number | null;
+  /** Median over EXECUTED rebalances only. */
+  median_turnover_pct: number | null;
+  total_costs: number;
+  best: RebalancePeriodRef | null;
+  worst: RebalancePeriodRef | null;
+}
+
+export interface RebalancesIndexResponse {
+  items: RebalanceIndexRow[];
+  total: number;
+  summary: RebalancesSummary;
+}
+
+/** Book at the decision CLOSE, before the fills. */
+export interface PositionBefore {
+  symbol_id: string;
+  shares: number;
+  /** Close of `decision_date`. */
+  price: number | null;
+  value: number;
+  weight: number;
+  entry_date: string;
+  days_held: number;
+  cost_basis: number;
+  unrealized_pnl_pct: number | null;
+  destino: 'sale' | 'recorta' | 'refuerza' | 'mantiene';
+}
+
+/** Book at the fill OPEN, after the rebalance fills and same-day stops. */
+export interface PositionAfter {
+  symbol_id: string;
+  shares: number;
+  /** Fill price (= as-of open of `fill_date`). */
+  price: number | null;
+  value: number;
+  weight: number;
+  target_weight: number;
+  period_return: number | null;
+  contribution: number | null;
+  cambio: 'nueva' | 'refuerzo' | 'recorte' | 'igual';
+}
+
+export interface RebalanceDetailOut {
+  seq: number;
+  decision_date: string;
+  fill_date: string;
+  period_end: string;
+  skipped: boolean;
+  /** The index row's metrics (same keys as `RebalanceIndexRow`, plus any the
+   *  backend adds, e.g. `realized_pnl`). */
+  metrics: Record<string, unknown>;
+  positions_before: PositionBefore[];
+  positions_after: PositionAfter[];
+  /** The rebalance's own fills (from `fill_indexes`). */
+  trades: TradeRow[];
+  /** Off-calendar exits (by `reason`) within the period. */
+  stops: TradeRow[];
+}
+
 // ---- form config (UI-side) ----
 
 export interface BuilderConfig {
