@@ -47,8 +47,16 @@ interface Props {
 
 type ResultsTab = 'overview' | 'selection';
 
-function MetricsGrid({ m }: { m: DisplayResult['metrics'] }) {
-  const cells = [
+function MetricsGrid({ m, fillsCount }: { m: DisplayResult['metrics']; fillsCount: number }) {
+  const cells: {
+    k: string;
+    v: string;
+    cls: string;
+    sub: string;
+    flag?: boolean;
+    tip?: string;
+    testId?: string;
+  }[] = [
     { k: 'Total return', v: fmtPct(m.totalReturn, 1), cls: m.totalReturn >= 0 ? 'pos' : 'neg', sub: `vs ${fmtPct(m.benchReturn, 1)} SPY` },
     { k: 'CAGR', v: fmtPct(m.cagr, 1), cls: m.cagr >= 0 ? 'pos' : 'neg', sub: 'annualized' },
     { k: 'Sharpe', v: m.sharpe.toFixed(2), cls: '', sub: 'risk-adjusted', flag: m.lowConf },
@@ -56,14 +64,25 @@ function MetricsGrid({ m }: { m: DisplayResult['metrics'] }) {
     { k: 'Calmar', v: m.calmar.toFixed(2), cls: '', sub: 'return / max DD', flag: m.lowConf },
     { k: 'Max drawdown', v: fmtPct(m.maxDD, 1), cls: 'neg', sub: 'peak to trough' },
     { k: 'Alpha / Beta', v: fmtPct(m.alpha, 1), cls: m.alpha >= 0 ? 'pos' : 'neg', sub: `β ${m.beta.toFixed(2)}` },
-    { k: 'Trades', v: String(m.trades), cls: '', sub: m.lowConf ? 'low sample' : 'executed', flag: m.lowConf },
+    // #283: `n_trades` counts positions OPENED (0 → >0), not fills — the card
+    // says so and shows the fill count underneath so the two never get mixed up.
+    {
+      k: 'Entradas',
+      v: String(m.trades),
+      cls: '',
+      sub: `${fillsCount} fills`,
+      flag: m.lowConf,
+      tip: 'Posiciones abiertas (0 → >0). low_sample_trades se evalúa sobre este número, no sobre los fills.',
+      testId: 'sb-metric-entries',
+    },
   ];
   return (
     <div className="sb-metrics-grid" data-testid="sb-metrics">
       {cells.map((c, i) => (
-        <div key={i} className={`sb-metric-cell ${c.flag ? 'flagged' : ''}`}>
+        <div key={i} className={`sb-metric-cell ${c.flag ? 'flagged' : ''}`} data-testid={c.testId}>
           <div className="mk">
             {c.k}
+            {c.tip && <Tip text={c.tip} />}
             {c.flag && (
               <span className="sb-lowconf-pip" title="Low confidence — few trades">
                 <Icon name="warn" size={11} />
@@ -85,7 +104,15 @@ function MetricsGrid({ m }: { m: DisplayResult['metrics'] }) {
  *  missing on its own. */
 function TurnoverGrid({ m }: { m: DisplayResult['metrics'] }) {
   if (m.turnoverPctAnnual == null) return null;
-  const cells = [
+  const cells: {
+    k: string;
+    v: string;
+    sub: string;
+    tip?: string;
+    cls?: string;
+    extra?: string | null;
+    testId?: string;
+  }[] = [
     {
       k: 'Turnover',
       tip: 'Annualized two-sided turnover: (Σ sells + Σ buys) / (2 × average equity). 100% = the whole portfolio turned over once in a year.',
@@ -105,8 +132,16 @@ function TurnoverGrid({ m }: { m: DisplayResult['metrics'] }) {
     },
     {
       k: 'Avg. holding',
+      tip: 'Días de calendario entre la entrada y la salida completa de cada posición cerrada; los recortes parciales no cuentan.',
       v: m.avgHoldingDays != null ? `${m.avgHoldingDays.toFixed(0)}d` : '—',
       sub: 'entry to exit',
+      // #283: the pre-#283 FIFO-lot definition, only on results computed after
+      // it shipped — older results carry no `avg_lot_days` and show nothing.
+      extra:
+        m.avgLotDays != null && Number.isFinite(m.avgLotDays)
+          ? `por lote FIFO: ${m.avgLotDays.toFixed(0)} d`
+          : null,
+      testId: 'sb-metric-avg-holding',
     },
     {
       k: 'Exits',
@@ -117,13 +152,18 @@ function TurnoverGrid({ m }: { m: DisplayResult['metrics'] }) {
   return (
     <div className="sb-metrics-grid" data-testid="sb-turnover-metrics">
       {cells.map((c, i) => (
-        <div key={i} className="sb-metric-cell">
+        <div key={i} className="sb-metric-cell" data-testid={c.testId}>
           <div className="mk">
             {c.k}
             {c.tip && <Tip text={c.tip} />}
           </div>
           <div className={`mv ${c.cls ?? ''}`}>{c.v}</div>
           <div className="msub">{c.sub}</div>
+          {c.extra && (
+            <div className="msub" data-testid="sb-avg-lot-days">
+              {c.extra}
+            </div>
+          )}
         </div>
       ))}
     </div>
@@ -279,12 +319,12 @@ export function ResultsView({
             <Icon name="warn" size={18} />
           </span>
           <span>
-            <b>Low-confidence result.</b> This strategy executed only <b>{m.trades} trades</b> — below the minimum threshold for statistical significance. Risk-adjusted ratios (Sharpe, Sortino, Calmar) are flagged and should be treated as indicative.
+            <b>Low-confidence result.</b> This strategy opened only <b>{m.trades} entradas</b> (positions, not fills) — below the minimum threshold for statistical significance. Risk-adjusted ratios (Sharpe, Sortino, Calmar) are flagged and should be treated as indicative.
           </span>
         </div>
       )}
 
-      <MetricsGrid m={m} />
+      <MetricsGrid m={m} fillsCount={result.fills.length} />
       <TurnoverGrid m={m} />
 
       <div className="tabs" role="tablist">

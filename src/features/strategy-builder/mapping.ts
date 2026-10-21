@@ -998,8 +998,9 @@ export interface DisplayMetrics {
   turnoverPctAnnual?: number; // % annual, two-sided convention
   totalCosts?: number; // USD
   costDragPctAnnual?: number; // % annual
-  avgHoldingDays?: number; // days
+  avgHoldingDays?: number; // days, entry → full exit of closed positions (#283)
   nExits?: number;
+  avgLotDays?: number; // days, FIFO per lot (pre-#283 avg_holding_days); absent on older results
 }
 
 export interface DisplayResult {
@@ -1046,6 +1047,7 @@ export function adaptResult(r: BacktestResultOut): DisplayResult {
       costDragPctAnnual: m.cost_drag_pct_annual,
       avgHoldingDays: m.avg_holding_days,
       nExits: m.n_exits,
+      avgLotDays: m.avg_lot_days,
     },
     curve: eq.map((p) => ({
       date: p.date,

@@ -626,10 +626,18 @@ export interface BacktestMetrics {
   total_costs?: number;
   /** Annualized percent of return given up to trading costs (e.g. 2.5 = 2.5%/yr). */
   cost_drag_pct_annual?: number;
-  /** Average number of calendar days a position was held, entry to exit. */
+  /** Mean calendar days from the buy that OPENED a position (0 → >0) to the
+   *  sell that flattened it (>0 → 0), over closed positions only (#283).
+   *  Top-ups don't move the entry date and partial trims add no sample; 0 when
+   *  nothing closed. Results stored before #283 carry the old FIFO-lot value
+   *  here (now `avg_lot_days`). */
   avg_holding_days?: number;
   /** Number of position closes (mirrors n_trades' entries — a `>0 → 0` transition). */
   n_exits?: number;
+  /** Mean calendar days per FIFO-matched lot (buy lot → the sell that consumed
+   *  it; partial trims count) — the pre-#283 definition of avg_holding_days.
+   *  Absent on results stored before #283. */
+  avg_lot_days?: number;
 }
 
 export interface EquityPoint {
