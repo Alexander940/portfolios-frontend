@@ -804,6 +804,8 @@ export interface RebalancesIndexResponse {
 /** Book at the decision CLOSE, before the fills. */
 export interface PositionBefore {
   symbol_id: string;
+  /** Resolved at read time (#278 fase 4); null if the symbol is gone. */
+  ticker?: string | null;
   shares: number;
   /** Close of `decision_date`. */
   price: number | null;
@@ -819,6 +821,8 @@ export interface PositionBefore {
 /** Book at the fill OPEN, after the rebalance fills and same-day stops. */
 export interface PositionAfter {
   symbol_id: string;
+  /** Resolved at read time (#278 fase 4); null if the symbol is gone. */
+  ticker?: string | null;
   shares: number;
   /** Fill price (= as-of open of `fill_date`). */
   price: number | null;

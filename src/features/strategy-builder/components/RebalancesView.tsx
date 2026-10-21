@@ -296,6 +296,8 @@ export function RebalancesView({ jobId, cadence, onRerun }: Props) {
         seq={selectedSeq}
         total={total}
         row={row}
+        items={chronological}
+        onSelect={setSelectedSeq}
         onBack={() => setSelectedSeq(null)}
         onPrev={idx > 0 ? () => setSelectedSeq(chronological[idx - 1].seq) : undefined}
         onNext={

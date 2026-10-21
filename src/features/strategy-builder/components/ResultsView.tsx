@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 
 import { Icon } from '../icons';
-import { classifyFills, formatUsd, type DisplayResult } from '../mapping';
+import { formatUsd, type DisplayResult } from '../mapping';
+import { downloadTradesCsv } from '../service';
 import { Tip } from './formBits';
 import { EquityChart, type EquityChartMode } from './EquityChart';
 import { RebalancesView } from './RebalancesView';
@@ -10,8 +11,6 @@ import { SelectionTraceView } from './SelectionTraceView';
 const fmtPct = (v: number, d = 1) => `${v > 0 ? '+' : ''}${v.toFixed(d)}%`;
 // Magnitude percent (turnover / cost drag) — no forced sign, they aren't gains.
 const fmtPctPlain = (v: number, d = 1) => `${v.toFixed(d)}%`;
-const fmtNum = (v: number, d = 2) =>
-  v.toLocaleString(undefined, { minimumFractionDigits: d, maximumFractionDigits: d });
 /** Threshold (%, two-sided/annualized) above which turnover is "high" for the
  *  zero-cost warning — 100% = the whole book turned over once in a year. */
 const HIGH_TURNOVER_PCT_ANNUAL = 100;
@@ -178,90 +177,6 @@ function TurnoverGrid({ m }: { m: DisplayResult['metrics'] }) {
   );
 }
 
-function FillsTable({ fills, curve }: { fills: DisplayResult['fills']; curve: DisplayResult['curve'] }) {
-  const [page, setPage] = useState(0);
-  // #282: hide the sub-0.5 %-of-book adjustments (entries/exits always show).
-  const [hideSmall, setHideSmall] = useState(false);
-  const perPage = 10;
-  const annotated = useMemo(() => {
-    const kinds = classifyFills(fills, curve);
-    return fills.map((t, i) => ({ t, ...kinds[i] }));
-  }, [fills, curve]);
-  const visible = useMemo(
-    () => (hideSmall ? annotated.filter((r) => !(r.kind === 'ajuste' && r.small)) : annotated),
-    [annotated, hideSmall],
-  );
-  const pages = Math.ceil(visible.length / perPage);
-  const rows = useMemo(() => visible.slice(page * perPage, page * perPage + perPage), [visible, page]);
-
-  if (fills.length === 0) {
-    return <div className="sb-trades-empty">No trades were generated for this configuration.</div>;
-  }
-
-  return (
-    <>
-      <label className="sb-fills-filter" style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-        <input
-          type="checkbox"
-          checked={hideSmall}
-          onChange={(e) => {
-            setHideSmall(e.target.checked);
-            setPage(0);
-          }}
-        />
-        Ocultar ajustes &lt; 0,5 % del libro
-      </label>
-      <div style={{ overflowX: 'auto' }}>
-        <table className="tbl" data-testid="sb-fills-table">
-          <thead>
-            <tr>
-              <th>Symbol</th>
-              <th>Date</th>
-              <th>Side</th>
-              <th>Tipo</th>
-              <th className="num">Shares</th>
-              <th className="num">Price</th>
-              <th className="num">Value</th>
-              <th className="num">Cost</th>
-              <th>Motivo</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map(({ t, kind }, i) => (
-              <tr key={`${t.symbol_id}-${t.date}-${i}`}>
-                <td style={{ fontWeight: 600 }}>{t.ticker ?? '—'}</td>
-                <td className="dim">{t.date}</td>
-                <td className={t.side === 'buy' ? 'pos' : 'neg'}>{t.side}</td>
-                <td className="dim" data-testid="sb-fill-kind">{kind}</td>
-                <td className="num">{fmtNum(t.shares)}</td>
-                <td className="num">${fmtNum(t.price)}</td>
-                <td className="num">${fmtNum(t.value)}</td>
-                <td className="num dim">${fmtNum(t.cost)}</td>
-                <td data-testid="sb-fill-reason">
-                  {t.reason ? <span className="sb-chip neg">{t.reason}</span> : null}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <div className="sb-pagination">
-        <button className="sb-page-btn" disabled={page === 0} onClick={() => setPage((p) => Math.max(0, p - 1))}>
-          ← Prev
-        </button>
-        <button className="sb-page-btn" disabled={page >= pages - 1} onClick={() => setPage((p) => Math.min(pages - 1, p + 1))}>
-          Next →
-        </button>
-        <div style={{ flex: 1 }} />
-        <span className="sb-page-info">
-          {visible.length === 0 ? 0 : page * perPage + 1}–{Math.min((page + 1) * perPage, visible.length)} of{' '}
-          {visible.length} fills
-        </span>
-      </div>
-    </>
-  );
-}
-
 export function ResultsView({
   status,
   result,
@@ -278,6 +193,7 @@ export function ResultsView({
 }: Props) {
   const [baseMode, setBaseMode] = useState<EquityChartMode>('index_100');
   const [tab, setTab] = useState<ResultsTab>('overview');
+  const [csvBusy, setCsvBusy] = useState(false);
 
   if (status === 'running') {
     return (
@@ -432,14 +348,28 @@ export function ResultsView({
             <EquityChart data={result.curve} name={strategyName} mode={baseMode} />
           </div>
 
-          <div className="card">
-            <div className="card-head sb-trades-head">
-              <div>
-                <div className="card-title">Trade log</div>
-                <div className="card-sub">Every fill the strategy executed (next-open, net of costs)</div>
-              </div>
-            </div>
-            <FillsTable fills={result.fills} curve={result.curve} />
+          {/* #278 fase 4: the flat trade log moved to the per-rebalance detail;
+              the full log stays one click away as a CSV. */}
+          <div className="sb-rb-overview-links" data-testid="sb-trades-links">
+            <button
+              type="button"
+              className="sb-link"
+              disabled={!jobId || csvBusy}
+              onClick={() => {
+                if (!jobId) return;
+                setCsvBusy(true);
+                downloadTradesCsv(jobId)
+                  .catch(() => window.alert('No se pudo descargar el CSV.'))
+                  .finally(() => setCsvBusy(false));
+              }}
+            >
+              Trade log completo (CSV)
+            </button>
+            <span className="dim">·</span>
+            <button type="button" className="sb-link" onClick={() => setTab('rebalances')}>
+              Ver por rebalanceo
+            </button>
+            <span className="dim">{result.fills.length} fills en total</span>
           </div>
         </>
       )}

@@ -19,6 +19,14 @@ export function fmtFracPctPlain(v: number | null | undefined, d = 1): string {
   return `${(v * 100).toFixed(d)}%`;
 }
 
+/** Fraction → signed percentage points: 0.0235 → "+2.35 pp" (contributions,
+ *  excess). null → "—". */
+export function fmtPp(v: number | null | undefined, d = 2): string {
+  if (v == null || !Number.isFinite(v)) return '—';
+  const p = v * 100;
+  return `${p > 0 ? '+' : ''}${p.toFixed(d)} pp`;
+}
+
 /** CSS sign class for a return-like value. */
 export function signCls(v: number | null | undefined): '' | 'pos' | 'neg' {
   if (v == null || !Number.isFinite(v) || v === 0) return '';

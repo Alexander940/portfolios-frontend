@@ -3,7 +3,8 @@ import { test, expect, type Page } from '@playwright/test';
 /**
  * E2E for issue #280 — the trade log ("fills" table) shows the off-calendar
  * exit reason in a «Motivo» column. API route-mocked (pattern:
- * builder-156-turnover.spec.ts).
+ * builder-156-turnover.spec.ts). Since #278 fase 4 the fills table lives in
+ * the per-rebalance detail (Rebalanceos tab), not in the overview.
  *
  *  - a result with a stop sale (`reason: "stop_loss"`) → the chip shows on
  *    that row and the rebalance rows (`reason: null`) stay empty;
@@ -109,6 +110,47 @@ async function backtestFromList(page: Page, name: string): Promise<void> {
   await expect(page.getByTestId('sb-results')).toBeVisible();
 }
 
+/** #278 fase 4: the flat trade log left the overview — the fills now live in
+ *  the per-rebalance detail. One rebalance (seq 0) whose fills are `trades`,
+ *  over an empty before-book worth 100k. */
+async function mockRebalances(page: Page, trades: Record<string, unknown>[]): Promise<void> {
+  const row = {
+    seq: 0, decision_date: '2024-01-02', fill_date: '2024-01-03', period_end: '2024-06-28', skipped: false,
+    period_return: 0.12, bench_return: 0.08, excess: 0.04, max_drawdown: -0.08, turnover_pct: 0.5,
+    costs: 1, n_entries: 2, n_exits: 1, n_adjust: 0, n_stops: 0, cash_after: 0, value_after: 100000,
+    n_positions_before: 0, n_positions_after: 2,
+  };
+  await page.route('**/backtests/*/rebalances', (route) =>
+    route.fulfill({
+      json: {
+        items: [row],
+        total: 1,
+        summary: {
+          n_executed: 1, n_skipped: 0, pct_periods_beating_bench: 1, median_turnover_pct: 0.5,
+          total_costs: 1, best: null, worst: null,
+        },
+      },
+    }),
+  );
+  await page.route('**/backtests/*/rebalances/*', (route) =>
+    route.fulfill({
+      json: {
+        seq: 0, decision_date: row.decision_date, fill_date: row.fill_date, period_end: row.period_end,
+        skipped: false,
+        metrics: { ...row, cash_before: 100000, value_before: 100000, realized_pnl: 0, best_contrib: null, worst_contrib: null },
+        positions_before: [], positions_after: [], trades, stops: [],
+      },
+    }),
+  );
+}
+
+/** Results → «Rebalanceos» → detail of seq 0 (where the fills table lives now). */
+async function openRebalanceFills(page: Page): Promise<void> {
+  await page.getByTestId('sb-tab-rebalances').click();
+  await page.locator('[data-testid="sb-rb-row"][data-seq="0"]').getByTestId('sb-rb-date').click();
+  await expect(page.getByTestId('sb-rb-detail').getByTestId('sb-fills-table')).toBeVisible();
+}
+
 function trade(ticker: string, date: string, side: string, extra: Record<string, unknown> = {}) {
   return {
     symbol_id: `sid-${ticker}`,
@@ -138,6 +180,20 @@ function resultWith(trades: Record<string, unknown>[]): Record<string, unknown> 
 
 const COSTS = { commission_bps: 5, slippage_bps: 8 };
 
+const STOP_TRADES = [
+  trade('AAA', '2024-01-03', 'buy', { reason: null }),
+  trade('BBB', '2024-01-03', 'buy', { reason: null }),
+  trade('AAA', '2024-01-10', 'sell', { reason: 'stop_loss' }),
+];
+const LEGACY_TRADES = [trade('AAA', '2024-01-03', 'buy'), trade('AAA', '2024-02-01', 'sell')];
+const SHUFFLED_TRADES = [
+  trade('MMM', '2024-03-04', 'buy'),
+  trade('ZZZ', '2024-01-03', 'buy'),
+  trade('AAA', '2024-02-05', 'sell', { reason: 'stop_loss' }),
+  trade('AAA', '2024-01-03', 'buy'),
+  trade('AAA', '2024-02-05', 'buy'),
+];
+
 test.describe('Builder — motivo de salida en el trade log (#280)', () => {
   test('una venta por stop muestra el chip stop_loss; los fills de rebalanceo quedan vacíos', async ({ page }) => {
     await seedAuth(page);
@@ -145,14 +201,12 @@ test.describe('Builder — motivo de salida en el trade log (#280)', () => {
       sid: 'sid-stop',
       name: 'E2E Stop Reason',
       costs: COSTS,
-      result: resultWith([
-        trade('AAA', '2024-01-03', 'buy', { reason: null }),
-        trade('BBB', '2024-01-03', 'buy', { reason: null }),
-        trade('AAA', '2024-01-10', 'sell', { reason: 'stop_loss' }),
-      ]),
+      result: resultWith(STOP_TRADES),
     });
+    await mockRebalances(page, STOP_TRADES);
 
     await backtestFromList(page, 'E2E Stop Reason');
+    await openRebalanceFills(page);
 
     const table = page.getByTestId('sb-fills-table');
     await expect(table.locator('thead')).toContainText('Motivo');
@@ -178,13 +232,12 @@ test.describe('Builder — motivo de salida en el trade log (#280)', () => {
       sid: 'sid-legacy-reason',
       name: 'E2E Legacy Fills',
       costs: COSTS,
-      result: resultWith([
-        trade('AAA', '2024-01-03', 'buy'),
-        trade('AAA', '2024-02-01', 'sell'),
-      ]),
+      result: resultWith(LEGACY_TRADES),
     });
+    await mockRebalances(page, LEGACY_TRADES);
 
     await backtestFromList(page, 'E2E Legacy Fills');
+    await openRebalanceFills(page);
 
     const table = page.getByTestId('sb-fills-table');
     const cells = table.locator('tbody tr').getByTestId('sb-fill-reason');
@@ -205,16 +258,12 @@ test.describe('Builder — motivo de salida en el trade log (#280)', () => {
       sid: 'sid-shuffled',
       name: 'E2E Shuffled Fills',
       costs: COSTS,
-      result: resultWith([
-        trade('MMM', '2024-03-04', 'buy'),
-        trade('ZZZ', '2024-01-03', 'buy'),
-        trade('AAA', '2024-02-05', 'sell', { reason: 'stop_loss' }),
-        trade('AAA', '2024-01-03', 'buy'),
-        trade('AAA', '2024-02-05', 'buy'),
-      ]),
+      result: resultWith(SHUFFLED_TRADES),
     });
+    await mockRebalances(page, SHUFFLED_TRADES);
 
     await backtestFromList(page, 'E2E Shuffled Fills');
+    await openRebalanceFills(page);
 
     const rows = page.getByTestId('sb-fills-table').locator('tbody tr');
     await expect(rows).toHaveCount(5);

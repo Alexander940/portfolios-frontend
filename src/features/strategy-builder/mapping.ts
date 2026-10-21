@@ -1123,12 +1123,15 @@ export function classifyFill(
 /** Classify every fill of an (already `sortFills`-ordered) log by replaying the
  *  per-symbol share balance; the book value is the equity curve's
  *  `totalValue` on the fill's date (as-of: the last point on or before it).
- *  With no curve point at all the book is unknown and nothing is `small`. */
+ *  With no curve point at all the book is unknown and nothing is `small`.
+ *  `initialHeld` (#278) seeds the replay with a book that already exists —
+ *  the per-rebalance detail passes its before-book (`symbol_id` → shares). */
 export function classifyFills(
   fills: BacktestResultOut['trades'],
   curve: { date: string; totalValue: number }[],
+  initialHeld?: ReadonlyMap<string, number>,
 ): { kind: FillKind; small: boolean }[] {
-  const held = new Map<string, number>();
+  const held = new Map<string, number>(initialHeld ?? []);
   let ci = 0;
   let book = Number.NaN;
   return fills.map((f) => {

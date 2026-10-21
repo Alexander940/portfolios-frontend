@@ -12,6 +12,13 @@ import { test, expect, type Page, type Route } from '@playwright/test';
  *  (d) 409 (resultado anterior a la tabla) → tarjeta con el mensaje del backend
  *      y «Volver a correr», que dispara `POST …/backtest?force=true`;
  *  (e) «Exportar CSV (rebalanceos)» → `GET /backtests/{job}/rebalances.csv`.
+ *
+ * Fase 4 — el detalle de un rebalanceo (`GET …/rebalances/{seq}`):
+ *  (f) tablas Antes / Después con tickers y chips, 8 métricas, fills y stops;
+ *  (g) «Ocultar ajustes < 0,5 % del libro» deja sólo los fills no-small;
+ *  (h) a 390 px: selector Antes / Después y el detalle no desborda;
+ *  (i) el overview ya no tiene el log plano; «Trade log completo (CSV)» pide
+ *      `GET …/trades.csv`.
  */
 
 const USER = {
@@ -91,6 +98,58 @@ const INDEX = {
 
 const STALE_MSG = 'Vuelve a correr el backtest para ver el detalle por rebalanceo';
 
+const SID = {
+  AAA: '00000000-0000-0000-0000-0000000000aa',
+  BBB: '00000000-0000-0000-0000-0000000000bb',
+  CCC: '00000000-0000-0000-0000-0000000000cc',
+};
+
+function fill(ticker: keyof typeof SID, date: string, side: 'buy' | 'sell', shares: number, price: number, reason: string | null = null) {
+  return { symbol_id: SID[ticker], ticker, date, side, shares, price, value: shares * price, cost: 0.5, reason };
+}
+
+/** seq 2: AAA sale, BBB se recorta un poco (ajuste < 0,5 % del libro), CCC entra;
+ *  un trailing stop de CCC dentro del período. */
+const DETAIL_2 = {
+  seq: 2,
+  decision_date: '2024-01-15',
+  fill_date: '2024-01-16',
+  period_end: '2024-01-22',
+  skipped: false,
+  metrics: {
+    ...ROWS[2],
+    realized_pnl: 240.0,
+    cash_before: -100.0,
+    value_before: 100880.0,
+    best_contrib: { symbol_id: SID.CCC, contribution: 0.0235 },
+    worst_contrib: { symbol_id: SID.BBB, contribution: -0.004 },
+  },
+  positions_before: [
+    { symbol_id: SID.BBB, ticker: 'BBB', shares: 502, price: 105, value: 52710, weight: 0.5225, entry_date: '2024-01-02', days_held: 13, cost_basis: 100, unrealized_pnl_pct: 0.05, destino: 'recorta' },
+    { symbol_id: SID.AAA, ticker: 'AAA', shares: 480, price: 100.6, value: 48288, weight: 0.4787, entry_date: '2024-01-02', days_held: 13, cost_basis: 101, unrealized_pnl_pct: -0.004, destino: 'sale' },
+  ],
+  positions_after: [
+    { symbol_id: SID.BBB, ticker: 'BBB', shares: 500, price: 106, value: 53000, weight: 0.501, target_weight: 0.5, period_return: -0.008, contribution: -0.004, cambio: 'recorte' },
+    { symbol_id: SID.CCC, ticker: 'CCC', shares: 470, price: 100, value: 47000, weight: 0.444, target_weight: 0.5, period_return: 0.053, contribution: 0.0235, cambio: 'nueva' },
+  ],
+  trades: [
+    fill('AAA', '2024-01-16', 'sell', 480, 101.5),
+    fill('BBB', '2024-01-16', 'sell', 2, 106),
+    fill('CCC', '2024-01-16', 'buy', 470, 100),
+  ],
+  stops: [fill('CCC', '2024-01-19', 'sell', 100, 95, 'trailing_stop_atr')],
+};
+
+function detailFor(seq: number): Record<string, unknown> | null {
+  if (seq === 2) return DETAIL_2;
+  const row = ROWS.find((r) => r.seq === seq);
+  if (!row) return null;
+  return {
+    seq, decision_date: row.decision_date, fill_date: row.fill_date, period_end: row.period_end,
+    skipped: row.skipped, metrics: { ...row }, positions_before: [], positions_after: [], trades: [], stops: [],
+  };
+}
+
 async function seedAuth(page: Page): Promise<void> {
   await page.addInitScript(
     ([user, token]) => {
@@ -106,13 +165,15 @@ interface Captured {
   posts: string[];
   indexGets: string[];
   csvGets: string[];
+  detailGets: string[];
+  tradesCsvGets: string[];
 }
 
 /** One saved strategy; its backtest resolves to job `j1` (or `j2` after a
  *  `force=true` re-run). `stale` → the `j1` index answers 409 (a result
  *  persisted before the rebalances table); `j2` always answers the index. */
 async function mockApi(page: Page, opts: { stale?: boolean } = {}): Promise<Captured> {
-  const cap: Captured = { posts: [], indexGets: [], csvGets: [] };
+  const cap: Captured = { posts: [], indexGets: [], csvGets: [], detailGets: [], tradesCsvGets: [] };
   const strategyRow = {
     strategy_id: 'sid-278',
     name: 'E2E Rebalanceos',
@@ -138,6 +199,24 @@ async function mockApi(page: Page, opts: { stale?: boolean } = {}): Promise<Capt
       return route.fulfill({ status: 409, json: { detail: STALE_MSG } });
     }
     return route.fulfill({ json: INDEX });
+  });
+  await page.route('**/backtests/*/rebalances/*', (route: Route) => {
+    const url = route.request().url();
+    cap.detailGets.push(url);
+    const d = detailFor(Number(new URL(url).pathname.split('/').pop()));
+    return d ? route.fulfill({ json: d }) : route.fulfill({ status: 404, json: { detail: 'not found' } });
+  });
+  await page.route('**/backtests/*/trades.csv', (route: Route) => {
+    cap.tradesCsvGets.push(route.request().url());
+    return route.fulfill({
+      status: 200,
+      headers: {
+        'Content-Type': 'text/csv',
+        'Content-Disposition': 'attachment; filename="trades-j1.csv"',
+        'Access-Control-Expose-Headers': 'Content-Disposition',
+      },
+      body: 'date,ticker\n2024-01-02,AAA\n',
+    });
   });
   await page.route('**/backtests/*/rebalances.csv', (route: Route) => {
     cap.csvGets.push(route.request().url());
@@ -274,5 +353,105 @@ test.describe('Builder — índice de rebalanceos (#278, fase 3)', () => {
     await expect.poll(() => cap.csvGets.length).toBe(1);
     expect(cap.csvGets[0]).toContain('/backtests/j1/rebalances.csv');
     expect((await download).suggestedFilename()).toBe('rebalances-j1.csv');
+  });
+
+  test('(f) el detalle muestra Antes/Después con tickers, 8 métricas, fills y stops', async ({ page }) => {
+    await seedAuth(page);
+    const cap = await mockApi(page);
+    await openRebalancesTab(page);
+    await page.locator('[data-testid="sb-rb-row"][data-seq="2"]').getByTestId('sb-rb-date').click();
+
+    const detail = page.getByTestId('sb-rb-detail');
+    await expect(detail).toContainText('Rebalanceo 3 de 3');
+    await expect.poll(() => cap.detailGets.some((u) => u.endsWith('/backtests/j1/rebalances/2'))).toBe(true);
+    await expect(detail).toContainText('Decidido al cierre del 2024-01-15');
+    await expect(detail).toContainText('ejecutado en la apertura del 2024-01-16');
+
+    const before = page.getByTestId('sb-rb-before');
+    await expect(before.locator('tbody tr')).toHaveCount(2);
+    await expect(before).toContainText('AAA');
+    await expect(before).toContainText('BBB');
+    const saleRow = before.locator('tbody tr', { hasText: 'AAA' });
+    await expect(saleRow).toHaveClass(/sb-rb-row-sale/);
+    await expect(saleRow.locator('.sb-rb-chip')).toHaveText('sale');
+
+    const after = page.getByTestId('sb-rb-after');
+    await expect(after.locator('tbody tr')).toHaveCount(2);
+    const newRow = after.locator('tbody tr', { hasText: 'CCC' });
+    await expect(newRow).toHaveClass(/sb-rb-row-nueva/);
+    await expect(newRow.locator('.sb-rb-chip')).toHaveText('nueva');
+
+    await expect(page.getByTestId('sb-rb-metric')).toHaveCount(8);
+    await expect(page.getByTestId('sb-rb-metrics')).toContainText('+4.8%');
+    await expect(page.getByTestId('sb-rb-metrics')).toContainText('CCC');
+
+    const fills = detail.getByTestId('sb-fills-table');
+    await expect(fills.locator('tbody tr')).toHaveCount(3);
+    await expect(fills.getByTestId('sb-fill-kind')).toHaveText(['salida', 'ajuste', 'entrada']);
+
+    const stops = page.getByTestId('sb-rb-stops');
+    await expect(stops).toContainText('CCC');
+    await expect(stops.locator('.sb-chip')).toHaveText('trailing_stop_atr');
+
+    // Rail: one entry per rebalance, the selected one highlighted.
+    await expect(page.getByTestId('sb-rb-rail-item')).toHaveCount(3);
+    await expect(page.locator('[data-testid="sb-rb-rail-item"][aria-current="true"]')).toContainText('2024-01-15');
+  });
+
+  test('(g) el checkbox de ajustes deja sólo los fills no-small del detalle', async ({ page }) => {
+    await seedAuth(page);
+    await mockApi(page);
+    await openRebalancesTab(page);
+    await page.locator('[data-testid="sb-rb-row"][data-seq="2"]').getByTestId('sb-rb-date').click();
+
+    const fills = page.getByTestId('sb-rb-detail').getByTestId('sb-fills-table');
+    await expect(fills.locator('tbody tr')).toHaveCount(3);
+    await page.getByLabel('Ocultar ajustes < 0,5 % del libro').check();
+    await expect(fills.locator('tbody tr')).toHaveCount(2);
+    await expect(fills.getByTestId('sb-fill-kind')).toHaveText(['salida', 'entrada']);
+  });
+
+  test('(h) a 390 px aparece el selector Antes/Después y el detalle no desborda', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await seedAuth(page);
+    await mockApi(page);
+    await openRebalancesTab(page);
+    await page.locator('[data-testid="sb-rb-row"][data-seq="2"]').getByTestId('sb-rb-date').click();
+    await expect(page.getByTestId('sb-rb-before')).toBeVisible();
+
+    const toggle = page.getByTestId('sb-rb-side-toggle');
+    await expect(toggle).toBeVisible();
+    const btnBefore = toggle.getByRole('button', { name: /Antes · 2/ });
+    const btnAfter = toggle.getByRole('button', { name: /Después · 2/ });
+    await expect(btnBefore).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByTestId('sb-rb-after')).toBeHidden();
+
+    await btnAfter.click();
+    await expect(btnAfter).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByTestId('sb-rb-after')).toBeVisible();
+    await expect(page.getByTestId('sb-rb-before')).toBeHidden();
+
+    const { sw, cw } = await page
+      .getByTestId('sb-rb-detail')
+      .evaluate((el) => ({ sw: el.scrollWidth, cw: el.clientWidth }));
+    expect(sw).toBeLessThanOrEqual(cw);
+  });
+
+  test('(i) el overview no tiene el log plano y «Trade log completo (CSV)» pide trades.csv', async ({ page }) => {
+    await seedAuth(page);
+    const cap = await mockApi(page);
+    await page.goto('/dashboard/builder');
+    await page.locator('.sb-card', { hasText: 'E2E Rebalanceos' }).locator('button[title="Backtest"]').click();
+    await expect(page.getByTestId('sb-equity-chart')).toBeVisible();
+    await expect(page.getByTestId('sb-fills-table')).toHaveCount(0);
+
+    const download = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'Trade log completo (CSV)' }).click();
+    await expect.poll(() => cap.tradesCsvGets.length).toBe(1);
+    expect(cap.tradesCsvGets[0]).toContain('/backtests/j1/trades.csv');
+    expect((await download).suggestedFilename()).toBe('trades-j1.csv');
+
+    await page.getByRole('button', { name: 'Ver por rebalanceo' }).click();
+    await expect(page.getByTestId('sb-rb-index')).toBeVisible();
   });
 });
