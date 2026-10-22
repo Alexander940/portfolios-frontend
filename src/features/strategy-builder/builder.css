@@ -701,8 +701,8 @@
 .sb-rb-rail { order: 2; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .sb-rb-detail-head { display: flex; flex-direction: column; gap: 2px; }
 .sb-rb-detail-nav { flex-wrap: wrap; }
-@media (min-width: 1024px) {
-  .sb-rb-detail-layout { grid-template-columns: 230px minmax(0, 1fr); }
+@media (min-width: 1280px) {
+  .sb-rb-detail-layout { grid-template-columns: 220px minmax(0, 1fr); }
   .sb-rb-rail { order: 0; }
 }
 .sb-rb-rail-filters { display: flex; gap: 4px; flex-wrap: wrap; }
@@ -739,7 +739,8 @@
 .sb-rb-side-toggle { display: none; gap: 6px; flex-wrap: wrap; }
 .sb-rb-side-toggle .chip[aria-pressed='true'] { border-color: var(--c-accent); color: var(--c-accent); }
 .sb-rb-books { display: flex; flex-wrap: wrap; gap: 14px; }
-.sb-rb-book { flex: 1 1 460px; min-width: 0; }
+.sb-rb-book { flex: 1 1 380px; min-width: 0; }
+.sb-rb-book-scroll { overflow-x: auto; }
 .sb-rb-book-table td, .sb-rb-book-table th { white-space: nowrap; }
 .sb-rb-book-table tr.sb-rb-row-sale td { background: color-mix(in oklch, var(--c-neg) 7%, transparent); }
 .sb-rb-book-table tr.sb-rb-row-nueva td { background: color-mix(in oklch, var(--c-pos) 7%, transparent); }

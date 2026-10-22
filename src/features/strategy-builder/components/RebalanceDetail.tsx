@@ -284,7 +284,7 @@ function Book<T>({
       {rows.length === 0 ? (
         <div className="sb-trades-empty">Sin posiciones.</div>
       ) : (
-        <div style={{ overflowX: 'auto' }}>
+        <div className="sb-rb-book-scroll">
           <table className="tbl sb-rb-book-table">
             <thead>{head}</thead>
             <tbody>{shown.map(render)}</tbody>

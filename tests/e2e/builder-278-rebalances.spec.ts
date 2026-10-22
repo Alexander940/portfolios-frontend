@@ -454,4 +454,31 @@ test.describe('Builder — índice de rebalanceos (#278, fase 3)', () => {
     await page.getByRole('button', { name: 'Ver por rebalanceo' }).click();
     await expect(page.getByTestId('sb-rb-index')).toBeVisible();
   });
+
+  for (const vp of [
+    { width: 1440, height: 900 },
+    { width: 1280, height: 800 },
+  ]) {
+    test(`(j) a ${vp.width} px las tablas Antes y Después van lado a lado`, async ({ page }) => {
+      await page.setViewportSize(vp);
+      await seedAuth(page);
+      await mockApi(page);
+      await openRebalancesTab(page);
+      await page.locator('[data-testid="sb-rb-row"][data-seq="2"]').getByTestId('sb-rb-date').click();
+      await expect(page.getByTestId('sb-rb-before')).toBeVisible();
+      await expect(page.getByTestId('sb-rb-after')).toBeVisible();
+
+      const b = await page.getByTestId('sb-rb-before').boundingBox();
+      const a = await page.getByTestId('sb-rb-after').boundingBox();
+      const d = await page.getByTestId('sb-rb-detail').boundingBox();
+      expect(b && a && d).toBeTruthy();
+      if (!b || !a || !d) return;
+      expect(Math.abs(b.y - a.y)).toBeLessThanOrEqual(2);
+      expect(a.x).toBeGreaterThan(b.x + 10);
+      for (const box of [b, a]) {
+        expect(box.x).toBeGreaterThanOrEqual(d.x - 1);
+        expect(box.x + box.width).toBeLessThanOrEqual(d.x + d.width + 1);
+      }
+    });
+  }
 });
