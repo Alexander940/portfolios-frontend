@@ -66,6 +66,9 @@ const REASON_LABELS: Record<string, string> = {
   min_trade: 'Below the minimum trade size',
   min_holding: 'Held below the minimum holding period',
   max_entries: 'Rebalance entry limit reached',
+  // #279 (ADR 0010): the v3 engine never buys a name whose price feed has no
+  // bar in the 7 days before the decision; the trace reports it at selection.
+  stale_price_feed: 'Price feed dead — no bar in the 7 days before the rebalance',
   // La etapa de ejecución solo puede nombrar una causa concreta cuando es la
   // ÚNICA posible: con el techo de turnover o la banda mínima activos hay más de
   // un candidato y el backend devuelve este código a propósito, en vez de

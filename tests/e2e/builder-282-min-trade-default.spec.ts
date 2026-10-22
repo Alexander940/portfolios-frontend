@@ -7,7 +7,8 @@ import { test, expect, type Page } from '@playwright/test';
  *  (b) a SAVED strategy whose spec has no `min_trade_pct` loads with the field
  *      empty and a re-save never injects it;
  *  (c) the trade log tags each fill entrada / salida / ajuste and can hide the
- *      adjustments under 0.5 % of the book.
+ *      adjustments under 0.5 % of the book — since #278 fase 4 that table
+ *      lives in the per-rebalance detail (Rebalanceos tab).
  * API route-mocked (pattern: builder-156-turnover.spec.ts /
  * builder-158-rebalance-section.spec.ts).
  */
@@ -113,6 +114,47 @@ async function mockApi(
     await route.fulfill({ json: rows });
   });
   return calls;
+}
+
+/** #278 fase 4: the flat trade log left the overview — the fills now live in
+ *  the per-rebalance detail. One rebalance (seq 0) whose fills are `trades`,
+ *  over an empty before-book worth 100k. */
+async function mockRebalances(page: Page, trades: Record<string, unknown>[]): Promise<void> {
+  const row = {
+    seq: 0, decision_date: '2024-01-02', fill_date: '2024-01-03', period_end: '2024-06-28', skipped: false,
+    period_return: 0.12, bench_return: 0.08, excess: 0.04, max_drawdown: -0.08, turnover_pct: 0.5,
+    costs: 1, n_entries: 2, n_exits: 1, n_adjust: 0, n_stops: 0, cash_after: 0, value_after: 100000,
+    n_positions_before: 0, n_positions_after: 2,
+  };
+  await page.route('**/backtests/*/rebalances', (route) =>
+    route.fulfill({
+      json: {
+        items: [row],
+        total: 1,
+        summary: {
+          n_executed: 1, n_skipped: 0, pct_periods_beating_bench: 1, median_turnover_pct: 0.5,
+          total_costs: 1, best: null, worst: null,
+        },
+      },
+    }),
+  );
+  await page.route('**/backtests/*/rebalances/*', (route) =>
+    route.fulfill({
+      json: {
+        seq: 0, decision_date: row.decision_date, fill_date: row.fill_date, period_end: row.period_end,
+        skipped: false,
+        metrics: { ...row, cash_before: 100000, value_before: 100000, realized_pnl: 0, best_contrib: null, worst_contrib: null },
+        positions_before: [], positions_after: [], trades, stops: [],
+      },
+    }),
+  );
+}
+
+/** Results → «Rebalanceos» → detail of seq 0 (where the fills table lives now). */
+async function openRebalanceFills(page: Page): Promise<void> {
+  await page.getByTestId('sb-tab-rebalances').click();
+  await page.locator('[data-testid="sb-rb-row"][data-seq="0"]').getByTestId('sb-rb-date').click();
+  await expect(page.getByTestId('sb-rb-detail').getByTestId('sb-fills-table')).toBeVisible();
 }
 
 function strategyRow(sid: string, name: string, rebalance: Record<string, unknown>) {
@@ -264,10 +306,12 @@ test.describe('Builder — min_trade_pct sugerido y tipo de fill (#282)', () => 
     await seedAuth(page);
     const name = 'E2E Tipo de fill';
     await mockApi(page, [strategyRow('sid-fills-282', name, { cadence: 'monthly' })], RESULT);
+    await mockRebalances(page, SIX_FILLS);
 
     await page.goto('/dashboard/builder');
     await page.locator('.sb-card', { hasText: name }).locator('button[title="Backtest"]').click();
     await expect(page.getByTestId('sb-results')).toBeVisible();
+    await openRebalanceFills(page);
 
     const table = page.getByTestId('sb-fills-table');
     await expect(table.locator('thead')).toContainText('Tipo');
@@ -278,6 +322,6 @@ test.describe('Builder — min_trade_pct sugerido y tipo de fill (#282)', () => 
     await page.getByLabel('Ocultar ajustes < 0,5 % del libro').check();
     await expect(table.locator('tbody tr')).toHaveCount(3);
     await expect(kinds).toHaveText(['entrada', 'entrada', 'salida']);
-    await expect(page.locator('.sb-page-info')).toContainText('of 3 fills');
+    await expect(page.locator('.sb-page-info')).toContainText('de 3 fills');
   });
 });
