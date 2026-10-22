@@ -443,6 +443,8 @@
 }
 .sb-chip button { display: inline-flex; border: 0; background: none; color: var(--c-text-dim); cursor: pointer; padding: 2px; border-radius: 3px; }
 .sb-chip button:hover { background: var(--c-border); color: var(--c-text); }
+/* #280 — off-calendar exit reason in the trade log (stop_loss / trailing_stop_atr) */
+.sb-chip.neg { color: var(--c-neg); border-color: color-mix(in oklch, var(--c-neg) 40%, var(--c-border)); padding: 2px 8px; }
 
 /* Selection rules — dynamic filters (chips + add-selector; editing via modal) */
 .sb-fund-add { margin-top: 14px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }

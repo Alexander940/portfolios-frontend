@@ -619,7 +619,7 @@ export function BuilderForm({ initialCfg, busy, preservedFilters, onCancel, onSa
               max={100}
               step={0.1}
               suffix="%"
-              hint="Empty = trade any difference"
+              hint="Evita re-operar cada posición a su peso exacto en cada rebalanceo (12 % de los fills en prod son < 1 % del libro). Vacío = el motor opera todo"
               error={errors.minTradePct}
             />
           </div>

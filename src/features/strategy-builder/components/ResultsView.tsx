@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 
 import { Icon } from '../icons';
-import { formatUsd, type DisplayResult } from '../mapping';
+import { classifyFills, formatUsd, type DisplayResult } from '../mapping';
 import { Tip } from './formBits';
 import { EquityChart, type EquityChartMode } from './EquityChart';
 import { SelectionTraceView } from './SelectionTraceView';
@@ -47,8 +47,16 @@ interface Props {
 
 type ResultsTab = 'overview' | 'selection';
 
-function MetricsGrid({ m }: { m: DisplayResult['metrics'] }) {
-  const cells = [
+function MetricsGrid({ m, fillsCount }: { m: DisplayResult['metrics']; fillsCount: number }) {
+  const cells: {
+    k: string;
+    v: string;
+    cls: string;
+    sub: string;
+    flag?: boolean;
+    tip?: string;
+    testId?: string;
+  }[] = [
     { k: 'Total return', v: fmtPct(m.totalReturn, 1), cls: m.totalReturn >= 0 ? 'pos' : 'neg', sub: `vs ${fmtPct(m.benchReturn, 1)} SPY` },
     { k: 'CAGR', v: fmtPct(m.cagr, 1), cls: m.cagr >= 0 ? 'pos' : 'neg', sub: 'annualized' },
     { k: 'Sharpe', v: m.sharpe.toFixed(2), cls: '', sub: 'risk-adjusted', flag: m.lowConf },
@@ -56,14 +64,25 @@ function MetricsGrid({ m }: { m: DisplayResult['metrics'] }) {
     { k: 'Calmar', v: m.calmar.toFixed(2), cls: '', sub: 'return / max DD', flag: m.lowConf },
     { k: 'Max drawdown', v: fmtPct(m.maxDD, 1), cls: 'neg', sub: 'peak to trough' },
     { k: 'Alpha / Beta', v: fmtPct(m.alpha, 1), cls: m.alpha >= 0 ? 'pos' : 'neg', sub: `β ${m.beta.toFixed(2)}` },
-    { k: 'Trades', v: String(m.trades), cls: '', sub: m.lowConf ? 'low sample' : 'executed', flag: m.lowConf },
+    // #283: `n_trades` counts positions OPENED (0 → >0), not fills — the card
+    // says so and shows the fill count underneath so the two never get mixed up.
+    {
+      k: 'Entradas',
+      v: String(m.trades),
+      cls: '',
+      sub: `${fillsCount} fills`,
+      flag: m.lowConf,
+      tip: 'Posiciones abiertas (0 → >0). low_sample_trades se evalúa sobre este número, no sobre los fills.',
+      testId: 'sb-metric-entries',
+    },
   ];
   return (
     <div className="sb-metrics-grid" data-testid="sb-metrics">
       {cells.map((c, i) => (
-        <div key={i} className={`sb-metric-cell ${c.flag ? 'flagged' : ''}`}>
+        <div key={i} className={`sb-metric-cell ${c.flag ? 'flagged' : ''}`} data-testid={c.testId}>
           <div className="mk">
             {c.k}
+            {c.tip && <Tip text={c.tip} />}
             {c.flag && (
               <span className="sb-lowconf-pip" title="Low confidence — few trades">
                 <Icon name="warn" size={11} />
@@ -85,7 +104,15 @@ function MetricsGrid({ m }: { m: DisplayResult['metrics'] }) {
  *  missing on its own. */
 function TurnoverGrid({ m }: { m: DisplayResult['metrics'] }) {
   if (m.turnoverPctAnnual == null) return null;
-  const cells = [
+  const cells: {
+    k: string;
+    v: string;
+    sub: string;
+    tip?: string;
+    cls?: string;
+    extra?: string | null;
+    testId?: string;
+  }[] = [
     {
       k: 'Turnover',
       tip: 'Annualized two-sided turnover: (Σ sells + Σ buys) / (2 × average equity). 100% = the whole portfolio turned over once in a year.',
@@ -105,8 +132,16 @@ function TurnoverGrid({ m }: { m: DisplayResult['metrics'] }) {
     },
     {
       k: 'Avg. holding',
+      tip: 'Días de calendario entre la entrada y la salida completa de cada posición cerrada; los recortes parciales no cuentan.',
       v: m.avgHoldingDays != null ? `${m.avgHoldingDays.toFixed(0)}d` : '—',
       sub: 'entry to exit',
+      // #283: the pre-#283 FIFO-lot definition, only on results computed after
+      // it shipped — older results carry no `avg_lot_days` and show nothing.
+      extra:
+        m.avgLotDays != null && Number.isFinite(m.avgLotDays)
+          ? `por lote FIFO: ${m.avgLotDays.toFixed(0)} d`
+          : null,
+      testId: 'sb-metric-avg-holding',
     },
     {
       k: 'Exits',
@@ -117,24 +152,39 @@ function TurnoverGrid({ m }: { m: DisplayResult['metrics'] }) {
   return (
     <div className="sb-metrics-grid" data-testid="sb-turnover-metrics">
       {cells.map((c, i) => (
-        <div key={i} className="sb-metric-cell">
+        <div key={i} className="sb-metric-cell" data-testid={c.testId}>
           <div className="mk">
             {c.k}
             {c.tip && <Tip text={c.tip} />}
           </div>
           <div className={`mv ${c.cls ?? ''}`}>{c.v}</div>
           <div className="msub">{c.sub}</div>
+          {c.extra && (
+            <div className="msub" data-testid="sb-avg-lot-days">
+              {c.extra}
+            </div>
+          )}
         </div>
       ))}
     </div>
   );
 }
 
-function FillsTable({ fills }: { fills: DisplayResult['fills'] }) {
+function FillsTable({ fills, curve }: { fills: DisplayResult['fills']; curve: DisplayResult['curve'] }) {
   const [page, setPage] = useState(0);
+  // #282: hide the sub-0.5 %-of-book adjustments (entries/exits always show).
+  const [hideSmall, setHideSmall] = useState(false);
   const perPage = 10;
-  const pages = Math.ceil(fills.length / perPage);
-  const rows = useMemo(() => fills.slice(page * perPage, page * perPage + perPage), [fills, page]);
+  const annotated = useMemo(() => {
+    const kinds = classifyFills(fills, curve);
+    return fills.map((t, i) => ({ t, ...kinds[i] }));
+  }, [fills, curve]);
+  const visible = useMemo(
+    () => (hideSmall ? annotated.filter((r) => !(r.kind === 'ajuste' && r.small)) : annotated),
+    [annotated, hideSmall],
+  );
+  const pages = Math.ceil(visible.length / perPage);
+  const rows = useMemo(() => visible.slice(page * perPage, page * perPage + perPage), [visible, page]);
 
   if (fills.length === 0) {
     return <div className="sb-trades-empty">No trades were generated for this configuration.</div>;
@@ -142,29 +192,46 @@ function FillsTable({ fills }: { fills: DisplayResult['fills'] }) {
 
   return (
     <>
+      <label className="sb-fills-filter" style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+        <input
+          type="checkbox"
+          checked={hideSmall}
+          onChange={(e) => {
+            setHideSmall(e.target.checked);
+            setPage(0);
+          }}
+        />
+        Ocultar ajustes &lt; 0,5 % del libro
+      </label>
       <div style={{ overflowX: 'auto' }}>
-        <table className="tbl">
+        <table className="tbl" data-testid="sb-fills-table">
           <thead>
             <tr>
               <th>Symbol</th>
               <th>Date</th>
               <th>Side</th>
+              <th>Tipo</th>
               <th className="num">Shares</th>
               <th className="num">Price</th>
               <th className="num">Value</th>
               <th className="num">Cost</th>
+              <th>Motivo</th>
             </tr>
           </thead>
           <tbody>
-            {rows.map((t, i) => (
+            {rows.map(({ t, kind }, i) => (
               <tr key={`${t.symbol_id}-${t.date}-${i}`}>
                 <td style={{ fontWeight: 600 }}>{t.ticker ?? '—'}</td>
                 <td className="dim">{t.date}</td>
                 <td className={t.side === 'buy' ? 'pos' : 'neg'}>{t.side}</td>
+                <td className="dim" data-testid="sb-fill-kind">{kind}</td>
                 <td className="num">{fmtNum(t.shares)}</td>
                 <td className="num">${fmtNum(t.price)}</td>
                 <td className="num">${fmtNum(t.value)}</td>
                 <td className="num dim">${fmtNum(t.cost)}</td>
+                <td data-testid="sb-fill-reason">
+                  {t.reason ? <span className="sb-chip neg">{t.reason}</span> : null}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -179,7 +246,8 @@ function FillsTable({ fills }: { fills: DisplayResult['fills'] }) {
         </button>
         <div style={{ flex: 1 }} />
         <span className="sb-page-info">
-          {page * perPage + 1}–{Math.min((page + 1) * perPage, fills.length)} of {fills.length} fills
+          {visible.length === 0 ? 0 : page * perPage + 1}–{Math.min((page + 1) * perPage, visible.length)} of{' '}
+          {visible.length} fills
         </span>
       </div>
     </>
@@ -275,12 +343,12 @@ export function ResultsView({
             <Icon name="warn" size={18} />
           </span>
           <span>
-            <b>Low-confidence result.</b> This strategy executed only <b>{m.trades} trades</b> — below the minimum threshold for statistical significance. Risk-adjusted ratios (Sharpe, Sortino, Calmar) are flagged and should be treated as indicative.
+            <b>Low-confidence result.</b> This strategy opened only <b>{m.trades} entradas</b> (positions, not fills) — below the minimum threshold for statistical significance. Risk-adjusted ratios (Sharpe, Sortino, Calmar) are flagged and should be treated as indicative.
           </span>
         </div>
       )}
 
-      <MetricsGrid m={m} />
+      <MetricsGrid m={m} fillsCount={result.fills.length} />
       <TurnoverGrid m={m} />
 
       <div className="tabs" role="tablist">
@@ -351,7 +419,7 @@ export function ResultsView({
                 <div className="card-sub">Every fill the strategy executed (next-open, net of costs)</div>
               </div>
             </div>
-            <FillsTable fills={result.fills} />
+            <FillsTable fills={result.fills} curve={result.curve} />
           </div>
         </>
       )}
