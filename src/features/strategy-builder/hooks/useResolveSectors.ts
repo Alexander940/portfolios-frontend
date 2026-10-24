@@ -2,9 +2,19 @@
 // display alpha). Cancels superseded requests; only runs while `enabled` (the
 // weighting section is open) so a collapsed panel never fetches.
 import { useEffect, useState } from 'react';
+import { create } from 'zustand';
 
-import { resolveUniverse } from '../service';
+import { resolveUniverse, ResolveUniverseError } from '../service';
 import type { AlphaWindow, Layer1Spec, ResolveUniverseResponse, UniverseSpec } from '../types';
+
+/** The basket a `resolve-universe` call just rejected with 422
+ *  `basket_not_found` (#296), or null. The preview runs inside the weighting
+ *  panel, but the error belongs on the basket selector (section 2) — this tiny
+ *  store carries it across without a second request. Cleared by the next
+ *  successful resolve. */
+export const useBasketResolveError = create<{ notFound: string | null }>(() => ({
+  notFound: null,
+}));
 
 const DEBOUNCE_MS = 400;
 
@@ -45,11 +55,22 @@ export function useResolveSectors(
         signal: ctrl.signal,
       })
         .then((data) => {
-          if (!ctrl.signal.aborted) setState({ data, loading: false, error: null });
+          if (ctrl.signal.aborted) return;
+          setState({ data, loading: false, error: null });
+          useBasketResolveError.setState({ notFound: null });
         })
-        .catch(() => {
-          if (!ctrl.signal.aborted)
-            setState((s) => ({ ...s, loading: false, error: 'Could not resolve the universe.' }));
+        .catch((e: unknown) => {
+          if (ctrl.signal.aborted) return;
+          const notFound = e instanceof ResolveUniverseError && e.code === 'basket_not_found';
+          if (notFound) {
+            const sent = (JSON.parse(key) as UniverseSpec).basket_id ?? null;
+            useBasketResolveError.setState({ notFound: e.basketId ?? sent });
+          }
+          setState((s) => ({
+            ...s,
+            loading: false,
+            error: notFound ? 'Basket not found — pick another basket.' : 'Could not resolve the universe.',
+          }));
         });
     }, DEBOUNCE_MS);
     return () => {

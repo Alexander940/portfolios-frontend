@@ -18,7 +18,12 @@ export interface DateRange {
 export type FilterValueType = 'range' | 'boolean' | 'multiselect' | 'daterange';
 
 export type SortOrder = 'asc' | 'desc';
-export type WeightMethod = 'equal' | 'rating_weighted' | 'market_cap';
+/** `basket_weight` (#294/#296) = the index's own weights (SSGA SPY snapshot,
+ *  lag 1 day, renormalized; market-cap fallback declared in `warnings`). Only
+ *  valid with a basket universe (`universe.basket_id`) — the backend 422s it
+ *  otherwise. Not a layer-3 method: it is the legacy single-stage clause, so a
+ *  spec with it carries no `layered`. */
+export type WeightMethod = 'equal' | 'rating_weighted' | 'market_cap' | 'basket_weight';
 /** Rebalance cadence (issue #157/#158). `weekly`/`monthly` are the original
  *  pair; `quarterly`/`semiannual`/`annual` are the longer cadences added to cut
  *  turnover/cost drag (epic #154). */
@@ -254,6 +259,11 @@ export interface OrGroupSpec {
 }
 
 export interface UniverseSpec {
+  /** Basket as the BASE universe (#292/#296, ADR 0011). When set, the builder
+   *  omits `country` / `market_cap_category` (the basket defines country and
+   *  instrument); sector / exclude / additional rules still AND on top. Never
+   *  inside `selection_filters` or an `any_of` option (the backend rejects it). */
+  basket_id?: string;
   rating?: RangeFilter;
   trend_strength?: RangeFilter;
   smart_momentum?: RangeFilter;
@@ -681,7 +691,18 @@ export interface BacktestStatusResponse {
   status: 'queued' | 'running' | 'done' | 'error';
   error: string | null;
   result: BacktestResultOut | null;
+  /** Non-fatal run warnings (#292). Basket ones start with
+   *  `basket_user_static:` (own list applied to the whole period —
+   *  survivorship bias) or `basket_weight:` (no weights snapshot → market-cap
+   *  fallback). `[]` while running and absent on results saved before #292. */
+  warnings?: string[];
 }
+
+/** What defined the base of the `universe` stage (#292) — selection trace and
+ *  `GET /strategies/{id}/holdings`. Absent on legacy responses (= filters). */
+export type UniverseSource =
+  | { type: 'basket'; basket_id: string; name: string; kind: 'index' | 'user' }
+  | { type: 'filters' };
 
 // ---- selection trace / funnel (issue #174, Fase B) ----
 // `GET /backtests/{job_id}/selection-trace` — mirrors the section order the
@@ -734,7 +755,14 @@ export interface SelectionRow {
   exit_stage: SelectionStageKey | null;
   reason: SelectionExitReason | string | null;
   weight_pct: number | null;
+  /** The basket's index weight for this name, in PERCENT (7.776316 = 7.78 %)
+   *  — #294. Null when the basket has no snapshot for it; absent on legacy
+   *  traces and on filter universes. */
+  index_weight?: number | null;
 }
+
+/** Where the weighting stage's weights came from (#294). */
+export type WeightsSource = 'ssga_spy' | 'market_cap' | 'market_cap_fallback';
 
 export interface SelectionTraceResponse {
   as_of: string;
@@ -746,6 +774,10 @@ export interface SelectionTraceResponse {
   truncated: boolean;
   stages: SelectionStage[];
   rows: SelectionRow[];
+  /** #292 — absent on legacy traces (treat as `{ type: 'filters' }`). */
+  universe_source?: UniverseSource;
+  /** #294 — `basket_weight` runs only; absent/null otherwise. */
+  weights_source?: WeightsSource | null;
 }
 
 // ---- per-rebalance trade log (issue #278) ----
@@ -858,6 +890,13 @@ export interface BuilderConfig {
   // general parameters (currency + benchmark are locked; metric is selectable)
   performanceMetric: PerformanceMetric;
   // investment universe (instrument type + country are locked)
+  /** #296 — where the BASE universe comes from. 'filters' (default) = the
+   *  pre-#296 universe (country US + company size + rules), byte-identical
+   *  payload. 'basket' = `universe.basket_id` replaces country / company size
+   *  (the basket defines them); exclusions + additional rules still AND. */
+  universeSource: 'filters' | 'basket';
+  /** The chosen basket (only meaningful with universeSource 'basket'). */
+  basketId: string | null;
   companySizes: MarketCapBucket[];
   excluded: ExcludedSymbol[];
   // "Additional rules" — fundamental/performance filters that CONSTRAIN the
@@ -884,7 +923,10 @@ export interface BuilderConfig {
   topN: number;
   perSector: boolean;
   maxPerSector: number;
-  // weighting (legacy single-stage — still read from older saved specs)
+  // weighting (legacy single-stage — still read from older saved specs). Since
+  // #296 `basket_weight` here selects the «Index weight» method: cfgToSpec then
+  // emits `weighting: { method: 'basket_weight' }` and no `layered` — but only
+  // with a basket universe; any other value keeps the vestigial `equal`.
   weight: WeightMethod;
   // layered weighting: layer 1 (sector base) picks WHICH population the sector
   // shares are measured over; layer 2 (sector tilt) is locked; layer 3

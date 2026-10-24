@@ -74,6 +74,11 @@ export interface HoldingPreview {
   shares: number;
   est_value: ApiNumber;
   weight_realized_pct: ApiNumber;
+  /** #294 — the basket's index weight in PERCENT (7.776316 = 7.78 %) and the
+   *  snapshot date. Null without a snapshot; absent on filter universes and
+   *  legacy responses. */
+  index_weight?: number | null;
+  index_weight_as_of?: string | null;
 }
 
 /** Distribución sectorial del target de hoy (weighting L1/L2). */
@@ -98,6 +103,11 @@ export interface HoldingsPreviewResponse extends WarningsCarrier {
   cash_pct?: ApiNumber;
   holdings?: HoldingPreview[];
   sector_breakdown?: SectorBreakdownItem[];
+  /** #293 — `{type:'basket', basket_id, name, kind}` | `{type:'filters'}`;
+   *  absent on legacy responses. */
+  universe_source?:
+    | { type: 'basket'; basket_id: string; name: string; kind: 'index' | 'user' }
+    | { type: 'filters' };
 }
 
 /** POST /strategies/{id}/tracker → 201. */
@@ -135,6 +145,10 @@ export interface PositionItem {
   price_source?: PriceSource;
   /** Pending M&A deal on this holding (épica #175); null/absent when none. */
   deal?: DealInfo | null;
+  /** #294 — index weight (PERCENT) when the strategy's universe is a basket
+   *  with weight snapshots; null/absent otherwise. */
+  index_weight?: number | null;
+  index_weight_as_of?: string | null;
 }
 
 export interface PositionsResponse {

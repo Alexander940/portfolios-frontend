@@ -24,6 +24,7 @@ import {
   type ScreenerFieldKey,
   type StrategySpec,
   type UniverseSpec,
+  type WeightMethod,
 } from './types';
 
 // Company-size buckets (mirror the backend MarketCapCategory enum + thresholds).
@@ -383,6 +384,8 @@ export const REBALANCE_ON_OPTIONS: { k: RebalanceOn; label: string }[] = [
 export const DEFAULT_CONFIG: BuilderConfig = {
   name: 'Untitled strategy',
   performanceMetric: 'total_return',
+  universeSource: 'filters',
+  basketId: null,
   companySizes: [],
   excluded: [],
   additionalRules: [],
@@ -488,6 +491,18 @@ export function normalizeCfg(cfg: BuilderConfig): BuilderConfig {
   // so it must stay off ('') instead of inheriting DEFAULT_CONFIG's suggestion
   // (that would silently change its spec and content_hash on the next run).
   const minTradePct: number | '' = 'minTradePct' in saved ? (saved.minTradePct ?? '') : '';
+  // #296: configs saved before the basket universe (local `sb-strategies`
+  // drafts too) have neither field → the pre-#296 'filters' universe. Validate
+  // rather than trust `...cfg`: a garbage value must not reach cfgToSpec.
+  const universeSource: BuilderConfig['universeSource'] =
+    saved.universeSource === 'basket' ? 'basket' : 'filters';
+  const basketId =
+    typeof saved.basketId === 'string' && saved.basketId !== '' ? saved.basketId : null;
+  // «Index weight» needs a basket universe (backend 422 otherwise).
+  const weight: WeightMethod =
+    saved.weight === 'basket_weight' && universeSource !== 'basket'
+      ? 'equal'
+      : (saved.weight ?? DEFAULT_CONFIG.weight);
   const out = {
     ...DEFAULT_CONFIG,
     ...cfg,
@@ -497,6 +512,9 @@ export function normalizeCfg(cfg: BuilderConfig): BuilderConfig {
     sectorCaps,
     rebalanceOn,
     minTradePct,
+    universeSource,
+    basketId,
+    weight,
   };
   // Strip the migrated knob props so the knob→row migration above runs at most
   // once per stored config (a re-normalize must not resurrect a deleted row).
@@ -651,6 +669,16 @@ function addRuleEntries(target: UniverseSpec, rules: RuleEntry[], section: Filte
  *  "Additional rules" (which constrain the universe) but NOT the post-universe
  *  "Selection rules". */
 export function buildUniverse(cfg: BuilderConfig): UniverseSpec {
+  // #296: a basket REPLACES the base universe — it defines country and
+  // instrument, so neither `country` nor `market_cap_category` is emitted;
+  // sector / exclusions / additional rules still AND on top of it.
+  if (cfg.universeSource === 'basket') {
+    const universe: UniverseSpec = cfg.basketId ? { basket_id: cfg.basketId } : {};
+    if (cfg.sector) universe.sector = [cfg.sector];
+    if (cfg.excluded.length) universe.exclude = cfg.excluded.map((e) => e.symbolId);
+    addRuleEntries(universe, cfg.additionalRules, 'universe');
+    return universe;
+  }
   // Only `country` is fixed (US-only product decision, #104). Everything else —
   // including rating / smart_momentum / trend_strength since issue #98 — is
   // opt-in via the filter rows: strategies carry no default filters.
@@ -767,9 +795,19 @@ function rebalanceRules(cfg: BuilderConfig): Partial<RebalanceSpec> {
   };
 }
 
+/** «Index weight» (#296): `basket_weight` is only honoured with a basket
+ *  universe — the form disables it otherwise and normalizeCfg resets it, this
+ *  is the last line of defence so a stray value can never 422 a save. */
+export function usesIndexWeight(cfg: BuilderConfig): boolean {
+  return cfg.universeSource === 'basket' && cfg.weight === 'basket_weight';
+}
+
 export function cfgToSpec(cfg: BuilderConfig): StrategySpec {
   const universe = buildUniverse(cfg);
-  const layered = buildLayered(cfg);
+  const indexWeight = usesIndexWeight(cfg);
+  // `basket_weight` is the legacy single-stage clause: with `layered` present
+  // the backtester would ignore it, so the layered clause is dropped.
+  const layered = indexWeight ? undefined : buildLayered(cfg);
   const selectionFilters = buildSelectionFilters(cfg);
   // Per-name cap: % (UI) → fraction (spec). Omitted when empty/≤0 so an uncapped
   // strategy keeps the legacy content_hash (the backend pops a null value).
@@ -808,7 +846,7 @@ export function cfgToSpec(cfg: BuilderConfig): StrategySpec {
     // The layered pipeline is the weighting model now; `weighting` stays at the
     // vestigial default (the backtester reads `layered` when present). Omitted
     // `layered` (plain equal) keeps the legacy equal-spec content_hash intact.
-    weighting: { method: 'equal' },
+    weighting: { method: indexWeight ? 'basket_weight' : 'equal' },
     ...(layered ? { layered } : {}),
     // Omitted when uncapped so an uncapped strategy keeps the legacy content_hash.
     ...(maxPos != null ? { max_position_weight: maxPos } : {}),
@@ -919,10 +957,15 @@ export function specToConfig(spec: StrategySpec, name: string): BuilderConfig {
   const sf = (spec.selection_filters ?? {}) as Record<string, unknown>;
   const selectionFilters = screenToRuleEntries(sf, 'selection');
 
+  // #296: a stored `universe.basket_id` → the «Basket» source.
+  const basketId = typeof u.basket_id === 'string' && u.basket_id !== '' ? u.basket_id : null;
+
   return {
     ...DEFAULT_CONFIG,
     name,
     performanceMetric: spec.general?.performance_metric ?? DEFAULT_CONFIG.performanceMetric,
+    universeSource: basketId ? 'basket' : 'filters',
+    basketId,
     companySizes: (u.market_cap_category ?? []) as MarketCapBucket[],
     excluded: (u.exclude ?? []).map((id) => ({ symbolId: id, ticker: '', name: '' })),
     additionalRules,
@@ -1029,9 +1072,12 @@ export interface DisplayResult {
   }[];
   initialCash: number;
   fills: BacktestResultOut['trades'];
+  /** Non-fatal run warnings (`BacktestStatusResponse.warnings`, #292/#296) —
+   *  always an array (empty for legacy results that carry none). */
+  warnings: string[];
 }
 
-export function adaptResult(r: BacktestResultOut): DisplayResult {
+export function adaptResult(r: BacktestResultOut, warnings?: string[] | null): DisplayResult {
   const eq = r.equity;
   const base = eq.length ? eq[0].total_value : 1;
   const benchBase = eq.find((p) => p.benchmark_value != null)?.benchmark_value ?? null;
@@ -1076,6 +1122,7 @@ export function adaptResult(r: BacktestResultOut): DisplayResult {
     })),
     initialCash: r.initial_cash,
     fills: sortFills(r.trades),
+    warnings: Array.isArray(warnings) ? warnings.filter((w) => typeof w === 'string' && w !== '') : [],
   };
 }
 
@@ -1166,7 +1213,11 @@ export function sparkFromResult(r: BacktestResultOut, points = 16): number[] {
 //  the group/ungroup UI owns that clause end-to-end, so a form output with no
 //  groups must delete an original `any_of` rather than let it survive the
 //  `...preserved` spread below.
+//  `basket_id` (#296) is form-managed too: switching a basket strategy back to
+//  «Filters» must drop it, and with a basket the form omits `country` — which
+//  is managed, so the original's `country: ['US']` is never resurrected.
 const FORM_MANAGED_UNIVERSE_KEYS: ReadonlySet<string> = new Set([
+  'basket_id',
   'country',
   'sector',
   'market_cap_category',
