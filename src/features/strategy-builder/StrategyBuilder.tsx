@@ -202,7 +202,7 @@ export function StrategyBuilder() {
           upsert({ id: strategyId, name: cfg.name, status: 'draft', cfg, spec, updated: Date.now() });
           return;
         }
-        const display = adaptResult(final.result);
+        const display = adaptResult(final.result, final.warnings);
         setResult(display);
         setStatus('done');
         upsert({
@@ -284,7 +284,7 @@ export function StrategyBuilder() {
     try {
       const res = await getBacktest(s.jobId);
       if (res.status === 'done' && res.result) {
-        setResult(adaptResult(res.result));
+        setResult(adaptResult(res.result, res.warnings));
         setStatus('done');
       } else {
         setStatus('error');
@@ -441,6 +441,7 @@ export function StrategyBuilder() {
           costsAreZero={activeCfg.commission === 0 && activeCfg.slippage === 0}
           jobId={activeJobId}
           cadence={activeCfg.rebalance}
+          universeBasketId={activeCfg.universeSource === 'basket' ? activeCfg.basketId : null}
           onRerun={rerunForced}
           onRetry={() => {
             // Replay the SAME flow (incl. existingId/update) — retrying an edit

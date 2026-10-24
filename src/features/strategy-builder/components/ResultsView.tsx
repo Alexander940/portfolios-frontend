@@ -1,5 +1,6 @@
 import { useState } from 'react';
 
+import { useBaskets } from '../hooks/useBaskets';
 import { Icon } from '../icons';
 import { formatUsd, type DisplayResult } from '../mapping';
 import { downloadTradesCsv } from '../service';
@@ -44,6 +45,10 @@ interface Props {
   /** Rebalance cadence of the spec behind this result (header of the
    *  «Rebalanceos» tab, #278). */
   cadence?: string | null;
+  /** #296 — the basket the run's universe came from (null/absent = filters).
+   *  Feeds the «Universe: Basket · {name}» badge; the name is looked up in the
+   *  caller's basket list. */
+  universeBasketId?: string | null;
   /** Re-run the active strategy skipping the dedupe (`force: true`) — the
    *  «Volver a correr» button of a result saved before the rebalances table
    *  (#278, D2). */
@@ -53,6 +58,36 @@ interface Props {
 }
 
 type ResultsTab = 'overview' | 'selection' | 'rebalances';
+
+/** Readable label for a warning's `code:` prefix (#292/#294); the rest of the
+ *  string is the backend's own explanation and is shown as-is. */
+const WARNING_LABELS: Record<string, string> = {
+  basket_user_static: 'Custom basket — survivorship bias',
+  basket_weight: 'Index weight fallback',
+};
+
+function splitWarning(w: string): { label: string | null; text: string } {
+  const m = w.match(/^([a-z0-9_]+):\s*(.*)$/s);
+  if (!m) return { label: null, text: w };
+  return { label: WARNING_LABELS[m[1]] ?? m[1].replace(/_/g, ' '), text: m[2] };
+}
+
+function UniverseBadge({ basketId }: { basketId: string | null }) {
+  const { baskets } = useBaskets(!!basketId);
+  if (!basketId) {
+    return (
+      <span className="sb-universe-badge" data-testid="sb-universe-badge">
+        Universe: Filters
+      </span>
+    );
+  }
+  const name = baskets.find((b) => b.basket_id === basketId)?.name;
+  return (
+    <span className="sb-universe-badge basket" data-testid="sb-universe-badge">
+      {name ? `Universe: Basket · ${name}` : 'Universe: Basket'}
+    </span>
+  );
+}
 
 function MetricsGrid({ m, fillsCount }: { m: DisplayResult['metrics']; fillsCount: number }) {
   const cells: {
@@ -187,6 +222,7 @@ export function ResultsView({
   jobId,
   progressStep,
   cadence,
+  universeBasketId,
   onRerun,
   onRetry,
   onEdit,
@@ -239,6 +275,32 @@ export function ResultsView({
 
   return (
     <div className="sb-results" data-testid="sb-results">
+      <div className="sb-results-head">
+        <UniverseBadge basketId={universeBasketId ?? null} />
+      </div>
+
+      {result.warnings.length > 0 && (
+        <div className="sb-lowconf-banner" data-testid="sb-backtest-warnings">
+          <span className="ic">
+            <Icon name="warn" size={18} />
+          </span>
+          <span>
+            <b>Warnings</b>
+            <ul className="sb-warnings-list">
+              {result.warnings.map((w, i) => {
+                const { label, text } = splitWarning(w);
+                return (
+                  <li key={i} data-testid="sb-backtest-warning">
+                    {label && <b>{label}: </b>}
+                    {text}
+                  </li>
+                );
+              })}
+            </ul>
+          </span>
+        </div>
+      )}
+
       {notice && (
         <div className="sb-lowconf-banner" data-testid="sb-cached-notice">
           <span className="ic">

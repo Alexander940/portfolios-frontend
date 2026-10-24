@@ -1,5 +1,8 @@
 import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 
+import { useBaskets } from '../hooks/useBaskets';
+import { useBasketResolveError } from '../hooks/useResolveSectors';
 import { Icon } from '../icons';
 import {
   buildUniverse,
@@ -42,6 +45,25 @@ export function BuilderForm({ initialCfg, busy, preservedFilters, onCancel, onSa
     8: true,
   });
   const set = (patch: Partial<BuilderConfig>) => setCfg((c) => ({ ...c, ...patch }));
+  // #296 — basket universe. The list is fetched only once «Basket» is chosen,
+  // so a filters-only form never calls `/baskets`.
+  const isBasket = cfg.universeSource === 'basket';
+  const { baskets, loading: basketsLoading, error: basketsError } = useBaskets(isBasket);
+  const selectedBasket = baskets.find((b) => b.basket_id === cfg.basketId) ?? null;
+  const resolveNotFound = useBasketResolveError((st) => st.notFound);
+  const basketNotFound = isBasket && !!cfg.basketId && resolveNotFound === cfg.basketId;
+  const indexWeight = isBasket && cfg.weight === 'basket_weight';
+  // Inline notice after «Filters» knocked the «Index weight» method back to equal.
+  const [weightReset, setWeightReset] = useState(false);
+  const setUniverseSource = (src: BuilderConfig['universeSource']) => {
+    if (src === cfg.universeSource) return;
+    if (src === 'filters' && cfg.weight === 'basket_weight') {
+      set({ universeSource: src, weight: 'equal' });
+      setWeightReset(true);
+    } else {
+      set({ universeSource: src });
+    }
+  };
   const toggleSection = (n: number) => setOpen((o) => ({ ...o, [n]: !o[n] }));
 
   const errors = useMemo(() => {
@@ -95,6 +117,7 @@ export function BuilderForm({ initialCfg, busy, preservedFilters, onCancel, onSa
     if (additionalRulesError) e.additionalRules = additionalRulesError;
     const selectionFiltersError = ruleListError(cfg.selectionFilters);
     if (selectionFiltersError) e.selectionFilters = selectionFiltersError;
+    if (cfg.universeSource === 'basket' && !cfg.basketId) e.basketId = 'Choose a basket';
     return e;
   }, [cfg]);
 
@@ -106,11 +129,17 @@ export function BuilderForm({ initialCfg, busy, preservedFilters, onCancel, onSa
     { ok: !errors.endDate, label: 'Valid date range' },
     { ok: !errors.topN, label: 'At least 1 holding' },
     { ok: !errors.oosSplit, label: 'Out-of-sample split valid' },
+    // Only with a basket source — a filters form keeps exactly the four checks.
+    ...(isBasket ? [{ ok: !errors.basketId, label: 'Basket chosen' }] : []),
   ];
 
   const layer3Label = LAYER3_OPTIONS.find((o) => o.k === cfg.layer3Method)?.n ?? 'Equal weight';
   const hasTilts = Object.keys(cfg.sectorDeltas ?? {}).length > 0;
-  const weightLabel = `Sector → ${layer3Label}${hasTilts ? ' (tilted)' : ''}`;
+  const weightLabel = indexWeight
+    ? 'Index weight'
+    : `Sector → ${layer3Label}${hasTilts ? ' (tilted)' : ''}`;
+  const systemBaskets = baskets.filter((b) => b.is_system);
+  const ownBaskets = baskets.filter((b) => !b.is_system);
   const metricLabel =
     PERFORMANCE_METRICS.find((m) => m.k === cfg.performanceMetric)?.label ?? cfg.performanceMetric;
   const rankLabel = SORT_FIELDS.find((f) => f.k === cfg.sortBy)?.label ?? cfg.sortBy;
@@ -186,10 +215,105 @@ export function BuilderForm({ initialCfg, busy, preservedFilters, onCancel, onSa
         <Section
           num="2"
           title="Investment universe"
-          sub="Instrument, country, size, exclusions, additional rules"
+          sub={isBasket ? 'Basket, exclusions, additional rules' : 'Instrument, country, size, exclusions, additional rules'}
           open={open[2]}
           onToggle={() => toggleSection(2)}
         >
+          <div className="sb-field sb-source-field" style={{ marginTop: 14 }}>
+            <div className="sb-field-label">
+              Universe source{' '}
+              <Tip text="Filters: the US universe narrowed by company size and rules (as before). Basket: a saved list or an index defines the base universe; exclusions and additional rules still apply on top." />
+            </div>
+            <div className="sb-source-radios" role="radiogroup" aria-label="Universe source">
+              {(['filters', 'basket'] as const).map((src) => (
+                <label key={src} className={`sb-source-opt ${cfg.universeSource === src ? 'active' : ''}`}>
+                  <input
+                    type="radio"
+                    name="sb-universe-source"
+                    value={src}
+                    checked={cfg.universeSource === src}
+                    onChange={() => setUniverseSource(src)}
+                    data-testid={`sb-universe-source-${src}`}
+                  />
+                  {src === 'filters' ? 'Filters' : 'Basket'}
+                </label>
+              ))}
+            </div>
+          </div>
+          {isBasket ? (
+            <div className="sb-field" data-testid="sb-basket-field">
+              <div className="sb-field-label">
+                Basket{' '}
+                <Tip text="The basket replaces country, instrument and company size: its members are the base universe." />
+                <Link to="/dashboard/baskets" className="sb-link sb-basket-manage">
+                  Manage baskets
+                </Link>
+              </div>
+              <div className="sb-select-wrap">
+                <select
+                  className={`sb-select ${errors.basketId || basketNotFound ? 'error' : ''}`}
+                  data-testid="sb-basket-select"
+                  value={cfg.basketId ?? ''}
+                  disabled={basketsLoading}
+                  onChange={(e) => set({ basketId: e.target.value || null })}
+                >
+                  <option value="">{basketsLoading ? 'Loading baskets…' : 'Choose a basket…'}</option>
+                  {systemBaskets.length > 0 && (
+                    <optgroup label="System">
+                      {systemBaskets.map((b) => (
+                        <option key={b.basket_id} value={b.basket_id}>
+                          {b.name} · {b.member_count.toLocaleString()} names
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                  {ownBaskets.length > 0 && (
+                    <optgroup label="My baskets">
+                      {ownBaskets.map((b) => (
+                        <option key={b.basket_id} value={b.basket_id}>
+                          {b.name} · {b.member_count.toLocaleString()} names
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                  {/* A saved strategy whose basket is no longer listed keeps its id visible. */}
+                  {cfg.basketId && !basketsLoading && !selectedBasket && (
+                    <option value={cfg.basketId}>Unknown basket ({cfg.basketId.slice(0, 8)}…)</option>
+                  )}
+                </select>
+              </div>
+              {basketNotFound ? (
+                <div className="sb-field-error" data-testid="sb-basket-error">
+                  <Icon name="warn" size={11} /> Basket not found — it was deleted or is not visible to you. Pick another basket.
+                </div>
+              ) : basketsError ? (
+                <div className="sb-field-error" data-testid="sb-basket-error">
+                  <Icon name="warn" size={11} /> Could not load baskets: {basketsError}
+                </div>
+              ) : errors.basketId && !basketsLoading ? (
+                <div className="sb-field-error">
+                  <Icon name="warn" size={11} /> {errors.basketId}
+                </div>
+              ) : null}
+              {selectedBasket && (
+                <div className="sb-basket-note" data-testid="sb-basket-semantics">
+                  <Icon name="info" size={13} />
+                  {selectedBasket.kind === 'index' ? (
+                    <span>
+                      <b>Index basket</b> — the backtest uses the index's{' '}
+                      <b>historical membership at every rebalance</b> (point-in-time, no survivorship bias).
+                    </span>
+                  ) : (
+                    <span>
+                      <b>Your basket</b> — <b>today's list applied to the whole period</b>:{' '}
+                      survivorship bias, the backtest will warn.
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+          ) : (
+          <>
           <div className="sb-grid-2" style={{ marginTop: 14 }}>
             <div className="sb-field" style={{ marginTop: 0 }}>
               <div className="sb-field-label">
@@ -201,7 +325,7 @@ export function BuilderForm({ initialCfg, busy, preservedFilters, onCancel, onSa
                 </select>
               </div>
             </div>
-            <div className="sb-field" style={{ marginTop: 0 }}>
+            <div className="sb-field" style={{ marginTop: 0 }} data-testid="sb-country-locked">
               <div className="sb-field-label">
                 Country <Tip text="Locked to the US — the only market wired right now." />
               </div>
@@ -239,6 +363,8 @@ export function BuilderForm({ initialCfg, busy, preservedFilters, onCancel, onSa
               })}
             </div>
           </div>
+          </>
+          )}
           <div style={{ marginTop: 14 }}>
             <ExclusionPicker value={cfg.excluded} onChange={(v) => set({ excluded: v })} />
           </div>
@@ -366,17 +492,65 @@ export function BuilderForm({ initialCfg, busy, preservedFilters, onCancel, onSa
           open={open[5]}
           onToggle={() => toggleSection(5)}
         >
-          <SectorWeighting
-            universe={buildUniverse(cfg)}
-            enabled={!!open[5]}
-            layer1Method={cfg.layer1Method}
-            layer1TopN={cfg.layer1TopN}
-            layer3Method={cfg.layer3Method}
-            layer3Gamma={cfg.layer3Gamma}
-            sectorDeltas={cfg.sectorDeltas}
-            sectorCaps={cfg.sectorCaps}
-            onChange={set}
-          />
+          <div className="sb-field" style={{ maxWidth: 420 }}>
+            <div className="sb-field-label">
+              Weighting method{' '}
+              <Tip text="Layered: sector base → sector tilt → stock weighting (below). Index weight: each holding gets its weight in the basket's index (renormalized over the holdings); needs a basket universe." />
+            </div>
+            <div className="sb-select-wrap">
+              <select
+                className="sb-select"
+                data-testid="sb-weight-method"
+                value={indexWeight ? 'basket_weight' : 'layered'}
+                onChange={(e) => {
+                  setWeightReset(false);
+                  set({ weight: e.target.value === 'basket_weight' ? 'basket_weight' : 'equal' });
+                }}
+              >
+                <option value="layered">Layered — sector base → tilt → stock weighting</option>
+                <option
+                  value="basket_weight"
+                  disabled={!isBasket}
+                  title={isBasket ? "The index's own weights" : 'needs a basket universe'}
+                >
+                  Index weight{isBasket ? '' : ' (needs a basket universe)'}
+                </option>
+              </select>
+            </div>
+            {weightReset && !indexWeight && (
+              <div className="sb-basket-note warn" data-testid="sb-weight-reset-notice">
+                <Icon name="warn" size={13} />
+                <span>
+                  <b>Index weight</b> needs a basket universe — the weighting method was reset to
+                  equal (layered).
+                </span>
+              </div>
+            )}
+          </div>
+          {indexWeight ? (
+            <div className="sb-universe-result" data-testid="sb-index-weight-note">
+              <Icon name="check" size={15} />
+              <span>
+                Each holding is weighted by its <b>index weight</b> (the latest snapshot before each
+                rebalance), renormalized over the holdings. A name without a weight gets the smallest
+                one present; with no snapshot at all the engine falls back to <b>market cap</b> and the
+                backtest says so in its warnings.
+              </span>
+            </div>
+          ) : (
+            <SectorWeighting
+              universe={buildUniverse(cfg)}
+              // A basket source without a basket chosen has no universe yet.
+              enabled={!!open[5] && !(isBasket && !cfg.basketId)}
+              layer1Method={cfg.layer1Method}
+              layer1TopN={cfg.layer1TopN}
+              layer3Method={cfg.layer3Method}
+              layer3Gamma={cfg.layer3Gamma}
+              sectorDeltas={cfg.sectorDeltas}
+              sectorCaps={cfg.sectorCaps}
+              onChange={set}
+            />
+          )}
           <div style={{ marginTop: 18, display: 'flex', gap: 16, flexWrap: 'wrap' }}>
             <div style={{ width: 240 }}>
               <NumField
@@ -673,6 +847,12 @@ export function BuilderForm({ initialCfg, busy, preservedFilters, onCancel, onSa
         <div className="sb-summary-card">
           <div className="sb-summary-title">Strategy</div>
           <input className="sb-name-input" value={cfg.name} onChange={(e) => set({ name: e.target.value })} placeholder="Strategy name" />
+          {isBasket && (
+            <div className="sb-summary-row">
+              <span className="k">Universe</span>
+              <span className="v">{selectedBasket ? `Basket · ${selectedBasket.name}` : 'Basket'}</span>
+            </div>
+          )}
           <div className="sb-summary-row">
             <span className="k">Filters</span>
             <span className="v">

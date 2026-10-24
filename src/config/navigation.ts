@@ -7,6 +7,7 @@ import {
   Award,
   Blocks,
   Sparkles,
+  Layers,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -36,6 +37,7 @@ export const NAV_SECTIONS: NavSection[] = [
     items: [
       { path: '/dashboard/markets', label: 'Markets', icon: TrendingUp },
       { path: '/dashboard/screening', label: 'Screener', icon: Filter },
+      { path: '/dashboard/baskets', label: 'Baskets', icon: Layers },
       { path: '/dashboard/builder', label: 'Strategy Builder', icon: Blocks },
       { path: '/dashboard/rank', label: 'Rank', icon: Award },
     ],

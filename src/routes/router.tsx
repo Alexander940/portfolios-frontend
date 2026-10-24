@@ -38,6 +38,12 @@ const StrategyBuilderPage = lazy(() =>
 const AssistantPage = lazy(() =>
   import('@/pages/dashboard/AssistantPage').then((m) => ({ default: m.AssistantPage }))
 );
+const BasketsPage = lazy(() =>
+  import('@/pages/dashboard/BasketsPage').then((m) => ({ default: m.BasketsPage }))
+);
+const BasketDetailPage = lazy(() =>
+  import('@/pages/dashboard/BasketDetailPage').then((m) => ({ default: m.BasketDetailPage }))
+);
 
 /**
  * Loading fallback component for lazy-loaded pages
@@ -75,6 +81,7 @@ function withSuspense(Component: React.LazyExoticComponent<React.ComponentType>)
  *   - /dashboard/analysis - Portfolio analysis
  *   - /dashboard/rank - Asset rankings
  *   - /dashboard/builder - Strategy builder
+ *   - /dashboard/baskets - Baskets (named symbol lists) + /dashboard/baskets/:id detail
  *   - /dashboard/reports - Reports hub
  */
 export const router = createBrowserRouter([
@@ -141,6 +148,14 @@ export const router = createBrowserRouter([
       {
         path: 'builder',
         element: withSuspense(StrategyBuilderPage),
+      },
+      {
+        path: 'baskets',
+        element: withSuspense(BasketsPage),
+      },
+      {
+        path: 'baskets/:id',
+        element: withSuspense(BasketDetailPage),
       },
     ],
   },

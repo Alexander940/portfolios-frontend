@@ -14,6 +14,7 @@ type SortKey =
   | 'current_price'
   | 'current_value'
   | 'weight_pct'
+  | 'index_weight'
   | 'unrealized_pnl'
   | 'unrealized_pnl_pct'
   | 'current_rating'
@@ -28,6 +29,8 @@ const COLUMNS: { key: SortKey; label: string; numeric: boolean }[] = [
   { key: 'current_price', label: 'Precio', numeric: true },
   { key: 'current_value', label: 'Valor', numeric: true },
   { key: 'weight_pct', label: 'Peso', numeric: true },
+  // #296: only rendered when some position carries a basket index weight.
+  { key: 'index_weight', label: 'Index wt', numeric: true },
   { key: 'unrealized_pnl', label: 'P&L', numeric: true },
   { key: 'unrealized_pnl_pct', label: 'P&L %', numeric: true },
   { key: 'current_rating', label: 'Rating', numeric: true },
@@ -89,6 +92,12 @@ export function PositionsSection() {
 
   const [sortKey, setSortKey] = useState<SortKey>('weight_pct');
   const [sortDesc, setSortDesc] = useState(true);
+  // #294/#296 — the «Index wt» column exists only when the universe is a basket
+  // with weight snapshots (some position has a non-null index_weight).
+  const showIndexWeight = positions.some(
+    (p) => p.index_weight != null && Number.isFinite(Number(p.index_weight)),
+  );
+  const columns = showIndexWeight ? COLUMNS : COLUMNS.filter((c) => c.key !== 'index_weight');
 
   const sorted = useMemo(() => {
     const col = COLUMNS.find((c) => c.key === sortKey);
@@ -182,7 +191,7 @@ export function PositionsSection() {
             <table className="tbl" data-testid="positions-table">
               <thead>
                 <tr>
-                  {COLUMNS.map((c) => (
+                  {columns.map((c) => (
                     <th
                       key={c.key}
                       className={`sortable ${c.numeric ? 'num' : ''} ${
@@ -215,6 +224,14 @@ export function PositionsSection() {
                     </td>
                     <td className="num">{fmtMoney(p.current_value)}</td>
                     <td className="num">{fmtPct(p.weight_pct, 1)}</td>
+                    {showIndexWeight && (
+                      <td
+                        className="num"
+                        title={p.index_weight_as_of ? `Index weight as of ${p.index_weight_as_of}` : undefined}
+                      >
+                        {fmtPct(p.index_weight, 2)}
+                      </td>
+                    )}
                     <td className={`num ${pnlClass(p.unrealized_pnl)}`}>
                       {fmtMoney(p.unrealized_pnl)}
                     </td>
@@ -236,6 +253,7 @@ export function PositionsSection() {
                   <td className="num">—</td>
                   <td className="num">{fmtMoney(tracker.cash)}</td>
                   <td className="num">—</td>
+                  {showIndexWeight && <td className="num">—</td>}
                   <td className="num">—</td>
                   <td className="num">—</td>
                   <td className="num">—</td>

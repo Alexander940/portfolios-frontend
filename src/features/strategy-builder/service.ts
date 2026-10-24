@@ -90,6 +90,27 @@ export async function deleteStrategy(strategyId: string): Promise<void> {
 /** Resolve a strategy's investment universe into per-sector Layer-1 base weights
  *  (market-cap share) + a display alpha vs the S&P 500. Feeds the Layer-2 sector
  *  table. `signal` lets the caller cancel a superseded in-flight request. */
+/** A 422 from `resolve-universe` (#296). `code === 'basket_not_found'` when
+ *  `universe.basket_id` is unknown or not visible to the caller (the body is
+ *  `{"detail": {"code": "basket_not_found", "basket_id": "…"}}`); any other
+ *  422 (validation) carries `code: null`. Handled here instead of by the global
+ *  interceptor because `transformAxiosError` assumes a string `detail`. */
+export class ResolveUniverseError extends Error {
+  readonly code: string | null;
+  readonly basketId: string | null;
+  constructor(detail: unknown) {
+    const obj =
+      detail && typeof detail === 'object' && !Array.isArray(detail)
+        ? (detail as Record<string, unknown>)
+        : null;
+    const code = typeof obj?.code === 'string' ? obj.code : null;
+    super(code === 'basket_not_found' ? 'Basket not found' : 'Could not resolve the universe.');
+    this.name = 'ResolveUniverseError';
+    this.code = code;
+    this.basketId = typeof obj?.basket_id === 'string' ? obj.basket_id : null;
+  }
+}
+
 export async function resolveUniverse(
   universe: UniverseSpec,
   opts: { alphaWindow?: AlphaWindow; layer1?: Layer1Spec; signal?: AbortSignal } = {},
@@ -113,8 +134,14 @@ export async function resolveUniverse(
           }
         : {}),
     },
-    { signal: opts.signal },
+    {
+      signal: opts.signal,
+      validateStatus: (st) => (st >= 200 && st < 300) || st === 422,
+    },
   );
+  if (res.status === 422) {
+    throw new ResolveUniverseError((res.data as unknown as { detail?: unknown })?.detail);
+  }
   return res.data;
 }
 

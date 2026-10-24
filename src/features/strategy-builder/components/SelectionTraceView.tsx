@@ -10,10 +10,15 @@ import { SORT_FIELDS } from '../mapping';
 import {
   detectRankingTies,
   exitStageLabel,
+  fmtIndexWeight,
+  hasIndexWeights,
   reasonLabel,
   rowsAtStage,
   STAGE_LABELS,
   stageDropLabel,
+  traceWeightsSource,
+  universeSourceLabel,
+  weightsSourceLabel,
 } from '../selectionTrace';
 import type { SelectionRow, SelectionStageKey } from '../types';
 import { useSelectionTrace } from '../hooks/useSelectionTrace';
@@ -95,6 +100,8 @@ export function SelectionTraceView({ jobId }: { jobId: string | null }) {
   }
 
   const sortLabel = sortKeyLabel(data.sort_by);
+  const showIndexWeight = hasIndexWeights(data.rows);
+  const weightsFrom = weightsSourceLabel(traceWeightsSource(data));
 
   return (
     <div className="sb-selection" data-testid="sb-selection-trace">
@@ -184,6 +191,7 @@ export function SelectionTraceView({ jobId }: { jobId: string | null }) {
                     <th className="num">{sortLabel}</th>
                     <th className="num">Rank</th>
                     <th className="num">Weight</th>
+                    {showIndexWeight && <th className="num">Index weight</th>}
                     <th>Status</th>
                     <th>Reason</th>
                   </tr>
@@ -197,6 +205,7 @@ export function SelectionTraceView({ jobId }: { jobId: string | null }) {
                       <td className="num">{fmtScore(r.score)}</td>
                       <td className="num">{r.rank ?? '—'}</td>
                       <td className="num">{r.weight_pct != null ? `${r.weight_pct.toFixed(2)}%` : '—'}</td>
+                      {showIndexWeight && <td className="num">{fmtIndexWeight(r.index_weight)}</td>}
                       <td className={r.exit_stage == null ? 'pos' : 'dim'}>{exitStageLabel(r.exit_stage)}</td>
                       <td className="dim">{reasonLabel(r.reason)}</td>
                     </tr>
@@ -227,6 +236,12 @@ export function SelectionTraceView({ jobId }: { jobId: string | null }) {
 
       <div className="card-sub">
         As of {data.as_of} · {data.candidates_count.toLocaleString()} candidates considered before the universe filter.
+        {' '}· Universe: <span data-testid="sb-trace-universe-source">{universeSourceLabel(data)}</span>
+        {weightsFrom && (
+          <>
+            {' '}· Weights from <span data-testid="sb-trace-weights-source">{weightsFrom}</span>
+          </>
+        )}
       </div>
     </div>
   );

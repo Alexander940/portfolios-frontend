@@ -4,7 +4,13 @@
 // not `StrategySpec`/`BuilderConfig` — and are exercised directly by the
 // executable check `tests/checks/funnel-view.ts` (Playwright can't launch in
 // this WSL, so this is the oracle that actually runs).
-import type { SelectionRow, SelectionStage, SelectionStageKey } from './types';
+import type {
+  SelectionRow,
+  SelectionStage,
+  SelectionStageKey,
+  SelectionTraceResponse,
+  WeightsSource,
+} from './types';
 
 /** Pipeline order the engine actually runs in — mirrors `stages[]` from the
  *  endpoint, and is the ONLY source of stage ordering (never infer it from
@@ -113,4 +119,43 @@ export function detectRankingTies(rows: SelectionRow[]): RankingTieInfo {
   const topScore = Math.max(...scored.map((r) => r.score));
   const tiedCount = scored.filter((r) => r.score === topScore).length;
   return { tied: tiedCount > 1, topScore, tiedCount };
+}
+
+/** #294/#296 — show the «Index weight» column only when at least one row
+ *  carries a non-null `index_weight` (legacy traces and filter universes
+ *  don't have the key at all). */
+export function hasIndexWeights(rows: SelectionRow[]): boolean {
+  return rows.some((r) => typeof r.index_weight === 'number' && Number.isFinite(r.index_weight));
+}
+
+/** Index weight is a PERCENT (7.776316 → "7.78%"); anything else → em dash. */
+export function fmtIndexWeight(v: number | null | undefined): string {
+  return typeof v === 'number' && Number.isFinite(v) ? `${v.toFixed(2)}%` : '—';
+}
+
+const WEIGHTS_SOURCE_LABELS: Record<WeightsSource, string> = {
+  ssga_spy: 'index weights (SSGA SPY snapshot)',
+  market_cap: 'market cap',
+  market_cap_fallback: 'market cap (no index-weight snapshot yet)',
+};
+
+export function weightsSourceLabel(src: WeightsSource | null | undefined): string | null {
+  if (!src) return null;
+  return WEIGHTS_SOURCE_LABELS[src] ?? src.replace(/_/g, ' ');
+}
+
+/** The weights source as the backend exposes it (#294): on the stage whose
+ *  `key === 'weighting'`, never at the top level. Legacy traces (no field) and
+ *  non-`basket_weight` runs (null) → null. */
+export function traceWeightsSource(
+  trace: Pick<SelectionTraceResponse, 'stages'>,
+): WeightsSource | null {
+  return trace.stages.find((s) => s.key === 'weighting')?.weights_source ?? null;
+}
+
+/** «Basket · name» / «Filters» for the trace footer; legacy traces → Filters. */
+export function universeSourceLabel(trace: Pick<SelectionTraceResponse, 'universe_source'>): string {
+  const src = trace.universe_source;
+  if (src && src.type === 'basket') return src.name ? `Basket · ${src.name}` : 'Basket';
+  return 'Filters';
 }
