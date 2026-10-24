@@ -738,6 +738,10 @@ export interface SelectionStage {
   /** false = the strategy has no rules in this section — the stage still shows
    *  (greyed, "no rules") rather than disappearing; the count just carries over. */
   applies: boolean;
+  /** #294 — only on the `weighting` stage of a `basket_weight` run: where the
+   *  weights came from (`market_cap_fallback` = no snapshot yet). Null on every
+   *  other stage; absent on legacy traces. */
+  weights_source?: WeightsSource | null;
 }
 
 export interface SelectionRow {
@@ -774,10 +778,9 @@ export interface SelectionTraceResponse {
   truncated: boolean;
   stages: SelectionStage[];
   rows: SelectionRow[];
-  /** #292 — absent on legacy traces (treat as `{ type: 'filters' }`). */
+  /** #292 — absent on legacy traces (treat as `{ type: 'filters' }`). The
+   *  weights source is NOT here: it lives on the `weighting` stage (#294). */
   universe_source?: UniverseSource;
-  /** #294 — `basket_weight` runs only; absent/null otherwise. */
-  weights_source?: WeightsSource | null;
 }
 
 // ---- per-rebalance trade log (issue #278) ----

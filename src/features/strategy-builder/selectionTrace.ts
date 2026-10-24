@@ -144,6 +144,15 @@ export function weightsSourceLabel(src: WeightsSource | null | undefined): strin
   return WEIGHTS_SOURCE_LABELS[src] ?? src.replace(/_/g, ' ');
 }
 
+/** The weights source as the backend exposes it (#294): on the stage whose
+ *  `key === 'weighting'`, never at the top level. Legacy traces (no field) and
+ *  non-`basket_weight` runs (null) → null. */
+export function traceWeightsSource(
+  trace: Pick<SelectionTraceResponse, 'stages'>,
+): WeightsSource | null {
+  return trace.stages.find((s) => s.key === 'weighting')?.weights_source ?? null;
+}
+
 /** «Basket · name» / «Filters» for the trace footer; legacy traces → Filters. */
 export function universeSourceLabel(trace: Pick<SelectionTraceResponse, 'universe_source'>): string {
   const src = trace.universe_source;

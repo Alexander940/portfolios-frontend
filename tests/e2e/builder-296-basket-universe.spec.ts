@@ -140,7 +140,16 @@ function traceRow(ticker: string, rank: number, extra: Record<string, unknown> =
   };
 }
 
-function trace(rows: Record<string, unknown>[], extra: Record<string, unknown> = {}) {
+/** `weightsSource` goes on the `weighting` STAGE (null on the others), exactly
+ *  as `SelectionTraceStageOut.weights_source` (#294) — never at the top level.
+ *  `undefined` = legacy trace without the field at all. */
+function trace(
+  rows: Record<string, unknown>[],
+  extra: Record<string, unknown> = {},
+  weightsSource?: string | null,
+) {
+  const ws = (key: string) =>
+    weightsSource === undefined ? {} : { weights_source: key === 'weighting' ? weightsSource : null };
   return {
     as_of: '2024-06-03',
     sort_by: 'rating',
@@ -148,11 +157,11 @@ function trace(rows: Record<string, unknown>[], extra: Record<string, unknown> =
     total: rows.length,
     truncated: false,
     stages: [
-      { key: 'universe', count: rows.length, dropped_from_prev: 0, applies: true },
-      { key: 'selection_rules', count: rows.length, dropped_from_prev: 0, applies: false },
-      { key: 'ranking', count: rows.length, dropped_from_prev: 0, applies: true },
-      { key: 'weighting', count: rows.length, dropped_from_prev: 0, applies: true },
-      { key: 'execution', count: rows.length, dropped_from_prev: 0, applies: true },
+      { key: 'universe', count: rows.length, dropped_from_prev: 0, applies: true, ...ws('universe') },
+      { key: 'selection_rules', count: rows.length, dropped_from_prev: 0, applies: false, ...ws('selection_rules') },
+      { key: 'ranking', count: rows.length, dropped_from_prev: 0, applies: true, ...ws('ranking') },
+      { key: 'weighting', count: rows.length, dropped_from_prev: 0, applies: true, ...ws('weighting') },
+      { key: 'execution', count: rows.length, dropped_from_prev: 0, applies: true, ...ws('execution') },
     ],
     rows,
     ...extra,
@@ -161,10 +170,8 @@ function trace(rows: Record<string, unknown>[], extra: Record<string, unknown> =
 
 const TRACE_BASKET = trace(
   [traceRow('NVDA', 1, { index_weight: 7.776316 }), traceRow('AMD', 2, { index_weight: null })],
-  {
-    universe_source: { type: 'basket', basket_id: MY_ID, name: 'Mis AI', kind: 'user' },
-    weights_source: 'ssga_spy',
-  },
+  { universe_source: { type: 'basket', basket_id: MY_ID, name: 'Mis AI', kind: 'user' } },
+  'ssga_spy',
 );
 /** Trace legado (pre-#292/#294): sin `universe_source`, sin `index_weight`. */
 const TRACE_LEGACY = trace([traceRow('AAPL', 1), traceRow('MSFT', 2)]);
@@ -432,6 +439,9 @@ test.describe('Builder — universo desde un basket (#296)', () => {
     const table = page.getByTestId('sb-selection-trace').locator('table');
     await expect(table.locator('th', { hasText: 'Index weight' })).toHaveCount(1);
     await expect(table).toContainText('7.78%');
+    // Footer: universe from `universe_source`, weights from the `weighting` stage.
+    await expect(page.getByTestId('sb-trace-universe-source')).toHaveText('Basket · Mis AI');
+    await expect(page.getByTestId('sb-trace-weights-source')).toContainText('SSGA SPY');
     await expect(page.getByTestId('sb-selection-trace')).not.toContainText(/undefined|NaN/);
   });
 
@@ -454,6 +464,8 @@ test.describe('Builder — universo desde un basket (#296)', () => {
     await page.getByTestId('sb-tab-selection').click();
     await expect(page.getByTestId('sb-selection-trace')).toBeVisible();
     await expect(page.getByTestId('sb-selection-trace').locator('th', { hasText: 'Index weight' })).toHaveCount(0);
+    await expect(page.getByTestId('sb-trace-universe-source')).toHaveText('Filters');
+    await expect(page.getByTestId('sb-trace-weights-source')).toHaveCount(0);
     await expect(page.getByTestId('sb-selection-trace')).not.toContainText(/undefined|NaN/);
   });
 

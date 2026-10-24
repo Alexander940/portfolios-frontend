@@ -16,6 +16,7 @@ import {
   rowsAtStage,
   STAGE_LABELS,
   stageDropLabel,
+  traceWeightsSource,
   universeSourceLabel,
   weightsSourceLabel,
 } from '../selectionTrace';
@@ -100,7 +101,7 @@ export function SelectionTraceView({ jobId }: { jobId: string | null }) {
 
   const sortLabel = sortKeyLabel(data.sort_by);
   const showIndexWeight = hasIndexWeights(data.rows);
-  const weightsFrom = weightsSourceLabel(data.weights_source);
+  const weightsFrom = weightsSourceLabel(traceWeightsSource(data));
 
   return (
     <div className="sb-selection" data-testid="sb-selection-trace">
@@ -236,7 +237,11 @@ export function SelectionTraceView({ jobId }: { jobId: string | null }) {
       <div className="card-sub">
         As of {data.as_of} · {data.candidates_count.toLocaleString()} candidates considered before the universe filter.
         {' '}· Universe: <span data-testid="sb-trace-universe-source">{universeSourceLabel(data)}</span>
-        {weightsFrom && <> · Weights from {weightsFrom}</>}
+        {weightsFrom && (
+          <>
+            {' '}· Weights from <span data-testid="sb-trace-weights-source">{weightsFrom}</span>
+          </>
+        )}
       </div>
     </div>
   );
