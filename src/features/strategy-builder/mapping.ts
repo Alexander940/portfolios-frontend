@@ -56,8 +56,10 @@ export type FilterCategory =
   | 'News';
 
 /** Which builder section a filter may be added in. 'universe' = Additional rules
- *  (constrain the universe); 'selection' = Selection rules (post-universe phase). */
-export type FilterSection = 'universe' | 'selection';
+ *  (constrain the universe); 'selection' = Selection rules (post-universe phase);
+ *  'hold' = Hold conditions (#310, `spec.hold_filters` — the full universe
+ *  vocabulary, incl. the base fields the universe edits with its own controls). */
+export type FilterSection = 'universe' | 'selection' | 'hold';
 
 export interface ScreenerFilterDef {
   key: ScreenerFieldKey;
@@ -75,17 +77,18 @@ export interface ScreenerFilterDef {
   /** For type 'multiselect' with a closed, known value set (not from
    *  /screener/options): the values offered verbatim. */
   staticOptions?: readonly string[];
-  /** Sections this filter may be added in (default: both). `sector` is selection-only
-   *  to avoid colliding with the dedicated universe sector control. */
+  /** Sections this filter may be added in (default: all three). `sector` is not a
+   *  universe row (the dedicated universe sector control owns it); `country` and
+   *  `market_cap_category` are hold-only rows for the same reason. */
   sections?: FilterSection[];
   /** For type 'boolean': only a True value is meaningful (the backend gates on
    *  truthiness, so =False is a no-op). The modal renders an on/off, not Yes/No. */
   boolTrueOnly?: boolean;
 }
 
-/** Whether a filter is offered in a given section (default: both). */
+/** Whether a filter is offered in a given section (default: all three). */
 export function sectionAllows(def: ScreenerFilterDef, section: FilterSection): boolean {
-  return (def.sections ?? ['universe', 'selection']).includes(section);
+  return (def.sections ?? ['universe', 'selection', 'hold']).includes(section);
 }
 
 export const SCREENER_FILTERS: ScreenerFilterDef[] = [
@@ -190,7 +193,13 @@ export const SCREENER_FILTERS: ScreenerFilterDef[] = [
   // universe already has a dedicated single-sector control). `country` is omitted
   // (universe is locked to US).
   { key: 'exchange', label: 'Exchange', type: 'multiselect', optionsKey: 'exchanges', hint: 'Listing exchange (e.g. NASDAQ, NYSE). Classification is current-only (not point-in-time).', category: 'Classification' },
-  { key: 'sector', label: 'Sector', type: 'multiselect', optionsKey: 'sectors', sections: ['selection'], hint: 'GICS / FMP sector. Selection-rules only — the universe already has its own sector control. Current-only classification.', category: 'Classification' },
+  { key: 'sector', label: 'Sector', type: 'multiselect', optionsKey: 'sectors', sections: ['selection', 'hold'], hint: 'GICS / FMP sector. Not an Additional rule — the universe already has its own sector control. Current-only classification.', category: 'Classification' },
+  // Hold-conditions-only rows (#310): the universe edits these with dedicated
+  // controls (country locked to US, the company-size picker), so they are not
+  // offered as universe/selection rows — but `hold_filters` is its own screen
+  // and «Copy from universe» brings them across.
+  { key: 'country', label: 'Country', type: 'multiselect', optionsKey: 'countries', sections: ['hold'], hint: 'Listing country. Hold conditions only — the universe is locked to US.', category: 'Classification' },
+  { key: 'market_cap_category', label: 'Company size', type: 'multiselect', staticOptions: ['mega', 'large', 'mid', 'small', 'micro', 'nano'], sections: ['hold'], hint: 'Market-cap bucket (mega > $200B … nano < $50M). Hold conditions only — the universe uses its own company-size picker.', category: 'Classification' },
   // Indicador de noticias (épica #262, alias `news`, lag 1 día). Ambas secciones.
   // En un backtest el linter PIT lo rechaza hasta que el backend tenga
   // NEWS_INDICATOR_HISTORY_FROM; su mensaje se muestra tal cual (como M&A).
@@ -390,6 +399,7 @@ export const DEFAULT_CONFIG: BuilderConfig = {
   excluded: [],
   additionalRules: [],
   selectionFilters: [],
+  holdFilters: [],
   sector: '',
   minEr: 0.3,
   useTrailStop: true,
@@ -472,6 +482,8 @@ export function normalizeCfg(cfg: BuilderConfig): BuilderConfig {
     }
   }
   const selectionFilters = Array.isArray(saved.selectionFilters) ? saved.selectionFilters : [];
+  // #310: configs saved before the hold conditions have no key → none.
+  const holdFilters = Array.isArray(saved.holdFilters) ? saved.holdFilters : [];
   // `sectorDeltas` was added with layered weighting; an older config lacks it.
   const sectorDeltas =
     saved.sectorDeltas && typeof saved.sectorDeltas === 'object' ? saved.sectorDeltas : {};
@@ -508,6 +520,7 @@ export function normalizeCfg(cfg: BuilderConfig): BuilderConfig {
     ...cfg,
     additionalRules,
     selectionFilters,
+    holdFilters,
     sectorDeltas,
     sectorCaps,
     rebalanceOn,
@@ -700,6 +713,56 @@ export function buildSelectionFilters(cfg: BuilderConfig): UniverseSpec | undefi
   return Object.keys(screen).length > 0 ? screen : undefined;
 }
 
+/** Build `spec.hold_filters` from the "Hold conditions" (#310), or `undefined`
+ *  when there are none — OMITTED (never `null`) so a strategy re-saved without
+ *  hold conditions keeps its content_hash and the stored JSON stays minimal. */
+export function buildHoldFilters(cfg: BuilderConfig): UniverseSpec | undefined {
+  const screen: UniverseSpec = {};
+  addRuleEntries(screen, cfg.holdFilters, 'hold');
+  return Object.keys(screen).length > 0 ? screen : undefined;
+}
+
+/** «Copy from universe» (#310): the hold-condition rules equivalent to the
+ *  form's CURRENT universe — built with the same form→spec path the save uses
+ *  (`buildUniverse`), then decoded back as a hold screen, so the base fields
+ *  (country, company size, sector) come across with the additional rules and
+ *  their OR groups. `basket_id` and `exclude` have no hold row and are dropped
+ *  (the backend rejects `basket_id` inside `hold_filters`). */
+export function holdRulesFromUniverse(cfg: BuilderConfig): RuleEntry[] {
+  return screenToRuleEntries(buildUniverse(cfg) as Record<string, unknown>, 'hold');
+}
+
+/** Canonical JSON of one screen value, order-insensitive for lists. */
+function screenValueKey(v: unknown): string {
+  if (Array.isArray(v)) return JSON.stringify([...v].map(String).sort());
+  if (v && typeof v === 'object') {
+    const o = v as Record<string, unknown>;
+    return JSON.stringify(Object.keys(o).sort().map((k) => [k, o[k]]));
+  }
+  return JSON.stringify(v);
+}
+
+/** Loose hold-condition keys whose bounds/values DIFFER from the value the
+ *  form's current universe has for the same key (#310 highlight). Keys the
+ *  universe does not constrain at all are not "differing" — there is nothing
+ *  to compare against. Compared on the wire shape (both sides go through the
+ *  same `filterToEntry` encoding), so 1 vs "1" or a reordered list never
+ *  count as a difference. */
+export function holdFilterDiffKeys(cfg: BuilderConfig): Set<ScreenerFieldKey> {
+  const universe = buildUniverse(cfg) as Record<string, unknown>;
+  const out = new Set<ScreenerFieldKey>();
+  for (const r of cfg.holdFilters) {
+    if (isFilterGroup(r)) continue;
+    const entry = filterToEntry(r, 'hold');
+    if (!entry) continue;
+    const [key, value] = entry;
+    const uv = universe[key];
+    if (uv == null) continue;
+    if (screenValueKey(uv) !== screenValueKey(value)) out.add(key);
+  }
+  return out;
+}
+
 /** The Layer-1 clause from the form. `top_n` is emitted ONLY under
  *  `top_marketcap`: the backend requires it there and rejects it with a 422 on
  *  `universe_marketcap` — and a present `top_n: null` is still a rejection, so
@@ -809,6 +872,7 @@ export function cfgToSpec(cfg: BuilderConfig): StrategySpec {
   // the backtester would ignore it, so the layered clause is dropped.
   const layered = indexWeight ? undefined : buildLayered(cfg);
   const selectionFilters = buildSelectionFilters(cfg);
+  const holdFilters = buildHoldFilters(cfg);
   // Per-name cap: % (UI) → fraction (spec). Omitted when empty/≤0 so an uncapped
   // strategy keeps the legacy content_hash (the backend pops a null value).
   const maxPos =
@@ -854,6 +918,8 @@ export function cfgToSpec(cfg: BuilderConfig): StrategySpec {
     // Omitted when empty so a strategy without selection filters keeps the legacy
     // content_hash (the backend pops a null `selection_filters` from canonical_json).
     ...(selectionFilters ? { selection_filters: selectionFilters } : {}),
+    // Same omit-when-empty rule for the hold conditions (#310).
+    ...(holdFilters ? { hold_filters: holdFilters } : {}),
     rebalance: {
       cadence: cfg.rebalance,
       // Omitted when it's the backend default so a pre-#158 monthly/weekly spec
@@ -956,6 +1022,9 @@ export function specToConfig(spec: StrategySpec, name: string): BuilderConfig {
   // spec.selection_filters → "Selection rules" (the post-universe phase).
   const sf = (spec.selection_filters ?? {}) as Record<string, unknown>;
   const selectionFilters = screenToRuleEntries(sf, 'selection');
+  // spec.hold_filters → "Hold conditions" (#310).
+  const hf = (spec.hold_filters ?? {}) as Record<string, unknown>;
+  const holdFilters = screenToRuleEntries(hf, 'hold');
 
   // #296: a stored `universe.basket_id` → the «Basket» source.
   const basketId = typeof u.basket_id === 'string' && u.basket_id !== '' ? u.basket_id : null;
@@ -970,6 +1039,7 @@ export function specToConfig(spec: StrategySpec, name: string): BuilderConfig {
     excluded: (u.exclude ?? []).map((id) => ({ symbolId: id, ticker: '', name: '' })),
     additionalRules,
     selectionFilters,
+    holdFilters,
     sector: u.sector?.[0] ?? '',
     minEr: ee?.min_er ?? DEFAULT_CONFIG.minEr,
     useTrailStop: ee?.use_trail_stop ?? DEFAULT_CONFIG.useTrailStop,
@@ -1231,6 +1301,13 @@ const FORM_MANAGED_SELECTION_KEYS: ReadonlySet<string> = new Set([
   ...SCREENER_FILTERS.filter((d) => sectionAllows(d, 'selection')).map((d) => d.key),
 ]);
 
+/** Same idea for the hold-conditions screen (#310): catalog rows (incl. the
+ *  hold-only country / company size) + `any_of`. */
+const FORM_MANAGED_HOLD_KEYS: ReadonlySet<string> = new Set([
+  'any_of',
+  ...SCREENER_FILTERS.filter((d) => sectionAllows(d, 'hold')).map((d) => d.key),
+]);
+
 /** Keep the original screen's live-only entries (fields the form cannot express:
  *  dividend_yield, vol caps, FCF yield… — the specToConfig gap documented in #34)
  *  and let the form's output win everywhere else. A form-managed key absent from
@@ -1266,6 +1343,16 @@ export function mergeSpecPreserving(original: StrategySpec, formSpec: StrategySp
   // and must not leak back in via the `...original` spread above.
   if (Object.keys(sel).length > 0) out.selection_filters = sel as UniverseSpec;
   else delete out.selection_filters;
+  // Same merge + omit rule for the hold conditions (#310): the form owns its
+  // rows, non-form keys of the original survive, and an empty screen is
+  // dropped rather than leaking back through `...original`.
+  const hold = mergeScreenPreserving(
+    original.hold_filters as Record<string, unknown> | undefined,
+    formSpec.hold_filters as Record<string, unknown> | undefined,
+    FORM_MANAGED_HOLD_KEYS,
+  );
+  if (Object.keys(hold).length > 0) out.hold_filters = hold as UniverseSpec;
+  else delete out.hold_filters;
   // Same leak, same fix, for `layered`: the form OWNS that clause end-to-end, so
   // when it produces none (plain equal strategy, default Layer 1) the saved one
   // must go. Otherwise switching a stored `top_marketcap` strategy back to the

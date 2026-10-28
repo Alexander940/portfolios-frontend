@@ -172,7 +172,11 @@ export type BooleanFieldKey =
  *  locked to US); `sector` is offered only in the Selection-rules section because
  *  the universe already has a dedicated single-sector control. Current-only
  *  (the symbols table is not historized) — a documented PIT caveat. */
-export type ClassificationKey = 'sector' | 'exchange';
+/** `country` / `market_cap_category` are catalog rows ONLY in the hold
+ *  conditions (#310): in the universe they have dedicated controls (country is
+ *  locked to US, company size is the bucket picker), but `hold_filters` is a
+ *  screen of its own and «Copy from universe» must carry them across. */
+export type ClassificationKey = 'sector' | 'exchange' | 'country' | 'market_cap_category';
 
 /** Date-range (ade) fields, PIT via the `ade` series. */
 export type DateRangeFieldKey = 'bull_cycle_origin_date';
@@ -543,6 +547,13 @@ export interface StrategySpec {
    *  the weighting. Omitted (kept undefined) for strategies without one, so the
    *  backend content_hash of pre-existing specs is unchanged. */
   selection_filters?: UniverseSpec | null;
+  /** Hold conditions (#306–#310, D1): a name ALREADY HELD stays if it passes
+   *  `universe ∧ selection_filters` OR this screen — it widens the exit, never
+   *  restricts it, and non-held names never enter through it. Same vocabulary
+   *  as `universe` (incl. `any_of`), but never `basket_id` (the backend rejects
+   *  it). Omitted (kept undefined) when the user defined nothing, so the
+   *  backend content_hash of pre-existing specs is unchanged. */
+  hold_filters?: UniverseSpec | null;
   rebalance: RebalanceSpec;
   costs: CostsSpec;
   validation: ValidationSpec;
@@ -912,6 +923,10 @@ export interface BuilderConfig {
   // phase: they narrow which names are ranked/picked WITHOUT shrinking the
   // universe or the weighting base. They map into spec.selection_filters.
   selectionFilters: RuleEntry[];
+  // "Hold conditions" (#310, Section 8) — the same catalog again, but they only
+  // decide whether a name ALREADY in the book survives the rebalance (OR'd with
+  // the universe + selection filters). They map into spec.hold_filters.
+  holdFilters: RuleEntry[];
   // universe (PIT-safe). rating / trend_strength / smart_momentum have no
   // dedicated knobs since issue #98 — they are ordinary catalog filters now.
   sector: string; // '' = all
