@@ -178,8 +178,14 @@ export interface DriftExit {
   current_weight_pct: ApiNumber;
   /** true → "posible deslistada" (sin datos recientes). */
   stale: boolean;
-  /** Razón textual — llega con backend#52; antes, copy genérico. */
+  /** Código de la razón (`pending_deal`, `stale_price_feed`, `left_universe`,
+   *  `fell_out_of_top_n`, `left_filters`, `left_hold_filters`) — llega con
+   *  backend#52; antes, copy genérico. Se etiqueta en `DriftPanel`. */
   reason?: string | null;
+  /** Detalle legible de la razón (backend#308): primer filtro fallido
+   *  (`rating >= -1`) para `left_filters`/`left_hold_filters`, o
+   *  `salió del basket «X»` para `left_universe`. */
+  detail?: string | null;
 }
 
 export interface WeightDriftItem {

@@ -455,6 +455,33 @@
 .sb-chip-select-wrap { display: inline-flex; align-items: center; gap: 4px; }
 .sb-chip-select { width: 13px; height: 13px; accent-color: var(--c-accent); cursor: pointer; }
 
+/* Hold conditions (#310) — collapsible subpanel inside Section 8, plus the
+   highlight of a hold chip whose value differs from the universe's. */
+.sb-hold { margin-top: 14px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.sb-hold-toggle {
+  display: inline-flex; align-items: center; gap: 6px; padding: 0; border: 0; background: none;
+  font-family: inherit; font-size: 13px; font-weight: 600; color: var(--c-text); cursor: pointer;
+}
+.sb-hold-chevron { display: inline-flex; transform: rotate(-90deg); transition: transform 0.12s; color: var(--c-text-dim); }
+.sb-hold-chevron.open { transform: none; }
+.sb-hold-count { font-size: 12px; font-weight: 400; color: var(--c-text-dim); }
+.sb-hold-body { flex: 1 0 100%; }
+.sb-hold-actions { display: flex; align-items: center; gap: 12px; margin-top: 10px; flex-wrap: wrap; }
+.sb-hold-copy {
+  font-size: 12px; font-weight: 600; padding: 5px 11px; border-radius: 100px;
+  border: 1px solid var(--c-border-strong); background: var(--c-bg-soft); color: var(--c-text);
+  cursor: pointer; font-family: inherit;
+}
+.sb-hold-copy:hover { border-color: var(--c-accent); color: var(--c-accent-text); }
+.sb-chip-select-wrap.sb-hold-differs > span {
+  border-color: var(--c-warn) !important; border-style: dashed !important;
+  background: color-mix(in oklch, var(--c-warn) 12%, transparent) !important;
+}
+.sb-hold-differs-swatch {
+  display: inline-block; width: 10px; height: 10px; border-radius: 3px; vertical-align: -1px;
+  border: 1px dashed var(--c-warn); background: color-mix(in oklch, var(--c-warn) 12%, transparent);
+}
+
 .sb-group-cta { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
 .sb-group-btn {
   font-size: 12px; font-weight: 600; padding: 5px 11px; border-radius: 100px;

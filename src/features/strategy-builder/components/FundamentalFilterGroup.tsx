@@ -29,6 +29,10 @@ interface Props {
   section: FilterSection;
   /** Hint shown next to the add-selector when the group is empty. */
   emptyHint?: string;
+  /** Loose rule keys to highlight as differing from a reference screen — the
+   *  hold conditions mark what differs from the universe (#310). Every loose
+   *  chip of an instance that passes this gets `data-differs="true|false"`. */
+  differs?: ReadonlySet<ScreenerFieldKey>;
 }
 
 /** Which single alternative the modal is editing/adding. `loose` is a
@@ -55,7 +59,7 @@ type DraftGroup = (FundamentalFilter | null)[];
  *  universe "Additional rules" and the post-universe "Selection rules" — each
  *  instance owns its own open-modal/selection state, so the same catalog drives two
  *  independent rule lists. */
-export function FundamentalFilterGroup({ rules, onChange, section, emptyHint }: Props) {
+export function FundamentalFilterGroup({ rules, onChange, section, emptyHint, differs }: Props) {
   // Which alternative the modal is editing (null = closed). Local to this group.
   const [editing, setEditing] = useState<EditTarget | null>(null);
   // Loose (ungrouped) rule keys checked to be combined into a new OR group.
@@ -259,6 +263,7 @@ export function FundamentalFilterGroup({ rules, onChange, section, emptyHint }: 
                 def={SCREENER_FILTERS.find((f) => f.key === rule.key)}
                 filter={rule}
                 selectable={looseRules.length >= 2}
+                differs={differs ? differs.has(rule.key) : undefined}
                 checked={selected.has(rule.key)}
                 onToggle={() => toggleSelect(rule.key)}
                 onClick={() => setEditing({ kind: 'loose', key: rule.key })}
@@ -422,6 +427,7 @@ function SelectableFilterChip({
   def,
   filter,
   selectable,
+  differs,
   checked,
   onToggle,
   onClick,
@@ -430,6 +436,8 @@ function SelectableFilterChip({
   def: ScreenerFilterDef | undefined;
   filter: FundamentalFilter;
   selectable: boolean;
+  /** undefined = this group doesn't compare against anything. */
+  differs?: boolean;
   checked: boolean;
   onToggle: () => void;
   onClick: () => void;
@@ -437,7 +445,12 @@ function SelectableFilterChip({
 }) {
   if (!def) return null;
   return (
-    <span className="sb-chip-select-wrap">
+    <span
+      className={`sb-chip-select-wrap${differs ? ' sb-hold-differs' : ''}`}
+      data-filter-key={filter.key}
+      data-differs={differs === undefined ? undefined : String(differs)}
+      title={differs ? 'Differs from the universe value for this field' : undefined}
+    >
       {selectable && (
         <input
           type="checkbox"

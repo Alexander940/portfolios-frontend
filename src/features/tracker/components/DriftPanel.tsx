@@ -7,6 +7,26 @@ import type { DriftResponse } from '../types';
 
 const GENERIC_EXIT_REASON = 'Dejó de pasar los filtros o cayó del top-N';
 
+/** Código de salida del drift (backend#52/#308) → texto. Un código que todavía
+ *  no está aquí se humaniza, nunca se muestra en snake_case. */
+const EXIT_REASON_LABELS: Record<string, string> = {
+  pending_deal: 'Operación de M&A anunciada',
+  stale_price_feed: 'Sin precios recientes',
+  left_universe: 'Salió del universo',
+  fell_out_of_top_n: 'Cayó del top-N',
+  left_filters: 'Salió: dejó de pasar los filtros',
+  left_hold_filters: 'Salió: no cumplió la permanencia',
+};
+
+/** Etiqueta de una salida + su `detail` entre paréntesis cuando llega. */
+function exitReasonLabel(reason?: string | null, detail?: string | null): string {
+  if (!reason) return GENERIC_EXIT_REASON;
+  const humanized = reason.replace(/_/g, ' ');
+  const base =
+    EXIT_REASON_LABELS[reason] ?? humanized.charAt(0).toUpperCase() + humanized.slice(1);
+  return detail ? `${base} (${detail})` : base;
+}
+
 type DriftTab = 'entries' | 'exits' | 'drift';
 
 /** Valor del campo sort_by de la estrategia (rating, sharpe, retorno…). */
@@ -59,7 +79,7 @@ function ExitsBox({ drift, active }: { drift: DriftResponse; active: boolean }) 
             <strong>{e.ticker}</strong>
             {e.stale && <span className="trk-tag noquote">posible deslistada</span>}
             <div className="dim" style={{ fontSize: 12 }}>
-              {e.reason ?? GENERIC_EXIT_REASON}
+              {exitReasonLabel(e.reason, e.detail)}
             </div>
           </div>
           <span className="dim" style={{ fontVariantNumeric: 'tabular-nums' }}>

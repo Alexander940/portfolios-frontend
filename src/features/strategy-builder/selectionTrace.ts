@@ -80,6 +80,11 @@ const REASON_LABELS: Record<string, string> = {
   // un candidato y el backend devuelve este código a propósito, en vez de
   // adivinar. La tabla dice lo que sabe y no lo que supone.
   execution_skip: 'Not filled at execution — turnover cap or minimum trade size',
+  // hold_filters (#306–#308): a held name that failed the entry filters but
+  // stays thanks to the hold conditions (row in the portfolio), or that failed
+  // both (exit_stage `selection_rules`).
+  retained_by_hold_filters: 'Retained by the hold conditions',
+  failed_hold_filters: 'Failed the hold conditions',
 };
 
 export function reasonLabel(reason: string | null): string {
