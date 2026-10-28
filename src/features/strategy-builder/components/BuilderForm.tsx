@@ -7,6 +7,8 @@ import { Icon } from '../icons';
 import {
   buildUniverse,
   CADENCE_OPTIONS,
+  holdFilterDiffKeys,
+  holdRulesFromUniverse,
   LAYER3_OPTIONS,
   MARKET_CAP_BUCKETS,
   PERFORMANCE_METRICS,
@@ -65,6 +67,10 @@ export function BuilderForm({ initialCfg, busy, preservedFilters, onCancel, onSa
     }
   };
   const toggleSection = (n: number) => setOpen((o) => ({ ...o, [n]: !o[n] }));
+  // #310 — «Hold conditions» subpanel: collapsed unless the strategy already
+  // carries some, so a form without them looks exactly as before.
+  const [holdOpen, setHoldOpen] = useState(initialCfg.holdFilters.length > 0);
+  const holdDiffers = useMemo(() => holdFilterDiffKeys(cfg), [cfg]);
 
   const errors = useMemo(() => {
     const e: Record<string, string> = {};
@@ -117,6 +123,8 @@ export function BuilderForm({ initialCfg, busy, preservedFilters, onCancel, onSa
     if (additionalRulesError) e.additionalRules = additionalRulesError;
     const selectionFiltersError = ruleListError(cfg.selectionFilters);
     if (selectionFiltersError) e.selectionFilters = selectionFiltersError;
+    const holdFiltersError = ruleListError(cfg.holdFilters);
+    if (holdFiltersError) e.holdFilters = holdFiltersError;
     if (cfg.universeSource === 'basket' && !cfg.basketId) e.basketId = 'Choose a basket';
     return e;
   }, [cfg]);
@@ -740,6 +748,67 @@ export function BuilderForm({ initialCfg, busy, preservedFilters, onCancel, onSa
               on={cfg.prioritizeHeld}
               onToggle={() => set({ prioritizeHeld: !cfg.prioritizeHeld })}
             />
+          </div>
+
+          {/* --- Condiciones de permanencia (hold_filters, #310) ------------- */}
+          <div className="sb-hold" data-testid="sb-hold-filters">
+            <button
+              type="button"
+              className="sb-hold-toggle"
+              data-testid="sb-hold-filters-toggle"
+              aria-expanded={holdOpen}
+              onClick={() => setHoldOpen((o) => !o)}
+            >
+              <span className={`sb-hold-chevron ${holdOpen ? 'open' : ''}`}>
+                <Icon name="chevron" size={13} />
+              </span>
+              Hold conditions
+              {!holdOpen && (
+                <span className="sb-hold-count">
+                  {cfg.holdFilters.length ? `${cfg.holdFilters.length} defined` : 'none'}
+                </span>
+              )}
+            </button>
+            <Tip text="Most useful together with the rank buffer or «Prioritise current holdings»: without either, a held name kept by these conditions can still be cut by the ranking. The backtest shows a warning in that case." />
+            {holdOpen && (
+              <div className="sb-hold-body">
+                <div className="sb-universe-result">
+                  <Icon name="check" size={15} />
+                  <span>
+                    A name already in the book stays while it passes the universe filters{' '}
+                    <b>OR</b> these conditions. They widen the exit, never restrict it.
+                  </span>
+                </div>
+                <div className="sb-hold-actions">
+                  <button
+                    type="button"
+                    className="sb-hold-copy"
+                    data-testid="sb-hold-copy-universe"
+                    onClick={() => set({ holdFilters: holdRulesFromUniverse(cfg) })}
+                    title="Replace the hold conditions with the current universe filters"
+                  >
+                    Copy from universe
+                  </button>
+                  {holdDiffers.size > 0 && (
+                    <span className="sb-fund-add-hint">
+                      <span className="sb-hold-differs-swatch" /> differs from the universe
+                    </span>
+                  )}
+                </div>
+                <FundamentalFilterGroup
+                  section="hold"
+                  rules={cfg.holdFilters}
+                  onChange={(v) => set({ holdFilters: v })}
+                  differs={holdDiffers}
+                  emptyHint="No hold conditions — held names follow the universe filters."
+                />
+                {errors.holdFilters && (
+                  <div className="sb-field-error">
+                    <Icon name="warn" size={11} /> {errors.holdFilters}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* --- Ejecución -------------------------------------------------- */}
