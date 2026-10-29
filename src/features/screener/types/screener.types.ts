@@ -184,6 +184,10 @@ export interface ScreenerRequest {
   /** Fortaleza Sub-Score [0,100]: 50% Smart-Money cycle memory + 50% VMC momentum. */
   fss?: RangeFilter;
 
+  // Magnitude (Trendrating) ∈ {0.05…0.95} — ade.magnitude (#313/#315); internas no expuestas (D2/D8)
+  /** Share of historical bull trends that went further: 0.95 = just started, ≤ 0.14 = very mature, 0.05 = exhausted. */
+  magnitude?: RangeFilter;
+
   // ADE trade machine — see docs/ADE.md + app/indicators/ade_mfh.py:add_trade_state
   /** Forever-latch turned on when Rating crosses +→− (independent of in_bull_cycle). */
   bull_origin_active?: boolean;
@@ -353,6 +357,10 @@ export interface Stock {
   // FSS_v2 (Fortaleza Sub-Score) ∈ [0,100]
   /** Fortaleza Sub-Score [0,100]: 50% Smart-Money cycle memory + 50% VMC momentum. */
   fss: number | null;
+
+  // Magnitude (Trendrating) ∈ {0.05…0.95} — ade.magnitude (#313/#315)
+  /** Share of historical bull trends that went further; NULL out of a bull run (rating < +1). */
+  magnitude: number | null;
 
   // ADE trade machine — see docs/ADE.md + app/indicators/ade_mfh.py:add_trade_state
   /** Forever-latch from EasyLanguage `Bull_Origin_Active` (Rating cross +→−). */

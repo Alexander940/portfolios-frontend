@@ -131,6 +131,7 @@ export type AdeCycleKey =
   | 'trend_high'
   | 'trend_low'
   | 'fss'
+  | 'magnitude'
   | 'trade'
   | 'trade_dir';
 
@@ -331,6 +332,7 @@ export interface UniverseSpec {
   trend_high?: RangeFilter;
   trend_low?: RangeFilter;
   fss?: RangeFilter;
+  magnitude?: RangeFilter;
   trade?: RangeFilter;
   trade_dir?: RangeFilter;
   // Technical indicators (alias ti). `adx` is declared above (legacy universe field).

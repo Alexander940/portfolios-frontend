@@ -151,6 +151,7 @@ export const SCREENER_FILTERS: ScreenerFilterDef[] = [
   { key: 'trend_high', label: 'Trend High', kind: 'ratio', hint: 'Running max close since the cycle started (NULL out of cycle).', category: 'Cycle & Trade' },
   { key: 'trend_low', label: 'Trend Low', kind: 'ratio', hint: 'Running min close since the cycle started (NULL out of cycle).', category: 'Cycle & Trade' },
   { key: 'fss', label: 'FSS', kind: 'ratio', hint: 'Fortaleza Sub-Score ∈ [0,100] — structural Smart-Money memory + current momentum.', category: 'Cycle & Trade' },
+  { key: 'magnitude', label: 'Magnitude', kind: 'ratio', hint: 'Trendrating Magnitude ∈ [0.05, 0.95]: share of historical bull trends that went further. 0.95 = just started; ≤ 0.14 = very mature; 0.05 = exhausted (NULL out of a bull run).', category: 'Cycle & Trade' },
   { key: 'trade', label: 'Trade (+2 Long / -2 Short)', kind: 'ratio', hint: 'EL Plot7 trade state: +2 Long, -2 Short, 0 flat.', category: 'Cycle & Trade' },
   { key: 'trade_dir', label: 'Trade Direction', kind: 'ratio', hint: 'Open trade direction (+1 Long, -1 Short, 0 none).', category: 'Cycle & Trade' },
   // Technical indicators (alias ti).
@@ -324,6 +325,7 @@ export const SORT_FIELDS: { k: string; label: string }[] = [
   { k: 'sm_long_points', label: 'SM Long Points' },
   { k: 'slope_clenow_90d', label: '90d Momentum (Clenow)' },
   { k: 'fss', label: 'Fortaleza (FSS)' },
+  { k: 'magnitude', label: 'Magnitude (remaining run-up)' },
   { k: 'adx', label: 'ADX' },
   { k: 'market_cap', label: 'Market Cap' },
   { k: 'alpha', label: 'Alpha (12M vs S&P)' },
