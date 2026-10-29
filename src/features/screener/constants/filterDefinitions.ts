@@ -517,6 +517,16 @@ export const ADE_FILTERS: FilterDefinition[] = [
     apiKey: 'fss',
     description: 'Fortaleza Sub-Score [0–100]: 50% Smart-Money cycle memory + 50% VMC momentum',
   },
+  // ---- Magnitude (Trendrating) — ade.magnitude, niveles discretos 0.05…0.95 (#316) ----
+  {
+    key: 'magnitude',
+    label: 'Magnitude',
+    category: 'ade',
+    type: 'range',
+    apiKey: 'magnitude',
+    description:
+      'Trendrating Magnitude: share of historical bull trends that went further. 0.95 = trend just started; ≤ 0.14 = very mature; 0.05 = exhausted',
+  },
   // ---- Trade machine (docs/ADE.md + add_trade_state) ----
   {
     key: 'in_trade',
@@ -1371,6 +1381,8 @@ const ADE_COLUMNS: TableColumn[] = [
   { key: 'trend_low', label: 'Trend Low', sortable: true, align: 'right', width: '120px', format: (v) => formatNumber(v, 2) },
   // FSS_v2 (Fortaleza Sub-Score) — add_fss
   { key: 'fss', label: 'FSS', sortable: true, align: 'right', width: '100px', format: (v) => formatNumber(v, 2) },
+  // Magnitude (Trendrating) — ade.magnitude ∈ {0.05…0.95}, NULL fuera de racha alcista (#316)
+  { key: 'magnitude', label: 'Magnitude', sortable: true, align: 'right', width: '100px', format: (v) => formatNumber(v, 2) },
   // Trade machine (docs/ADE.md + add_trade_state)
   { key: 'in_trade', label: 'In Trade', sortable: true, align: 'center', width: '90px', format: formatBool },
   { key: 'trade', label: 'Trade', sortable: true, align: 'center', width: '90px', format: formatTrade },
