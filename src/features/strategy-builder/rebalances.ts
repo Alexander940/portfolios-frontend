@@ -13,7 +13,7 @@ export function fmtFracPct(v: number | null | undefined, d = 1): string {
   return `${p > 0 ? '+' : ''}${p.toFixed(d)}%`;
 }
 
-/** Fraction → unsigned percent for magnitudes (turnover, weights): 0.253 → "25.3%". */
+/** Fraction → unsigned percent for unsigned sizes (turnover, weights): 0.253 → "25.3%". */
 export function fmtFracPctPlain(v: number | null | undefined, d = 1): string {
   if (v == null || !Number.isFinite(v)) return '—';
   return `${(v * 100).toFixed(d)}%`;
@@ -80,7 +80,7 @@ export function beatingCounts(rows: RebalanceIndexRow[]): { k: number; n: number
 }
 
 /** Bar height in % of the half-strip for each row: ∝ |period_return|, scaled
- *  to the largest magnitude in the run (0 when every return is 0/null). */
+ *  to the largest absolute value in the run (0 when every return is 0/null). */
 export function barScale(rows: RebalanceIndexRow[]): number {
   let max = 0;
   for (const r of rows) {

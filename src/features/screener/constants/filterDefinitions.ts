@@ -517,15 +517,32 @@ export const ADE_FILTERS: FilterDefinition[] = [
     apiKey: 'fss',
     description: 'Fortaleza Sub-Score [0–100]: 50% Smart-Money cycle memory + 50% VMC momentum',
   },
-  // ---- Magnitude (Trendrating) — ade.magnitude, niveles discretos 0.05…0.95 (#316) ----
+  // ---- Familia Runway (épica #319) — ade.price_runway / time_runway / trend_runway (#323) ----
   {
-    key: 'magnitude',
-    label: 'Magnitude',
+    key: 'price_runway',
+    label: 'Price Runway',
     category: 'ade',
     type: 'range',
-    apiKey: 'magnitude',
+    apiKey: 'price_runway',
     description:
-      'Trendrating Magnitude: share of historical bull trends that went further. 0.95 = trend just started; ≤ 0.14 = very mature; 0.05 = exhausted',
+      'Share of historical bull trends that rose further. 0.95 = trend just started; ≤ 0.14 = very mature; 0.05 = exhausted',
+  },
+  {
+    key: 'time_runway',
+    label: 'Time Runway',
+    category: 'ade',
+    type: 'range',
+    apiKey: 'time_runway',
+    description: 'Share of historical bull trends that lasted longer. 0.95 = just started; ≤ 0.30 = mature',
+  },
+  {
+    key: 'trend_runway',
+    label: 'Trend Runway',
+    category: 'ade',
+    type: 'range',
+    apiKey: 'trend_runway',
+    description:
+      '(Time + Price Runway) / 2. High = room to continue, not strength; ≤ 0.12 = statistically exhausted',
   },
   // ---- Trade machine (docs/ADE.md + add_trade_state) ----
   {
@@ -1381,8 +1398,10 @@ const ADE_COLUMNS: TableColumn[] = [
   { key: 'trend_low', label: 'Trend Low', sortable: true, align: 'right', width: '120px', format: (v) => formatNumber(v, 2) },
   // FSS_v2 (Fortaleza Sub-Score) — add_fss
   { key: 'fss', label: 'FSS', sortable: true, align: 'right', width: '100px', format: (v) => formatNumber(v, 2) },
-  // Magnitude (Trendrating) — ade.magnitude ∈ {0.05…0.95}, NULL fuera de racha alcista (#316)
-  { key: 'magnitude', label: 'Magnitude', sortable: true, align: 'right', width: '100px', format: (v) => formatNumber(v, 2) },
+  // Familia Runway (épica #319, #323) — ade.*_runway, NULL fuera de racha alcista
+  { key: 'price_runway', label: 'Price Runway', sortable: true, align: 'right', width: '120px', format: (v) => formatNumber(v, 2) },
+  { key: 'time_runway', label: 'Time Runway', sortable: true, align: 'right', width: '120px', format: (v) => formatNumber(v, 2) },
+  { key: 'trend_runway', label: 'Trend Runway', sortable: true, align: 'right', width: '120px', format: (v) => formatNumber(v, 3) },
   // Trade machine (docs/ADE.md + add_trade_state)
   { key: 'in_trade', label: 'In Trade', sortable: true, align: 'center', width: '90px', format: formatBool },
   { key: 'trade', label: 'Trade', sortable: true, align: 'center', width: '90px', format: formatTrade },
