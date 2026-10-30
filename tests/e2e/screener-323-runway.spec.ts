@@ -1,16 +1,18 @@
 import { test, expect, type Page } from '@playwright/test';
 
 /**
- * E2E de #316 (backend) — el indicador Magnitude (`ade.magnitude`, Trendrating)
- * en el screener (filtro de rango + columna en el preset ADE), en el Strategy
- * Builder (ranking key → `spec.selection.sort_by`) y en el constructor de
- * alertas (catálogo de `/alerts/fields`, formato `level`, decimales).
+ * E2E de #323 (épica backend #319) — la familia Runway (`ade.price_runway`,
+ * `ade.time_runway`, `ade.trend_runway`) en el screener (filtros de rango +
+ * columnas en el preset ADE), en el Strategy Builder (filtro de «Cycle & Trade»
+ * y ranking key → `spec.selection.sort_by`) y en el constructor de alertas
+ * (catálogo de `/alerts/fields`).
  *
- * API mockeada por rutas; contrato del backend mergeado en #315:
- *   - `ScreenerRequest.magnitude: RangeFilter | None`
- *   - `ScreenerResult.magnitude: Decimal | None` (niveles 0.05…0.95)
- *   - `AlertFieldDef("magnitude", …, "decimal", "level", (LTE, GTE), …)`
- * Regla del dueño (D2/D8): sólo `magnitude` se expone, nunca sus internas.
+ * API mockeada por rutas; contrato del backend mergeado en #322 (PR #325):
+ *   - `ScreenerRequest.{price,time,trend}_runway: RangeFilter | None`
+ *   - `ScreenerResultItem.{price,time,trend}_runway: Decimal | None`
+ *   - `AlertFieldDef("price_runway" | "time_runway" | "trend_runway", …,
+ *     "decimal", "level", (LTE, GTE), …)`
+ * Renombrado en seco (E7): la clave del Price Runway ya no viaja nunca.
  */
 
 const USER = {
@@ -60,15 +62,21 @@ function stock(overrides: Record<string, unknown>) {
     liquidity_usd_m: 10,
     pending_deal: null,
     deal_status: null,
-    magnitude: null,
+    price_runway: null,
+    time_runway: null,
+    trend_runway: null,
     ...overrides,
   };
 }
 
 const SCREENER_RESULTS = {
   results: [
-    stock({ symbol_id: 'sc-1', ticker: 'ERLY', name: 'Early Run Inc.', magnitude: 0.83 }),
-    stock({ symbol_id: 'sc-2', ticker: 'NRUN', name: 'Flat Line Corp.', magnitude: null }),
+    stock({
+      symbol_id: 'sc-1', ticker: 'ERLY', name: 'Early Run Inc.',
+      // El Decimal del backend viaja como string.
+      price_runway: '0.83', time_runway: '0.73', trend_runway: '0.445',
+    }),
+    stock({ symbol_id: 'sc-2', ticker: 'NRUN', name: 'Flat Line Corp.' }),
   ],
   total_count: 2,
   limit: 50,
@@ -96,8 +104,11 @@ async function mockScreenerApi(page: Page): Promise<Record<string, unknown>[]> {
   return bodies;
 }
 
-test.describe('Screener — Magnitude (#316)', () => {
-  test('(1) el filtro Magnitude mín 0.59 viaja como magnitude: { min: 0.59 }', async ({ page }) => {
+const RUNWAY_KEYS = ['price_runway', 'time_runway', 'trend_runway'];
+const OLD_KEY = ['mag', 'nitude'].join('');
+
+test.describe('Screener — Runway (#323)', () => {
+  test('(1) el filtro Trend Runway mín 0.5 viaja como trend_runway: { min: 0.5 }', async ({ page }) => {
     await seedAuth(page);
     const bodies = await mockScreenerApi(page);
     await page.goto('/dashboard/screening', { waitUntil: 'domcontentloaded' });
@@ -109,19 +120,23 @@ test.describe('Screener — Magnitude (#316)', () => {
     // «ADE» es la categoría (fuera hay una pestaña homónima de columnas).
     const menu = page.locator('div', { has: addFilter }).last();
     await menu.getByRole('button', { name: 'ADE', exact: true }).click();
-    await menu.getByRole('button', { name: /^Magnitude/ }).click();
-    await page.getByLabel('Minimum').fill('0.59');
+    // Los tres Runway están en la categoría ADE.
+    for (const label of ['Price Runway', 'Time Runway', 'Trend Runway']) {
+      await expect(menu.getByRole('button', { name: new RegExp(`^${label}`) })).toHaveCount(1);
+    }
+    await menu.getByRole('button', { name: /^Trend Runway/ }).click();
+    await page.getByLabel('Minimum').fill('0.5');
     await page.getByRole('button', { name: 'Apply' }).click();
 
     await expect
-      .poll(() => bodies.map((b) => JSON.stringify(b.magnitude ?? null)), { timeout: 30_000 })
-      .toContain(JSON.stringify({ min: 0.59 }));
+      .poll(() => bodies.map((b) => JSON.stringify(b.trend_runway ?? null)), { timeout: 30_000 })
+      .toContain(JSON.stringify({ min: 0.5 }));
     const last = bodies[bodies.length - 1];
-    // D2/D8: las internas nunca viajan.
-    expect(Object.keys(last).filter((k) => k.startsWith('magnitude_'))).toEqual([]);
+    // Renombrado en seco: ninguna clave del nombre anterior viaja.
+    expect(Object.keys(last).filter((k) => k.startsWith(OLD_KEY))).toEqual([]);
   });
 
-  test('(2) la columna Magnitude del preset ADE muestra 0.83 y ordena por magnitude', async ({ page }) => {
+  test('(2) las columnas Runway del preset ADE muestran 0.83 / 0.73 / 0.445 y ordenan', async ({ page }) => {
     await seedAuth(page);
     const bodies = await mockScreenerApi(page);
     await page.goto('/dashboard/screening', { waitUntil: 'domcontentloaded' });
@@ -130,21 +145,30 @@ test.describe('Screener — Magnitude (#316)', () => {
     await page.getByRole('button', { name: 'ADE', exact: true }).click();
     const table = page.locator('table.tbl');
     const headers = table.locator('thead th');
-    await expect(headers.filter({ hasText: /^Magnitude/ })).toHaveCount(1);
-    const labels = await headers.allInnerTexts();
+    await expect(headers.filter({ hasText: /^Price Runway/i })).toHaveCount(1);
     // innerText refleja el text-transform del encabezado: comparar sin mayúsculas.
-    const idx = labels.findIndex((t) => t.trim().toLowerCase().startsWith('magnitude'));
-    expect(idx).toBeGreaterThan(-1);
+    const labels = (await headers.allInnerTexts()).map((t) => t.trim().toLowerCase());
+    expect(labels.some((t) => t.startsWith(OLD_KEY))).toBe(false);
 
     const early = table.locator('tbody tr', { hasText: 'ERLY' });
-    await expect(early.locator('td').nth(idx)).toHaveText('0.83');
     const outOfRun = table.locator('tbody tr', { hasText: 'NRUN' });
-    await expect(outOfRun.locator('td').nth(idx)).not.toHaveText(/\d/);
+    const expected: [string, string][] = [
+      ['price runway', '0.83'],
+      ['time runway', '0.73'],
+      ['trend runway', '0.445'],
+    ];
+    for (const [label, value] of expected) {
+      const idx = labels.findIndex((t) => t.startsWith(label));
+      expect(idx, label).toBeGreaterThan(-1);
+      await expect(early.locator('td').nth(idx)).toHaveText(value);
+      await expect(outOfRun.locator('td').nth(idx)).not.toHaveText(/\d/);
+    }
 
-    await headers.nth(idx).click();
+    const trendIdx = labels.findIndex((t) => t.startsWith('trend runway'));
+    await headers.nth(trendIdx).click();
     await expect
       .poll(() => bodies.map((b) => b.sort_by), { timeout: 30_000 })
-      .toContain('magnitude');
+      .toContain('trend_runway');
   });
 });
 
@@ -195,37 +219,28 @@ async function mockBuilderApi(page: Page): Promise<RecordedCall[]> {
   return calls;
 }
 
-test.describe('Builder — Magnitude (#316)', () => {
-  test('(3) «Rank by» Magnitude se guarda como selection.sort_by = magnitude', async ({ page }) => {
+test.describe('Builder — Runway (#323)', () => {
+  test('(3) «Rank by» Trend Runway + filtro Time Runway se guardan en el spec', async ({ page }) => {
     await seedAuth(page);
     const calls = await mockBuilderApi(page);
     await page.goto('/dashboard/builder');
     await page.getByRole('button', { name: 'New strategy' }).first().click();
-    await page.getByPlaceholder('Strategy name').fill('E2E Magnitude rank');
+    await page.getByPlaceholder('Strategy name').fill('E2E Runway');
 
     const rankBy = page.locator('.sb-field', { hasText: 'Rank by' }).locator('select');
-    await rankBy.selectOption({ label: 'Magnitude (remaining run-up)' });
-
-    await page.getByRole('button', { name: 'Save & backtest' }).click();
-    await expect
-      .poll(() => calls.filter((c) => c.method === 'POST' && c.path.endsWith('/strategies/')).length)
-      .toBeGreaterThan(0);
-    const created = calls.find((c) => c.method === 'POST' && c.path.endsWith('/strategies/'));
-    const spec = created?.body?.spec as Record<string, Record<string, unknown>>;
-    expect(spec.selection.sort_by).toBe('magnitude');
-  });
-
-  test('(3b) Magnitude está entre los filtros de «Cycle & Trade» y viaja en el universo', async ({ page }) => {
-    await seedAuth(page);
-    const calls = await mockBuilderApi(page);
-    await page.goto('/dashboard/builder');
-    await page.getByRole('button', { name: 'New strategy' }).first().click();
-    await page.getByPlaceholder('Strategy name').fill('E2E Magnitude filter');
+    for (const label of [
+      'Price Runway (remaining run-up)',
+      'Time Runway (remaining time)',
+      'Trend Runway (upside potential)',
+    ]) {
+      await expect(rankBy.locator('option', { hasText: label })).toHaveCount(1);
+    }
+    await rankBy.selectOption({ label: 'Trend Runway (upside potential)' });
 
     // La primera caja de reglas del formulario es el universo.
     const addSelect = page.locator('.sb-fund-add select').first();
-    await addSelect.selectOption({ label: 'Magnitude' });
-    await page.getByLabel('Minimum').fill('0.59');
+    await addSelect.selectOption({ label: 'Time Runway' });
+    await page.getByLabel('Minimum').fill('0.3');
     await page.getByRole('button', { name: 'Apply' }).click();
 
     await page.getByRole('button', { name: 'Save & backtest' }).click();
@@ -234,8 +249,22 @@ test.describe('Builder — Magnitude (#316)', () => {
       .toBeGreaterThan(0);
     const created = calls.find((c) => c.method === 'POST' && c.path.endsWith('/strategies/'));
     const spec = created?.body?.spec as Record<string, Record<string, unknown>>;
+    expect(spec.selection.sort_by).toBe('trend_runway');
     const where = { ...spec.universe, ...(spec.selection_rules ?? {}) } as Record<string, unknown>;
-    expect(where.magnitude).toEqual({ min: 0.59 });
+    expect(where.time_runway).toEqual({ min: 0.3 });
+    expect(JSON.stringify(spec)).not.toContain(OLD_KEY);
+  });
+
+  test('(3b) los tres Runway están entre los filtros de «Cycle & Trade»', async ({ page }) => {
+    await seedAuth(page);
+    await mockBuilderApi(page);
+    await page.goto('/dashboard/builder');
+    await page.getByRole('button', { name: 'New strategy' }).first().click();
+    const addSelect = page.locator('.sb-fund-add select').first();
+    const group = addSelect.locator('optgroup[label="Cycle & Trade"]');
+    for (const key of RUNWAY_KEYS) {
+      await expect(group.locator(`option[value="${key}"]`)).toHaveCount(1);
+    }
   });
 });
 
@@ -243,10 +272,11 @@ test.describe('Builder — Magnitude (#316)', () => {
 // Alertas
 // ---------------------------------------------------------------------------
 
+// Copia de las entradas de `app/services/alert_catalog.py` (#322).
 const ALERT_FIELDS = [
   {
-    key: 'magnitude',
-    label: 'Magnitude (madurez de la tendencia)',
+    key: 'price_runway',
+    label: 'Price Runway (recorrido restante)',
     category: 'rating_tendencia',
     dtype: 'decimal',
     unit: 'level',
@@ -255,10 +285,30 @@ const ALERT_FIELDS = [
     description:
       '0.95 = la tendencia apenas empieza; ≤ 0.14 = muy madura; 0.05 = agotada. "≤ 0.14" avisa de madurez; "≥ 0.83" de recorrido.',
   },
+  {
+    key: 'time_runway',
+    label: 'Time Runway (tiempo restante)',
+    category: 'rating_tendencia',
+    dtype: 'decimal',
+    unit: 'level',
+    operators: ['lte', 'gte'],
+    enabled: true,
+    description: '0.95 = la tendencia es joven; ≤ 0.30 = madura; 0.05 = más larga que casi todas.',
+  },
+  {
+    key: 'trend_runway',
+    label: 'Trend Runway (potencial restante)',
+    category: 'rating_tendencia',
+    dtype: 'decimal',
+    unit: 'level',
+    operators: ['lte', 'gte'],
+    enabled: true,
+    description: 'Media de Time y Price Runway: alto = espacio para continuar, no fuerza; ≤ 0.12 = agotada.',
+  },
 ];
 
-test.describe('Alertas — Magnitude (#316)', () => {
-  test('(4) el builder lista Magnitude desde /alerts/fields y acepta 0.14 con ≤', async ({ page }) => {
+test.describe('Alertas — Runway (#323)', () => {
+  test('(4) el builder lista los tres Runway desde /alerts/fields y acepta 0.12 con ≤', async ({ page }) => {
     await seedAuth(page);
     const posts: Record<string, unknown>[] = [];
     await page.route('**/symbols/search**', (route) =>
@@ -296,21 +346,24 @@ test.describe('Alertas — Magnitude (#316)', () => {
     await page.getByTestId('symbol-option').first().click();
 
     const fieldSelect = page.getByTestId('field-select');
-    await expect(fieldSelect.locator('option', { hasText: 'Magnitude' })).toHaveCount(1);
-    await fieldSelect.selectOption('magnitude');
+    for (const label of ['Price Runway', 'Time Runway', 'Trend Runway']) {
+      await expect(fieldSelect.locator('option', { hasText: label })).toHaveCount(1);
+    }
+    await expect(fieldSelect.locator('option', { hasText: new RegExp(OLD_KEY, 'i') })).toHaveCount(0);
+    await fieldSelect.selectOption('trend_runway');
     await expect(page.getByTestId('operator-select')).toHaveValue('lte');
     await expect(page.getByTestId('operator-select').locator('option')).toHaveText([
       'menor o igual que',
       'mayor o igual que',
     ]);
-    await page.getByTestId('threshold-input').fill('0.14');
+    await page.getByTestId('threshold-input').fill('0.12');
     await expect(page.getByTestId('unit-suffix')).toHaveText('');
     await expect(page.getByTestId('preview')).toHaveText(
-      'Avisarme cuando ALFA: Magnitude (madurez de la tendencia) menor o igual que 0.14',
+      'Avisarme cuando ALFA: Trend Runway (potencial restante) menor o igual que 0.12',
     );
 
     await page.getByTestId('builder-save').click();
     await expect.poll(() => posts.length).toBe(1);
-    expect(posts[0]).toMatchObject({ field: 'magnitude', operator: 'lte', threshold: '0.14' });
+    expect(posts[0]).toMatchObject({ field: 'trend_runway', operator: 'lte', threshold: '0.12' });
   });
 });
