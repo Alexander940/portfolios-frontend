@@ -88,4 +88,6 @@ Implementado en la rama `feat/login-34` (base `origin/master` 41e88f9).
 4. **Alertas con `role` distinto**: credenciales → `role="alert"`; pendiente y registro → `role="status"` (no interrumpen al lector de pantalla por algo que no es un error del usuario).
 5. **El spec e2e `registration.spec.ts` no se tocó**: ya estaba rojo contra master (busca «Regístrate aquí» y «Crear cuenta» en español) y queda fuera de alcance.
 
+**PR**: [#35](https://github.com/Alexander940/portfolios-frontend/pull/35) (commit 71e4cff).
+
 **Pendiente**: revisión visual del dueño en el PR (escritorio y móvil) y merge; el deploy a Vercel sigue al merge.
