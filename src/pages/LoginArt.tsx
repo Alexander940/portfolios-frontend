@@ -47,8 +47,8 @@ export function LoginArt() {
         <div className="art-hero">
           <div className="art-eyebrow">Stock portfolio management</div>
           <h1 className="art-headline">
-            Your portfolios, with{' '}
-            <span className="art-headline-accent">discipline</span>.
+            Screen, build and{' '}
+            <span className="art-headline-accent">track</span> your portfolios.
           </h1>
         </div>
 
