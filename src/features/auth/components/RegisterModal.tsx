@@ -10,14 +10,17 @@ import { RegisterForm } from './RegisterForm';
  *
  * On successful registration:
  * - Closes the modal
- * - Sets a success message in the store (displayed on login page)
+ * - Sets a success message in the store (displayed on login page).
+ *   New users are created inactive; an admin activates them (#34).
  */
 export function RegisterModal() {
   const { activeModal, closeModal, setSuccessMessage } = useModalStore();
   const isOpen = activeModal === 'register';
 
   const handleSuccess = () => {
-    setSuccessMessage('Account created successfully. You can now sign in.');
+    setSuccessMessage(
+      "Account created. You'll be able to sign in once an administrator activates it. No need to register again."
+    );
     closeModal();
   };
 

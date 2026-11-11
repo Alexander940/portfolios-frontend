@@ -1,108 +1,75 @@
+import { Bell, BookOpen, TrendingUp } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
+
+interface Feature {
+  icon: LucideIcon;
+  title: string;
+  text: string;
+}
+
+const FEATURES: Feature[] = [
+  {
+    icon: TrendingUp,
+    title: 'Screener with a variety of indicators',
+    text: 'Filter the universe with technical and fundamental indicators, and save your presets.',
+  },
+  {
+    icon: BookOpen,
+    title: 'Portfolios with a transaction ledger',
+    text: 'Positions and performance against the benchmark derived from the ledger; rebalancing with preview and history.',
+  },
+  {
+    icon: Bell,
+    title: 'Alerts and news indicator',
+    text: 'Rating changes, earnings and news classified by symbol, in a single feed.',
+  },
+];
+
 /**
- * LoginArt — decorative left panel for the login page.
+ * LoginArt — left panel of the login page (hidden under 980px).
  *
- * Ported from the Cloud Design Prime variation: animated gradient mesh
- * background, subtle grid overlay, eyebrow text, headline, and two
- * floating glass cards previewing portfolio data + an event feed.
- *
- * Pure presentational — no interaction, no real data.
+ * Describes what the product actually does. Deliberately free of
+ * invented figures, fake certifications and live-status chrome (#34).
  */
 export function LoginArt() {
-  const series = [
-    42, 45, 43, 48, 52, 50, 55, 58, 56, 62, 65, 63, 68, 72, 70, 75, 78, 82, 80,
-    85,
-  ];
-  const min = Math.min(...series);
-  const max = Math.max(...series);
-  const w = 320;
-  const h = 80;
-  const step = w / (series.length - 1);
-  const path = series
-    .map((v, i) => `${i * step},${h - ((v - min) / (max - min)) * h}`)
-    .join(' L ');
-
   return (
     <div className="art-prime">
-      <div className="art-mesh" />
-      <div className="art-grid" />
+      <div className="art-grid" aria-hidden="true" />
+
       <div className="art-content">
-        <div className="art-eyebrow">Portafolios / v1.0</div>
-        <h1 className="art-headline">
-          The control room for{' '}
-          <span className="art-headline-accent">disciplined</span> portfolio
-          managers.
-        </h1>
-        <p className="art-sub">
-          Monitor every position, react to rating changes the moment they hit
-          the tape, and rebalance with conviction.
-        </p>
-
-        <div className="art-card art-card-1">
-          <div className="art-card-head">
-            <div>
-              <div className="art-card-label">Global Growth Composite</div>
-              <div className="art-card-code">GGC · MSCI ACWI</div>
-            </div>
-            <div className="art-card-tcr">A</div>
+        <div className="art-brand">
+          <div className="art-brand-mark" aria-hidden="true">
+            P
           </div>
-          <div>
-            <div className="art-card-stat-v">+14.2%</div>
-            <div className="art-card-stat-d">+2.4% vs benchmark · YTD</div>
-          </div>
-          <svg
-            viewBox={`0 0 ${w} ${h}`}
-            className="art-card-spark"
-            preserveAspectRatio="none"
-          >
-            <defs>
-              <linearGradient id="sparkGrad" x1="0" x2="0" y1="0" y2="1">
-                <stop offset="0%" stopColor="rgba(255,255,255,0.35)" />
-                <stop offset="100%" stopColor="rgba(255,255,255,0)" />
-              </linearGradient>
-            </defs>
-            <path d={`M ${path} L ${w},${h} L 0,${h} Z`} fill="url(#sparkGrad)" />
-            <path
-              d={`M ${path}`}
-              fill="none"
-              stroke="white"
-              strokeWidth="1.5"
-            />
-          </svg>
+          <span className="art-brand-name">Portafolios</span>
         </div>
 
-        <div className="art-card art-card-2">
-          <div className="art-event-row">
-            <span className="art-event-icon up">↑</span>
-            <span className="art-event-tk">NVDA</span>
-            <span className="art-event-trans">
-              <span className="dim">B+</span> → <b>A</b>
-            </span>
-            <span className="art-event-time">09:41</span>
-          </div>
-          <div className="art-event-row">
-            <span className="art-event-icon up">↑</span>
-            <span className="art-event-tk">AVGO</span>
-            <span className="art-event-trans">
-              <span className="dim">A−</span> → <b>A</b>
-            </span>
-            <span className="art-event-time">09:38</span>
-          </div>
-          <div className="art-event-row">
-            <span className="art-event-icon down">↓</span>
-            <span className="art-event-tk">TXN</span>
-            <span className="art-event-trans">
-              <span className="dim">A</span> → <b>B+</b>
-            </span>
-            <span className="art-event-time">09:32</span>
-          </div>
+        <div className="art-hero">
+          <div className="art-eyebrow">Stock portfolio management</div>
+          <h1 className="art-headline">
+            Your portfolios, with{' '}
+            <span className="art-headline-accent">discipline</span>.
+          </h1>
         </div>
+
+        <ul className="art-features">
+          {FEATURES.map(({ icon: Icon, title, text }) => (
+            <li key={title} className="art-feature">
+              <span className="art-feature-icon" aria-hidden="true">
+                <Icon size={18} strokeWidth={1.8} />
+              </span>
+              <div className="art-feature-body">
+                <div className="art-feature-title">{title}</div>
+                <div className="art-feature-text">{text}</div>
+              </div>
+            </li>
+          ))}
+        </ul>
       </div>
 
       <div className="art-footer">
-        <div>SOC 2 Type II · ISO 27001 · MiFID II ready</div>
-        <div className="art-status">
-          <span className="art-status-dot" /> Markets open · NYSE
-        </div>
+        <div>End-of-day market data · updated nightly</div>
+        <div>portafolios.site</div>
       </div>
     </div>
   );

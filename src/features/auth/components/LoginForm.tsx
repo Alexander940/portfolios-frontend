@@ -2,26 +2,33 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { AlertCircle, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { AlertCircle, Clock, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { isAccountNotActivatedError } from '@/lib/apiErrors';
 import { useAuth } from '../hooks';
 import { useModalStore } from '../stores/modalStore';
 
+/**
+ * Login only checks presence. The password policy (length, etc.) lives in
+ * the registration form; enforcing it here would reject valid legacy
+ * passwords and leak the policy (#34).
+ */
 const loginSchema = z.object({
   email: z
     .string()
     .min(1, 'Email is required')
     .email('Enter a valid email'),
-  password: z
-    .string()
-    .min(1, 'Password is required')
-    .min(6, 'Password must be at least 6 characters'),
+  password: z.string().min(1, 'Password is required'),
   rememberMe: z.boolean().optional(),
 });
 
 type LoginFormData = z.infer<typeof loginSchema>;
 
 /**
- * LoginForm — Cloud Design Prime styling, same auth logic as before.
+ * LoginForm — email + password with a keyboard-reachable password toggle.
+ *
+ * Distinguishes two server answers that used to share one red box:
+ * - wrong credentials → `role="alert"` (red)
+ * - account created but not yet activated by an admin → `role="status"` (amber)
  */
 export function LoginForm() {
   const { login, isLoading, error, clearError } = useAuth();
@@ -51,11 +58,20 @@ export function LoginForm() {
     });
   };
 
+  const isPending = isAccountNotActivatedError(error);
+
   return (
     <form onSubmit={handleSubmit(onSubmit)} noValidate>
-      {error && (
+      {error && isPending && (
+        <div className="login-alert pending" role="status">
+          <Clock size={16} style={{ flexShrink: 0, marginTop: 2 }} />
+          <span>{error}</span>
+        </div>
+      )}
+
+      {error && !isPending && (
         <div className="login-alert error" role="alert">
-          <AlertCircle size={16} style={{ flexShrink: 0, marginTop: 1 }} />
+          <AlertCircle size={16} style={{ flexShrink: 0, marginTop: 2 }} />
           <span>{error}</span>
         </div>
       )}
@@ -63,33 +79,30 @@ export function LoginForm() {
       <div className="login-fields">
         <div className="login-field">
           <div className="login-field-head">
-            <label htmlFor="login-email">Work email</label>
+            <label htmlFor="login-email">Email</label>
           </div>
           <input
             id="login-email"
             type="email"
             autoComplete="email"
+            inputMode="email"
             disabled={isLoading}
             className="login-input"
-            placeholder="you@company.com"
+            placeholder="you@email.com"
+            aria-invalid={errors.email ? true : undefined}
+            aria-describedby={errors.email ? 'login-email-error' : undefined}
             {...register('email')}
           />
           {errors.email && (
-            <div className="login-field-error">{errors.email.message}</div>
+            <div id="login-email-error" className="login-field-error">
+              {errors.email.message}
+            </div>
           )}
         </div>
 
         <div className="login-field">
           <div className="login-field-head">
             <label htmlFor="login-password">Password</label>
-            <button
-              type="button"
-              className="login-link"
-              onClick={(e) => e.preventDefault()}
-              tabIndex={-1}
-            >
-              Forgot?
-            </button>
           </div>
           <div className="login-pass">
             <input
@@ -97,7 +110,11 @@ export function LoginForm() {
               type={showPassword ? 'text' : 'password'}
               autoComplete="current-password"
               disabled={isLoading}
-              placeholder="Enter your password"
+              placeholder="Your password"
+              aria-invalid={errors.password ? true : undefined}
+              aria-describedby={
+                errors.password ? 'login-password-error' : undefined
+              }
               {...register('password')}
             />
             <button
@@ -105,13 +122,15 @@ export function LoginForm() {
               className="login-pass-toggle"
               onClick={() => setShowPassword((s) => !s)}
               aria-label={showPassword ? 'Hide password' : 'Show password'}
-              tabIndex={-1}
+              aria-pressed={showPassword}
             >
-              {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
             </button>
           </div>
           {errors.password && (
-            <div className="login-field-error">{errors.password.message}</div>
+            <div id="login-password-error" className="login-field-error">
+              {errors.password.message}
+            </div>
           )}
         </div>
 
@@ -128,6 +147,7 @@ export function LoginForm() {
           type="submit"
           className="login-cta"
           disabled={isLoading}
+          aria-busy={isLoading || undefined}
         >
           {isLoading ? (
             <>
@@ -144,14 +164,17 @@ export function LoginForm() {
       </div>
 
       <div className="login-foot">
-        New to Portafolios?{' '}
+        Don't have an account yet?{' '}
         <button
           type="button"
           className="login-link"
           onClick={() => openModal('register')}
         >
-          Create an account →
+          Create account
         </button>
+      </div>
+      <div className="login-note">
+        New accounts are activated by an administrator before first access.
       </div>
     </form>
   );

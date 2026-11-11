@@ -18,6 +18,8 @@ const ERROR_MESSAGES: Record<string, string> = {
   EMAIL_EXISTS: 'This email is already registered.',
   USERNAME_EXISTS: 'This username is already taken.',
   UNAUTHORIZED: 'Your session has expired. Please sign in again.',
+  ACCOUNT_NOT_ACTIVATED:
+    "Your account isn't activated yet. An administrator has to activate it before you can sign in.",
 
   // Generic errors
   SERVER_ERROR: 'Server error. Please try again later.',
@@ -32,6 +34,9 @@ function mapErrorDetail(detail: string): string {
 
   if (lowerDetail.includes('incorrect email or password')) {
     return ERROR_MESSAGES.INVALID_CREDENTIALS;
+  }
+  if (lowerDetail.includes('not activated')) {
+    return ERROR_MESSAGES.ACCOUNT_NOT_ACTIVATED;
   }
   if (lowerDetail.includes('email already registered')) {
     return ERROR_MESSAGES.EMAIL_EXISTS;
@@ -103,6 +108,17 @@ export function transformAxiosError(error: AxiosError<ApiErrorResponse>): ApiErr
         detail: data?.detail,
       };
   }
+}
+
+/**
+ * True when a login error message is the "account not activated yet" one
+ * (backend 401 for `is_active=false`). The login form shows it as a status
+ * notice, not as a credentials error (#34).
+ */
+export function isAccountNotActivatedError(
+  message: string | null | undefined
+): boolean {
+  return message === ERROR_MESSAGES.ACCOUNT_NOT_ACTIVATED;
 }
 
 /**
