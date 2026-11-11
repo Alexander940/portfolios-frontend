@@ -6,18 +6,19 @@ import { LoginArt } from './LoginArt';
 /**
  * LoginPage
  *
- * Two-pane shell ported from the Cloud Design Prime variation:
- * - Left: animated dark gradient art panel (LoginArt)
- * - Right: brand + form + footer
+ * Two-pane shell:
+ * - Left: product panel (LoginArt) — hidden under 980px
+ * - Right: brand (only under 980px) + form + footer
  *
- * Hidden left panel under 980px (collapses to single-column form).
+ * No links without a destination: password recovery and legal pages do
+ * not exist yet, so they are not shown (#34).
  */
 export function LoginPage() {
   const { successMessage, clearSuccessMessage } = useModalStore();
 
   useEffect(() => {
     if (successMessage) {
-      const timer = setTimeout(() => clearSuccessMessage(), 5000);
+      const timer = setTimeout(() => clearSuccessMessage(), 8000);
       return () => clearTimeout(timer);
     }
   }, [successMessage, clearSuccessMessage]);
@@ -31,32 +32,27 @@ export function LoginPage() {
       <div className="login-form-pane">
         <div className="login-form-wrap">
           <div className="login-brand">
-            <div className="brand-mark">P</div>
+            <div className="brand-mark" aria-hidden="true">
+              P
+            </div>
             <span className="brand-name">Portafolios</span>
           </div>
 
           <div className="login-form">
-            <h2 className="login-title">Welcome back</h2>
+            <h2 className="login-title">Sign in</h2>
             <div className="login-sub">
-              Sign in with your credentials to continue to your portfolios.
+              Enter your email and password to see your portfolios.
             </div>
 
             {successMessage && (
-              <div className="login-alert success" role="alert">
-                <CheckCircle size={16} style={{ flexShrink: 0, marginTop: 1 }} />
+              <div className="login-alert success" role="status">
+                <CheckCircle size={16} style={{ flexShrink: 0, marginTop: 2 }} />
                 <span style={{ flex: 1 }}>{successMessage}</span>
                 <button
                   type="button"
                   onClick={clearSuccessMessage}
                   aria-label="Dismiss message"
-                  style={{
-                    background: 'none',
-                    border: 0,
-                    color: 'inherit',
-                    cursor: 'pointer',
-                    padding: 0,
-                    display: 'inline-flex',
-                  }}
+                  className="login-alert-dismiss"
                 >
                   <X size={14} />
                 </button>
@@ -68,14 +64,7 @@ export function LoginPage() {
 
           <div className="login-legal">
             <div>© {new Date().getFullYear()} Portafolios</div>
-            <div className="login-legal-links">
-              <button type="button" className="login-link">
-                Privacy
-              </button>
-              <button type="button" className="login-link">
-                Terms
-              </button>
-            </div>
+            <div>Private use · access by invitation</div>
           </div>
         </div>
       </div>

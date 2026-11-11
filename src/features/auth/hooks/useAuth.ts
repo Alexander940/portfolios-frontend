@@ -64,7 +64,10 @@ export function useAuth() {
         await storeRegister(data);
         // Redirect to login page after successful registration
         navigate('/login', {
-          state: { message: 'Account created successfully. Please sign in.' },
+          state: {
+            message:
+              "Account created. You'll be able to sign in once an administrator activates it.",
+          },
         });
       } catch {
         // Error is already set in the store
