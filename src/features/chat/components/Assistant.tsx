@@ -6,7 +6,6 @@ import {
   listSessions,
   type ChatSessionSummary,
 } from '../services';
-import type { ChatModelId } from '../types';
 import { ChatMessageItem } from './ChatMessageItem';
 import { Composer } from './Composer';
 import { ContextRail } from './ContextRail';
@@ -19,7 +18,6 @@ import '../styles/chat.css';
  * conversation history (new/select/delete), connected-data and portfolios.
  */
 export function Assistant() {
-  const [model, setModel] = useState<ChatModelId>('opus');
   const [sessions, setSessions] = useState<ChatSessionSummary[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -34,13 +32,6 @@ export function Assistant() {
   const { messages, isStreaming, sessionId, send, newChat, loadSession } = useChat({
     onTurnComplete: refreshSessions,
   });
-
-  // Send with the currently-selected model (shared by composer, suggestions
-  // and the context rail). Model can change between messages.
-  const sendWithModel = useCallback(
-    (text: string) => send(text, model),
-    [send, model],
-  );
 
   useEffect(() => {
     refreshSessions();
@@ -85,7 +76,7 @@ export function Assistant() {
       <div className="chat-col">
         <div className="chat-scroll" ref={scrollRef}>
           {isEmpty ? (
-            <EmptyState onPick={sendWithModel} />
+            <EmptyState onPick={send} />
           ) : (
             <div className="chat-thread">
               {messages.map((m) => (
@@ -95,10 +86,8 @@ export function Assistant() {
           )}
         </div>
         <Composer
-          onSend={sendWithModel}
+          onSend={send}
           disabled={isStreaming}
-          model={model}
-          onModelChange={setModel}
         />
       </div>
 
@@ -109,7 +98,7 @@ export function Assistant() {
         onNewChat={newChat}
         onDeleteSession={handleDeleteSession}
         onAskPortfolio={(name) =>
-          sendWithModel(
+          send(
             `Analiza mi portafolio "${name}": posiciones, ratings actuales y P&L.`,
           )
         }

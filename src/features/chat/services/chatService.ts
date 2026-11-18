@@ -1,7 +1,7 @@
 import { apiClient } from '@/lib/axios';
 import { extractFilename } from '@/lib/download';
 import { useAuthStore } from '@/features/auth';
-import type { ChatFile, ChatModelId, ChatStreamEvent } from '../types';
+import type { ChatFile, ChatStreamEvent } from '../types';
 
 /**
  * Chat API service.
@@ -17,8 +17,6 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 export interface SendMessageBody {
   message: string;
   session_id?: string | null;
-  /** Model choice; omitted/None -> server default (Opus). */
-  model?: ChatModelId | null;
 }
 
 export interface StreamHandlers {

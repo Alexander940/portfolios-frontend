@@ -5,7 +5,6 @@ import type {
   ChatChart,
   ChatFile,
   ChatMessage,
-  ChatModelId,
   ToolActivity,
   ToolStatus,
 } from '../types';
@@ -229,7 +228,7 @@ export function useChat(options?: UseChatOptions) {
   );
 
   const send = useCallback(
-    async (text: string, model?: ChatModelId) => {
+    async (text: string) => {
       const content = text.trim();
       if (!content || isStreaming) return;
 
@@ -261,7 +260,7 @@ export function useChat(options?: UseChatOptions) {
       let pendingProgress: string[] = [];
 
       await streamMessage(
-        { message: content, session_id: sessionIdRef.current, model },
+        { message: content, session_id: sessionIdRef.current },
         {
           signal: controller.signal,
           onEvent: (evt) => {
