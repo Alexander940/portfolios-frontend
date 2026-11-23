@@ -11,8 +11,14 @@ import type {
   RebalancesIndexResponse,
   ResolveUniverseResponse,
   SelectionTraceResponse,
+  SharedStrategyList,
   StrategyCreatedResponse,
+  StrategyDetailResponse,
   StrategyListItem,
+  StrategyShare,
+  StrategyShareCreate,
+  StrategyShareList,
+  StrategyShareUpdate,
   StrategySpec,
   StrategyUpdatedResponse,
   TemplateListItem,
@@ -85,6 +91,64 @@ export async function updateStrategy(
  *  success; 404 if it is already gone or not owned. */
 export async function deleteStrategy(strategyId: string): Promise<void> {
   await apiClient.delete(`/strategies/${strategyId}`);
+}
+
+/** One strategy (latest spec) + the caller's effective `permission` and the
+ *  owner's email — works for owned AND shared strategies (#344). */
+export async function getStrategy(
+  strategyId: string,
+  signal?: AbortSignal,
+): Promise<StrategyDetailResponse> {
+  const res = await apiClient.get<StrategyDetailResponse>(`/strategies/${strategyId}`, { signal });
+  return res.data;
+}
+
+// ---- Sharing (portfolios-backend#345): mirror of the portfolio shares API ----
+
+/** Strategies other users shared WITH the caller (viewer or co_owner). */
+export async function listSharedWithMe(
+  limit = 50,
+  offset = 0,
+  signal?: AbortSignal,
+): Promise<SharedStrategyList> {
+  const res = await apiClient.get<SharedStrategyList>('/strategies/shared-with-me', {
+    params: { limit, offset },
+    signal,
+  });
+  return res.data;
+}
+
+/** Collaborators on a strategy. Owner/co_owner only (viewer → 403). */
+export async function listShares(strategyId: string, signal?: AbortSignal): Promise<StrategyShareList> {
+  const res = await apiClient.get<StrategyShareList>(`/strategies/${strategyId}/shares`, { signal });
+  return res.data;
+}
+
+/** Invite a registered user by email. A co_owner may only grant `viewer`. */
+export async function createShare(
+  strategyId: string,
+  payload: StrategyShareCreate,
+): Promise<StrategyShare> {
+  const res = await apiClient.post<StrategyShare>(`/strategies/${strategyId}/shares`, payload);
+  return res.data;
+}
+
+/** Change a collaborator's role. Anything touching co_owner requires the owner. */
+export async function updateShare(
+  strategyId: string,
+  userId: string,
+  payload: StrategyShareUpdate,
+): Promise<StrategyShare> {
+  const res = await apiClient.patch<StrategyShare>(
+    `/strategies/${strategyId}/shares/${userId}`,
+    payload,
+  );
+  return res.data;
+}
+
+/** Revoke a collaborator's access (204). Removing a co_owner requires the owner. */
+export async function deleteShare(strategyId: string, userId: string): Promise<void> {
+  await apiClient.delete(`/strategies/${strategyId}/shares/${userId}`);
 }
 
 /** Resolve a strategy's investment universe into per-sector Layer-1 base weights
