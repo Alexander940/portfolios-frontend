@@ -14,14 +14,23 @@ import {
   mergeSpecPreserving,
   normalizeCfg,
   sparkFromResult,
+  specToConfig,
   unsupportedUniverseFilters,
 } from './mapping';
-import { createStrategy, getBacktest, listTemplates, runBacktest, updateStrategy } from './service';
+import {
+  createStrategy,
+  getBacktest,
+  getStrategy,
+  listTemplates,
+  runBacktest,
+  updateStrategy,
+} from './service';
 import { useStrategyStore } from './store';
 import type {
   BacktestStatusResponse,
   BuilderConfig,
   SavedStrategy,
+  SharedStrategyListItem,
   StrategySpec,
   TemplateListItem,
 } from './types';
@@ -296,6 +305,20 @@ export function StrategyBuilder() {
     }
   };
 
+  // Open a strategy shared WITH the caller (#348): always load the detail from
+  // `GET /strategies/{id}` (latest spec + effective permission) instead of the
+  // list row. Read-only mode for viewers / «Duplicate» are #349.
+  const goOpenShared = async (s: SharedStrategyListItem) => {
+    try {
+      const d = await getStrategy(s.strategy_id);
+      setEditing({ id: d.strategy_id, cfg: specToConfig(d.spec, d.name), baseSpec: d.spec });
+      setEditKey((k) => k + 1);
+      setView('build');
+    } catch {
+      window.alert('Could not open this strategy. Try again in a moment.');
+    }
+  };
+
   // «Volver a correr» from the Rebalanceos tab (#278, D2): the SAME persisted
   // strategy, as saved (no PUT), with the dedupe skipped — then the usual poll.
   const rerunForced = useCallback(() => {
@@ -396,6 +419,7 @@ export function StrategyBuilder() {
           onEdit={goEdit}
           onBacktest={goBacktest}
           onDelete={handleDelete}
+          onOpenShared={goOpenShared}
         />
       )}
 
