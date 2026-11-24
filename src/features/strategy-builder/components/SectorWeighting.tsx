@@ -33,6 +33,8 @@ interface Props {
   sectorDeltas: Record<string, number>; // FMP sector → % relative tilt
   sectorCaps: Record<string, number>; // FMP sector → max weight in PERCENT
   onChange: (patch: Partial<BuilderConfig>) => void;
+  /** Saved strategy being edited — sent as `strategy_id` to resolve-universe. */
+  strategyId?: string | null;
 }
 
 /** A locked single-method layer (1 & 2): one always-selected, non-clickable card
@@ -72,12 +74,13 @@ export function SectorWeighting({
   sectorDeltas,
   sectorCaps,
   onChange,
+  strategyId = null,
 }: Props) {
   const [alphaWindow, setAlphaWindow] = useState<AlphaWindow>('12m');
   // Built through the same helper the spec uses, so the previewed base and the
   // stored one can never be built from different rules.
   const layer1 = buildLayer1({ layer1Method, layer1TopN } as BuilderConfig);
-  const { data, loading, error } = useResolveSectors(universe, enabled, alphaWindow, layer1);
+  const { data, loading, error } = useResolveSectors(universe, enabled, alphaWindow, layer1, strategyId);
   const sectors = data?.sectors ?? [];
   const thin = data != null && (data.coverage_pct < 0.6 || data.eligible_count < 20);
 

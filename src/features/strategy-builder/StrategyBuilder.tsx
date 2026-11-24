@@ -1,9 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
+
+import { getErrorMessage } from '@/lib/apiErrors';
 
 import './builder.css';
 import { BuilderForm } from './components/BuilderForm';
 import { ListView } from './components/ListView';
 import { ResultsView } from './components/ResultsView';
+import { ShareStrategyModal } from './components/ShareStrategyModal';
 import { TemplateGallery } from './components/TemplateGallery';
 import { Icon } from './icons';
 import {
@@ -19,18 +23,20 @@ import {
 } from './mapping';
 import {
   createStrategy,
+  duplicateStrategy,
   getBacktest,
   getStrategy,
   listTemplates,
   runBacktest,
   updateStrategy,
 } from './service';
-import { useStrategyStore } from './store';
+import { OWNER_ACCESS, useStrategyStore } from './store';
 import type {
   BacktestStatusResponse,
   BuilderConfig,
   SavedStrategy,
   SharedStrategyListItem,
+  StrategyDetailResponse,
   StrategySpec,
   TemplateListItem,
 } from './types';
@@ -111,7 +117,16 @@ export function StrategyBuilder() {
   const loadServer = useStrategyStore((s) => s.loadServer);
   const upsert = useStrategyStore((s) => s.upsert);
   const remove = useStrategyStore((s) => s.remove);
+  const forget = useStrategyStore((s) => s.forget);
+  const openAccess = useStrategyStore((s) => s.openAccess);
+  const setOpenAccess = useStrategyStore((s) => s.setOpenAccess);
   const strategies = useMemo(() => mergeStrategies(local, server), [local, server]);
+  // The ONE place the caller's role on the open strategy turns into UI rights
+  // (#349): a viewer gets a read-only form (Run only, no PUT); a co_owner
+  // edits and shares; only the owner transfers, deletes and sees the tracker.
+  const permission = openAccess.permission;
+  const canEdit = permission !== 'viewer';
+  const isOwner = permission === 'owner';
 
   const [view, setView] = useState<View>('list');
   const [editing, setEditing] = useState<{
@@ -140,6 +155,9 @@ export function StrategyBuilder() {
   const activeSpecRef = useRef<StrategySpec | null>(null);
   const [templates, setTemplates] = useState<TemplateListItem[] | null>(null);
   const [templatesError, setTemplatesError] = useState<string | null>(null);
+  // Duplicate / open failures, shown above the list or the form (#349).
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [shareOpen, setShareOpen] = useState(false);
 
   // Hydrate server-persisted strategies (incl. ones the AI assistant created)
   // whenever the list is shown, so they appear next to local drafts/backtests.
@@ -175,6 +193,10 @@ export function StrategyBuilder() {
       setResult(null);
       setNotice(null);
       setActiveJobId(null);
+      // A strategy shared with the caller is never mirrored into the local
+      // (own) list — that would show it as theirs, with Delete (#349).
+      const keepLocal =
+        !opts.existingId || useStrategyStore.getState().openAccess.permission === 'owner';
       try {
         // Preserve live-only filters: merge the form output over the original
         // server spec when editing a persisted strategy.
@@ -208,12 +230,15 @@ export function StrategyBuilder() {
         if (final.status !== 'done' || !final.result) {
           setStatus('error');
           setErrorMsg(final.error ?? 'Backtest failed');
-          upsert({ id: strategyId, name: cfg.name, status: 'draft', cfg, spec, updated: Date.now() });
+          if (keepLocal) {
+            upsert({ id: strategyId, name: cfg.name, status: 'draft', cfg, spec, updated: Date.now() });
+          }
           return;
         }
         const display = adaptResult(final.result, final.warnings);
         setResult(display);
         setStatus('done');
+        if (!keepLocal) return;
         upsert({
           id: strategyId,
           name: cfg.name,
@@ -240,11 +265,16 @@ export function StrategyBuilder() {
   );
 
   const goNew = () => {
+    setOpenAccess(OWNER_ACCESS);
+    setActionError(null);
     setEditing({ id: null, cfg: { ...DEFAULT_CONFIG } });
     setEditKey((k) => k + 1);
     setView('build');
   };
   const goEdit = (s: SavedStrategy) => {
+    // Own list = the caller's strategies (local drafts + `GET /strategies`).
+    setOpenAccess(OWNER_ACCESS);
+    setActionError(null);
     setEditing({ id: s.id, cfg: normalizeCfg(s.cfg), baseSpec: s.spec });
     setEditKey((k) => k + 1);
     setView('build');
@@ -261,6 +291,9 @@ export function StrategyBuilder() {
     setView('build');
   };
   const saveDraft = (cfg: BuilderConfig) => {
+    // Never a local copy under someone else's id (#349) — the button is not
+    // rendered for them either; this is the belt to that brace.
+    if (!isOwner) return;
     const id = editing.id ?? `draft-${Date.now()}`;
     upsert({ id, name: cfg.name, status: 'draft', cfg, updated: Date.now() });
     setView('list');
@@ -270,9 +303,12 @@ export function StrategyBuilder() {
     // re-mapping); only local drafts go through create-from-config. An unchanged
     // spec dedupes server-side (cached) → the "dates haven't changed" notice.
     const isServer = !s.id.startsWith('draft-');
+    setOpenAccess(OWNER_ACCESS);
     void runFlow(s.cfg, isServer ? { existingId: s.id, baseSpec: s.spec } : { draftId: s.id });
   };
   const goOpen = async (s: SavedStrategy) => {
+    setOpenAccess(OWNER_ACCESS);
+    setActionError(null);
     if (!s.jobId) {
       goEdit(s);
       return;
@@ -305,17 +341,51 @@ export function StrategyBuilder() {
     }
   };
 
+  // Open a persisted strategy from its detail (latest spec + the caller's
+  // effective permission). No `permission` (older backend) → owner.
+  const openDetail = (d: StrategyDetailResponse, fallbackOwnerEmail: string | null = null) => {
+    setOpenAccess({
+      permission: d.permission ?? 'owner',
+      ownerEmail: d.owner_email ?? fallbackOwnerEmail,
+    });
+    setActionError(null);
+    setEditing({ id: d.strategy_id, cfg: specToConfig(d.spec, d.name), baseSpec: d.spec });
+    setEditKey((k) => k + 1);
+    setView('build');
+  };
+
   // Open a strategy shared WITH the caller (#348): always load the detail from
-  // `GET /strategies/{id}` (latest spec + effective permission) instead of the
-  // list row. Read-only mode for viewers / «Duplicate» are #349.
+  // `GET /strategies/{id}` instead of the list row — the permission it carries
+  // drives read-only mode (#349).
   const goOpenShared = async (s: SharedStrategyListItem) => {
     try {
-      const d = await getStrategy(s.strategy_id);
-      setEditing({ id: d.strategy_id, cfg: specToConfig(d.spec, d.name), baseSpec: d.spec });
-      setEditKey((k) => k + 1);
-      setView('build');
+      openDetail(await getStrategy(s.strategy_id), s.owner_email);
     } catch {
       window.alert('Could not open this strategy. Try again in a moment.');
+    }
+  };
+
+  // «Duplicate» (#349): server-side copy of the latest version into a NEW
+  // strategy the caller owns, then open it. On failure (409 name, 422
+  // basket_not_found…) stay where we are and say why.
+  const handleDuplicate = async (id: string) => {
+    setActionError(null);
+    try {
+      const created = await duplicateStrategy(id);
+      void loadServer();
+      openDetail(await getStrategy(created.strategy_id));
+    } catch (e) {
+      setActionError(`Could not duplicate this strategy: ${getErrorMessage(e)}`);
+    }
+  };
+
+  // Ownership handed over (#349): it is no longer in the caller's own list;
+  // if it is the one open, the caller keeps editing it as co_owner.
+  const handleTransferred = (id: string, detail?: StrategyDetailResponse) => {
+    forget(id);
+    void loadServer();
+    if (detail && editing.id === id) {
+      setOpenAccess({ permission: 'co_owner', ownerEmail: detail.owner_email ?? null });
     }
   };
 
@@ -348,6 +418,10 @@ export function StrategyBuilder() {
     },
     [remove],
   );
+
+  // The persisted strategy behind the form (null for new ones and local drafts).
+  const persistedId =
+    editing.id !== null && !editing.id.startsWith('draft-') ? editing.id : null;
 
   const preservedFilters = useMemo(
     () => (editing.baseSpec ? unsupportedUniverseFilters(editing.baseSpec) : undefined),
@@ -395,6 +469,31 @@ export function StrategyBuilder() {
               <Icon name="back" size={14} /> Strategies
             </button>
             <div className="sb-head-spacer" />
+            {view === 'build' && persistedId && (
+              <>
+                {isOwner && (
+                  <Link
+                    className="sb-back"
+                    to={`/dashboard/strategy/${persistedId}`}
+                    data-testid="sb-tracker-link"
+                  >
+                    <Icon name="play" size={13} /> Tracker
+                  </Link>
+                )}
+                {canEdit && (
+                  <button className="sb-back" data-testid="sb-share" onClick={() => setShareOpen(true)}>
+                    <Icon name="share" size={13} /> Share
+                  </button>
+                )}
+                <button
+                  className="sb-back"
+                  data-testid="sb-duplicate"
+                  onClick={() => void handleDuplicate(persistedId)}
+                >
+                  <Icon name="copy" size={13} /> Duplicate
+                </button>
+              </>
+            )}
             {view === 'results' && status === 'done' && (
               <button className="sb-back" onClick={editFromResults}>
                 <Icon name="edit" size={13} /> Edit
@@ -410,6 +509,37 @@ export function StrategyBuilder() {
         </>
       )}
 
+      {actionError && (view === 'list' || view === 'build') && (
+        <div className="sb-action-error" role="alert" data-testid="sb-action-error">
+          <Icon name="warn" size={13} />
+          <span>{actionError}</span>
+          <button type="button" aria-label="Dismiss" onClick={() => setActionError(null)}>
+            <Icon name="x" size={12} />
+          </button>
+        </div>
+      )}
+
+      {view === 'build' && permission === 'viewer' && (
+        <div className="sb-readonly-note" data-testid="sb-readonly-banner">
+          <Icon name="info" size={13} />
+          <span>
+            Read-only — shared by {openAccess.ownerEmail ?? 'another user'}. Run a backtest, or
+            duplicate it to make changes.
+          </span>
+        </div>
+      )}
+
+      {shareOpen && persistedId && canEdit && (
+        <ShareStrategyModal
+          isOpen
+          onClose={() => setShareOpen(false)}
+          strategyId={persistedId}
+          strategyName={editing.cfg.name}
+          role={isOwner ? 'owner' : 'co_owner'}
+          onTransferred={(d) => handleTransferred(persistedId, d)}
+        />
+      )}
+
       {view === 'list' && (
         <ListView
           strategies={strategies}
@@ -420,6 +550,8 @@ export function StrategyBuilder() {
           onBacktest={goBacktest}
           onDelete={handleDelete}
           onOpenShared={goOpenShared}
+          onDuplicate={(id) => void handleDuplicate(id)}
+          onTransferred={(id) => handleTransferred(id)}
         />
       )}
 
@@ -437,14 +569,25 @@ export function StrategyBuilder() {
           initialCfg={editing.cfg}
           busy={false}
           preservedFilters={preservedFilters}
+          readOnly={!canEdit}
+          strategyId={persistedId}
           onCancel={() => setView('list')}
-          onSave={saveDraft}
+          // Local drafts only for the caller's own strategies (#349).
+          onSave={isOwner ? saveDraft : undefined}
+          onRun={(cfg) => {
+            // Viewer: backtest the strategy AS SAVED — never a PUT.
+            if (persistedId) void runFlow(cfg, { existingId: persistedId, baseSpec: editing.baseSpec });
+          }}
           onSaveBacktest={(cfg) => {
             // Editing a persisted strategy → update it in place (new version of
             // the SAME row) and run; a draft/new config → create, replacing the
             // local draft card. The old flow always created → duplicates/409s.
             const id = editing.id;
             const isServer = id !== null && !id.startsWith('draft-');
+            if (!canEdit) {
+              if (isServer) void runFlow(cfg, { existingId: id, baseSpec: editing.baseSpec });
+              return;
+            }
             void runFlow(
               cfg,
               isServer

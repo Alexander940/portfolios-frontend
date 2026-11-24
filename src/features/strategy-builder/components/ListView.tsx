@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import { Icon } from '../icons';
 import { listSharedWithMe } from '../service';
@@ -20,6 +20,11 @@ interface Props {
   onDelete: (s: SavedStrategy) => void;
   /** Open a strategy someone shared with the caller (loads `GET /strategies/{id}`). */
   onOpenShared: (s: SharedStrategyListItem) => void;
+  /** «Duplicate» (#349): copy any persisted strategy — own or shared — into a
+   *  new one owned by the caller. */
+  onDuplicate: (id: string) => void;
+  /** The caller handed `id` over (#349): drop it from the own list. */
+  onTransferred: (id: string) => void;
 }
 
 const ROLE_LABEL: Record<SharedStrategyListItem['permission'], string> = {
@@ -41,11 +46,13 @@ function ago(ms: number): string {
   return `${Math.floor(s / 86400)}d ago`;
 }
 
-/** «Shared with me»: fetched on mount. Any failure (older backend, offline,
- *  a mock that doesn't know the route) or a malformed body leaves it empty —
- *  the own list must never depend on it. */
-function useSharedWithMe(): SharedStrategyListItem[] {
+/** «Shared with me»: fetched on mount and again on `reload()` (after a
+ *  transfer the strategy moves here as co_owner, #349). Any failure (older
+ *  backend, offline, a mock that doesn't know the route) or a malformed body
+ *  leaves it as it was — the own list must never depend on it. */
+function useSharedWithMe(): { items: SharedStrategyListItem[]; reload: () => void } {
   const [items, setItems] = useState<SharedStrategyListItem[]>([]);
+  const [nonce, setNonce] = useState(0);
   useEffect(() => {
     const controller = new AbortController();
     listSharedWithMe(50, 0, controller.signal)
@@ -53,11 +60,12 @@ function useSharedWithMe(): SharedStrategyListItem[] {
         if (!controller.signal.aborted) setItems(Array.isArray(res?.items) ? res.items : []);
       })
       .catch(() => {
-        /* keep the section hidden */
+        /* keep the section as it was */
       });
     return () => controller.abort();
-  }, []);
-  return items;
+  }, [nonce]);
+  const reload = useCallback(() => setNonce((n) => n + 1), []);
+  return { items, reload };
 }
 
 export function ListView({
@@ -69,8 +77,10 @@ export function ListView({
   onBacktest,
   onDelete,
   onOpenShared,
+  onDuplicate,
+  onTransferred,
 }: Props) {
-  const shared = useSharedWithMe();
+  const { items: shared, reload: reloadShared } = useSharedWithMe();
   const [shareTarget, setShareTarget] = useState<ShareTarget | null>(null);
 
   const sharedSection =
@@ -93,6 +103,15 @@ export function ListView({
                 )}
               </div>
               <div className="sb-card-actions" onClick={(e) => e.stopPropagation()}>
+                {/* Any role may copy it into a strategy of their own. */}
+                <button
+                  className="sb-icon-btn"
+                  title="Duplicate"
+                  aria-label={`Duplicate ${s.name}`}
+                  onClick={() => onDuplicate(s.strategy_id)}
+                >
+                  <Icon name="copy" size={15} />
+                </button>
                 {/* A viewer can't manage access — no Share button at all. */}
                 {s.permission === 'co_owner' && (
                   <button
@@ -118,6 +137,10 @@ export function ListView({
       strategyId={shareTarget.id}
       strategyName={shareTarget.name}
       role={shareTarget.role}
+      onTransferred={() => {
+        onTransferred(shareTarget.id);
+        reloadShared();
+      }}
     />
   ) : null;
 
@@ -214,7 +237,17 @@ export function ListView({
               </div>
 
               <div className="sb-card-actions" onClick={(e) => e.stopPropagation()}>
-                {/* Own list = owner. Local drafts aren't persisted yet: nothing to share. */}
+                {/* Own list = owner. Local drafts aren't persisted yet: nothing to share or copy. */}
+                {!s.id.startsWith('draft-') && (
+                  <button
+                    className="sb-icon-btn"
+                    title="Duplicate"
+                    aria-label={`Duplicate ${s.name}`}
+                    onClick={() => onDuplicate(s.id)}
+                  >
+                    <Icon name="copy" size={15} />
+                  </button>
+                )}
                 {!s.id.startsWith('draft-') && (
                   <button
                     className="sb-icon-btn"
