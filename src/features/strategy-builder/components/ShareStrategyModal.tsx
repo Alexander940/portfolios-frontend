@@ -3,8 +3,8 @@ import { Loader2, Trash2 } from 'lucide-react';
 import { Modal, Button, Input } from '@/components/ui';
 import { getErrorMessage } from '@/lib/apiErrors';
 
-import { createShare, deleteShare, listShares, updateShare } from '../service';
-import type { StrategyShare, StrategySharePermission } from '../types';
+import { createShare, deleteShare, listShares, transferOwnership, updateShare } from '../service';
+import type { StrategyDetailResponse, StrategyShare, StrategySharePermission } from '../types';
 
 interface ShareStrategyModalProps {
   isOpen: boolean;
@@ -13,6 +13,9 @@ interface ShareStrategyModalProps {
   strategyName: string;
   /** Caller's role on the strategy. A viewer never gets here (no «Share» button). */
   role: 'owner' | 'co_owner';
+  /** Ownership was handed over (#349): the caller is now co_owner. The modal
+   *  closes itself; the parent refreshes the lists. */
+  onTransferred?: (detail: StrategyDetailResponse) => void;
 }
 
 const ROLE_LABEL: Record<StrategySharePermission, string> = {
@@ -42,11 +45,12 @@ function ErrorBanner({ message }: { message: string }) {
 /**
  * Manage a strategy's collaborators: invite by email, change/revoke roles.
  * Same flow as `SharePortfolioModal` (copied, not shared — no e2e covers the
- * portfolio modal, see design #348 risk 1), without ownership transfer (#349).
- * The backend is the source of truth for permissions; the UI only hides what
- * the caller can't do:
- *   - owner    → invite/manage viewers AND co-owners.
+ * portfolio modal, see design #348 risk 1). The backend is the source of
+ * truth for permissions; the UI only hides what the caller can't do:
+ *   - owner    → invite/manage viewers AND co-owners, transfer ownership (#349).
  *   - co_owner → invite/remove ONLY viewers; co-owner rows are read-only.
+ * The transfer has an explicit second step naming the strategy and the
+ * recipient; nothing is sent before «Confirm transfer».
  */
 export function ShareStrategyModal({
   isOpen,
@@ -54,6 +58,7 @@ export function ShareStrategyModal({
   strategyId,
   strategyName,
   role,
+  onTransferred,
 }: ShareStrategyModalProps) {
   const isOwner = role === 'owner';
 
@@ -69,6 +74,12 @@ export function ShareStrategyModal({
   // Which collaborator row is mid-request (role change or revoke).
   const [rowBusyId, setRowBusyId] = useState<string | null>(null);
   const [rowError, setRowError] = useState<string | null>(null);
+
+  // Ownership transfer (owner only): email → explicit confirmation → POST.
+  const [transferEmail, setTransferEmail] = useState('');
+  const [transferConfirm, setTransferConfirm] = useState<string | null>(null);
+  const [transferring, setTransferring] = useState(false);
+  const [transferError, setTransferError] = useState<string | null>(null);
 
   // Load collaborators whenever the modal opens.
   useEffect(() => {
@@ -98,7 +109,37 @@ export function ShareStrategyModal({
     setInviting(false);
     setRowBusyId(null);
     setRowError(null);
+    setTransferEmail('');
+    setTransferConfirm(null);
+    setTransferring(false);
+    setTransferError(null);
     onClose();
+  }
+
+  function handleTransferStart(e: React.FormEvent) {
+    e.preventDefault();
+    const email = transferEmail.trim();
+    setTransferError(null);
+    if (!email) {
+      setTransferError('Enter the new owner’s email address.');
+      return;
+    }
+    setTransferConfirm(email);
+  }
+
+  async function handleTransferConfirm() {
+    if (!transferConfirm) return;
+    setTransferError(null);
+    setTransferring(true);
+    try {
+      const detail = await transferOwnership(strategyId, transferConfirm);
+      setTransferring(false);
+      onTransferred?.(detail);
+      handleClose();
+    } catch (err) {
+      setTransferError(getErrorMessage(err));
+      setTransferring(false);
+    }
   }
 
   async function handleInvite(e: React.FormEvent) {
@@ -280,6 +321,70 @@ export function ShareStrategyModal({
             </div>
           )}
         </div>
+
+        {/* Transfer ownership — owner only */}
+        {isOwner && (
+          <div className="border-t border-gray-200 pt-4 space-y-3" data-testid="sb-transfer">
+            <div>
+              <div className="text-sm font-medium text-gray-700">Transfer ownership</div>
+              <p className="text-xs text-gray-500 mt-1">
+                The new owner gets full control, including its tracker. You stay on as a co-owner.
+              </p>
+            </div>
+            {transferConfirm === null ? (
+              <form onSubmit={handleTransferStart} className="space-y-3">
+                <Input
+                  label="Transfer to"
+                  placeholder="new.owner@example.com"
+                  type="email"
+                  autoComplete="off"
+                  value={transferEmail}
+                  onChange={(e) => setTransferEmail(e.target.value)}
+                />
+                {transferError && <ErrorBanner message={transferError} />}
+                <div className="flex justify-end">
+                  <Button type="submit" variant="secondary">
+                    Transfer…
+                  </Button>
+                </div>
+              </form>
+            ) : (
+              <div
+                className="p-3 rounded-lg bg-amber-50 border border-amber-200 space-y-3"
+                data-testid="sb-transfer-confirm"
+                role="alertdialog"
+                aria-label="Confirm ownership transfer"
+              >
+                <p className="text-sm text-amber-900">
+                  Transfer “{strategyName}” to <b>{transferConfirm}</b>? They become the owner and
+                  you keep co-owner access. Only the new owner can undo this.
+                </p>
+                {transferError && <ErrorBanner message={transferError} />}
+                <div className="flex justify-end gap-2">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    disabled={transferring}
+                    onClick={() => {
+                      setTransferConfirm(null);
+                      setTransferError(null);
+                    }}
+                  >
+                    Back
+                  </Button>
+                  <Button
+                    type="button"
+                    isLoading={transferring}
+                    disabled={transferring}
+                    onClick={handleTransferConfirm}
+                  >
+                    Confirm transfer
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </Modal>
   );

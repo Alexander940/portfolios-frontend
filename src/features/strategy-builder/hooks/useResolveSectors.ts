@@ -29,6 +29,7 @@ export function useResolveSectors(
   enabled: boolean,
   alphaWindow: AlphaWindow,
   layer1: Layer1Spec,
+  strategyId: string | null = null,
 ): ResolveState {
   // Start "loading" when mounted open so the first paint shows a spinner, not the
   // empty state. setState lives only inside the debounce/async callbacks below —
@@ -52,6 +53,7 @@ export function useResolveSectors(
       resolveUniverse(JSON.parse(key) as UniverseSpec, {
         alphaWindow,
         layer1: JSON.parse(layer1Key) as Layer1Spec,
+        strategyId,
         signal: ctrl.signal,
       })
         .then((data) => {
@@ -81,7 +83,7 @@ export function useResolveSectors(
     // Layer-1 clause only by accident, and switching method or editing top_n
     // would leave the table showing the OLD base — a wrong-data bug that looks
     // exactly like a working feature. The 400 ms debounce covers top_n typing.
-  }, [key, layer1Key, enabled, alphaWindow]);
+  }, [key, layer1Key, enabled, alphaWindow, strategyId]);
 
   return state;
 }

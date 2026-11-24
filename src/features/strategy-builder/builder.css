@@ -117,6 +117,26 @@
   align-items: start;
 }
 .sb-form { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+/* The form is a <fieldset> (read-only mode, #349): drop the UA box. */
+fieldset.sb-form { border: 0; margin: 0; padding: 0; }
+.sb-form:disabled .sb-section-body { opacity: 0.85; }
+
+/* Read-only notice + per-strategy actions in the build view head (#349). */
+.sb-readonly-note {
+  display: flex; align-items: center; gap: 8px; padding: 10px 12px; margin-bottom: 14px;
+  font-size: 13px; color: var(--c-text-soft);
+  background: var(--c-accent-soft);
+  border: 1px solid color-mix(in oklch, var(--c-accent) 35%, transparent);
+  border-radius: var(--radius-sm);
+}
+.sb-action-error {
+  display: flex; align-items: center; gap: 8px; padding: 10px 12px; margin-bottom: 14px;
+  font-size: 13px; color: var(--c-neg);
+  background: color-mix(in oklch, var(--c-neg) 8%, transparent);
+  border: 1px solid color-mix(in oklch, var(--c-neg) 30%, transparent);
+  border-radius: var(--radius-sm);
+}
+.sb-action-error button { margin-left: auto; background: none; border: 0; color: inherit; cursor: pointer; }
 
 .sb-section { background: var(--c-bg); border: 1px solid var(--c-border); border-radius: var(--radius); box-shadow: var(--shadow-sm); overflow: hidden; }
 .sb-section-head {
