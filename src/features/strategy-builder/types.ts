@@ -894,6 +894,14 @@ export interface RebalanceIndexRow {
   value_after: number | null;
   n_positions_before: number | null;
   n_positions_after: number | null;
+  /** portfolios-backend#351 — realized P&L booked on this rebalance:
+   *  `realized_pnl = realized_pnl_rebalance + realized_pnl_off_calendar`.
+   *  The off-calendar part is the exits (stops) since the PREVIOUS rebalance.
+   *  The two parts are null/absent on a result saved before the backend
+   *  change and not recomputed. */
+  realized_pnl?: number | null;
+  realized_pnl_rebalance?: number | null;
+  realized_pnl_off_calendar?: number | null;
 }
 
 export interface RebalancePeriodRef {
@@ -913,6 +921,12 @@ export interface RebalancesSummary {
   total_costs: number;
   best: RebalancePeriodRef | null;
   worst: RebalancePeriodRef | null;
+  /** portfolios-backend#351 — null/absent when no row carries the accounting.
+   *  The off-calendar total includes the exits AFTER the last rebalance, which
+   *  are in no row's `realized_pnl`. */
+  total_realized_pnl?: number | null;
+  total_realized_pnl_rebalance?: number | null;
+  total_realized_pnl_off_calendar?: number | null;
 }
 
 export interface RebalancesIndexResponse {
@@ -952,6 +966,30 @@ export interface PositionAfter {
   period_return: number | null;
   contribution: number | null;
   cambio: 'nueva' | 'refuerzo' | 'recorte' | 'igual';
+  /** portfolios-backend#351 — the name left off-calendar inside the period:
+   *  `period_return` runs to that sale's price, not to the period's close. */
+  exit_date?: string | null;
+  exit_reason?: string | null;
+}
+
+/** An off-calendar exit (stop_loss / trailing_stop_atr / stale_price_feed)
+ *  with its P&L, gross of costs — portfolios-backend#351. */
+export interface OffCalendarExit {
+  symbol_id: string;
+  ticker?: string | null;
+  date: string;
+  reason: string;
+  shares: number;
+  /** Sale price (the open of `date`). */
+  price: number;
+  /** Average cost when sold. */
+  cost_basis: number;
+  value: number;
+  cost: number;
+  /** `(price − cost_basis) × shares`. */
+  pnl: number;
+  /** `price / cost_basis − 1` (fraction). */
+  pnl_pct: number | null;
 }
 
 export interface RebalanceDetailOut {
@@ -967,8 +1005,16 @@ export interface RebalanceDetailOut {
   positions_after: PositionAfter[];
   /** The rebalance's own fills (from `fill_indexes`). */
   trades: TradeRow[];
-  /** Off-calendar exits (by `reason`) within the period. */
+  /** Off-calendar exits (by `reason`) booked on this rebalance: the ones since
+   *  the previous rebalance (portfolios-backend#351). On a result saved before
+   *  that change: the ones within the period that follows. */
   stops: TradeRow[];
+  /** The same exits with their P&L (they add up to
+   *  `metrics.realized_pnl_off_calendar`). Empty/absent on an old result. */
+  off_calendar_exits?: OffCalendarExit[];
+  /** Only on the LAST rebalance: the exits after it. Not part of its
+   *  `realized_pnl`. */
+  off_calendar_exits_after?: OffCalendarExit[];
 }
 
 // ---- form config (UI-side) ----

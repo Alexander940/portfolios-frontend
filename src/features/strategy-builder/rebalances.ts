@@ -27,6 +27,14 @@ export function fmtPp(v: number | null | undefined, d = 2): string {
   return `${p > 0 ? '+' : ''}${p.toFixed(d)} pp`;
 }
 
+/** Exact dollars, no abbreviation (`-$1,260`): a P&L reads to the dollar,
+ *  unlike the abbreviated `formatUsd` used for sizes. `—` for null. */
+export function fmtUsdExact(v: number | null | undefined): string {
+  if (v == null || !Number.isFinite(v)) return '—';
+  const r = Math.round(v);
+  return `${r < 0 ? '-' : ''}$${Math.abs(r).toLocaleString('en-US')}`;
+}
+
 /** CSS sign class for a return-like value. */
 export function signCls(v: number | null | undefined): '' | 'pos' | 'neg' {
   if (v == null || !Number.isFinite(v) || v === 0) return '';
