@@ -11,8 +11,14 @@ import type {
   RebalancesIndexResponse,
   ResolveUniverseResponse,
   SelectionTraceResponse,
+  SharedStrategyList,
   StrategyCreatedResponse,
+  StrategyDetailResponse,
   StrategyListItem,
+  StrategyShare,
+  StrategyShareCreate,
+  StrategyShareList,
+  StrategyShareUpdate,
   StrategySpec,
   StrategyUpdatedResponse,
   TemplateListItem,
@@ -87,6 +93,145 @@ export async function deleteStrategy(strategyId: string): Promise<void> {
   await apiClient.delete(`/strategies/${strategyId}`);
 }
 
+/** One strategy (latest spec) + the caller's effective `permission` and the
+ *  owner's email — works for owned AND shared strategies (#344). */
+export async function getStrategy(
+  strategyId: string,
+  signal?: AbortSignal,
+): Promise<StrategyDetailResponse> {
+  const res = await apiClient.get<StrategyDetailResponse>(`/strategies/${strategyId}`, { signal });
+  return res.data;
+}
+
+/** A 409/422 from `/duplicate` or `/transfer` (#346/#347). The backend sends
+ *  `detail` either as a string or as an object `{code, message?, basket_id?}`
+ *  (`duplicate_name`, `basket_private`, `basket_not_found`); the global
+ *  interceptor assumes a string, so these routes handle the error here. */
+export class StrategyActionError extends Error {
+  readonly status: number;
+  readonly code: string | null;
+  constructor(status: number, detail: unknown) {
+    const obj =
+      detail && typeof detail === 'object' && !Array.isArray(detail)
+        ? (detail as Record<string, unknown>)
+        : null;
+    const code = typeof obj?.code === 'string' ? obj.code : null;
+    super(StrategyActionError.messageFor(status, detail, obj, code));
+    this.name = 'StrategyActionError';
+    this.status = status;
+    this.code = code;
+  }
+
+  private static messageFor(
+    status: number,
+    detail: unknown,
+    obj: Record<string, unknown> | null,
+    code: string | null,
+  ): string {
+    if (typeof detail === 'string' && detail.trim()) return detail;
+    if (obj && typeof obj.message === 'string' && obj.message.trim()) return obj.message;
+    if (code === 'basket_not_found') {
+      return "This strategy uses a basket you don't have access to, so it can't be copied.";
+    }
+    if (code === 'duplicate_name') return 'That user already has a strategy with this name.';
+    if (code === 'basket_private') return 'The strategy uses a private basket; it cannot be transferred.';
+    // FastAPI validation errors: `detail` is a list of {msg}.
+    if (Array.isArray(detail)) {
+      const msg = detail
+        .map((d) => (d && typeof d === 'object' ? (d as { msg?: unknown }).msg : null))
+        .filter((m): m is string => typeof m === 'string');
+      if (msg.length) return msg.join('; ');
+    }
+    return status === 409 ? 'The request conflicts with the current state.' : 'The request was rejected.';
+  }
+}
+
+const isActionError = (st: number) => st === 409 || st === 422;
+
+/** Copy the strategy's latest version into a NEW strategy owned by the caller
+ *  (`POST /strategies/{id}/duplicate`, #347) — any role, including viewer.
+ *  Without `name` the server picks «<name> (copia)». */
+export async function duplicateStrategy(
+  strategyId: string,
+  name?: string,
+): Promise<StrategyCreatedResponse> {
+  const res = await apiClient.post<StrategyCreatedResponse>(
+    `/strategies/${strategyId}/duplicate`,
+    name ? { name } : {},
+    { validateStatus: (st) => (st >= 200 && st < 300) || isActionError(st) },
+  );
+  if (isActionError(res.status)) {
+    throw new StrategyActionError(res.status, (res.data as unknown as { detail?: unknown })?.detail);
+  }
+  return res.data;
+}
+
+/** Hand the strategy to another registered user (`POST /strategies/{id}/transfer`,
+ *  #346, owner only). The caller stays as co_owner — the answer is the detail
+ *  as the caller now sees it (`permission: "co_owner"`). */
+export async function transferOwnership(
+  strategyId: string,
+  email: string,
+): Promise<StrategyDetailResponse> {
+  const res = await apiClient.post<StrategyDetailResponse>(
+    `/strategies/${strategyId}/transfer`,
+    { email },
+    { validateStatus: (st) => (st >= 200 && st < 300) || isActionError(st) },
+  );
+  if (isActionError(res.status)) {
+    throw new StrategyActionError(res.status, (res.data as unknown as { detail?: unknown })?.detail);
+  }
+  return res.data;
+}
+
+// ---- Sharing (portfolios-backend#345): mirror of the portfolio shares API ----
+
+/** Strategies other users shared WITH the caller (viewer or co_owner). */
+export async function listSharedWithMe(
+  limit = 50,
+  offset = 0,
+  signal?: AbortSignal,
+): Promise<SharedStrategyList> {
+  const res = await apiClient.get<SharedStrategyList>('/strategies/shared-with-me', {
+    params: { limit, offset },
+    signal,
+  });
+  return res.data;
+}
+
+/** Collaborators on a strategy. Owner/co_owner only (viewer → 403). */
+export async function listShares(strategyId: string, signal?: AbortSignal): Promise<StrategyShareList> {
+  const res = await apiClient.get<StrategyShareList>(`/strategies/${strategyId}/shares`, { signal });
+  return res.data;
+}
+
+/** Invite a registered user by email. A co_owner may only grant `viewer`. */
+export async function createShare(
+  strategyId: string,
+  payload: StrategyShareCreate,
+): Promise<StrategyShare> {
+  const res = await apiClient.post<StrategyShare>(`/strategies/${strategyId}/shares`, payload);
+  return res.data;
+}
+
+/** Change a collaborator's role. Anything touching co_owner requires the owner. */
+export async function updateShare(
+  strategyId: string,
+  userId: string,
+  payload: StrategyShareUpdate,
+): Promise<StrategyShare> {
+  const res = await apiClient.patch<StrategyShare>(
+    `/strategies/${strategyId}/shares/${userId}`,
+    payload,
+  );
+  return res.data;
+}
+
+/** Revoke a collaborator's access (204). Removing a co_owner requires the owner. */
+export async function deleteShare(strategyId: string, userId: string): Promise<void> {
+  await apiClient.delete(`/strategies/${strategyId}/shares/${userId}`);
+}
+
 /** Resolve a strategy's investment universe into per-sector Layer-1 base weights
  *  (market-cap share) + a display alpha vs the S&P 500. Feeds the Layer-2 sector
  *  table. `signal` lets the caller cancel a superseded in-flight request. */
@@ -113,7 +258,15 @@ export class ResolveUniverseError extends Error {
 
 export async function resolveUniverse(
   universe: UniverseSpec,
-  opts: { alphaWindow?: AlphaWindow; layer1?: Layer1Spec; signal?: AbortSignal } = {},
+  opts: {
+    alphaWindow?: AlphaWindow;
+    layer1?: Layer1Spec;
+    /** The saved strategy being edited (#344 D4): its basket is then checked
+     *  against the strategy's OWNER, so a shared one previews its owner's
+     *  private basket. Omitted for new strategies and local drafts. */
+    strategyId?: string | null;
+    signal?: AbortSignal;
+  } = {},
 ): Promise<ResolveUniverseResponse> {
   const res = await apiClient.post<ResolveUniverseResponse>(
     '/strategies/resolve-universe',
@@ -133,6 +286,7 @@ export async function resolveUniverse(
                 : { method: opts.layer1.method },
           }
         : {}),
+      ...(opts.strategyId ? { strategy_id: opts.strategyId } : {}),
     },
     {
       signal: opts.signal,

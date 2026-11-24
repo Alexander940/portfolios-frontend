@@ -7,13 +7,30 @@ import { persist } from 'zustand/middleware';
 
 import { specToConfig } from './mapping';
 import { deleteStrategy, listStrategies } from './service';
-import type { SavedStrategy } from './types';
+import type { SavedStrategy, StrategyPermission } from './types';
+
+/** The caller's role on the strategy open in the builder (#349) and, for a
+ *  shared one, its owner's email (the read-only notice). */
+export interface OpenAccess {
+  permission: StrategyPermission;
+  ownerEmail: string | null;
+}
+
+/** New strategies, local drafts and own strategies — and a detail without the
+ *  field (older backend) — are the caller's: the builder behaves as before. */
+export const OWNER_ACCESS: OpenAccess = { permission: 'owner', ownerEmail: null };
 
 interface StrategyStore {
   strategies: SavedStrategy[];
   server: SavedStrategy[];
+  /** Not persisted: reset to owner on every new/own open. */
+  openAccess: OpenAccess;
+  setOpenAccess: (a: OpenAccess) => void;
   upsert: (s: SavedStrategy) => void;
   remove: (id: string) => Promise<void>;
+  /** Drop a strategy from the own list WITHOUT deleting it server-side — it
+   *  was transferred and is now someone else's (#349). */
+  forget: (id: string) => void;
   loadServer: () => Promise<void>;
 }
 
@@ -33,6 +50,13 @@ export const useStrategyStore = create<StrategyStore>()(
     (set) => ({
       strategies: [],
       server: [],
+      openAccess: OWNER_ACCESS,
+      setOpenAccess: (a) => set({ openAccess: a }),
+      forget: (id) =>
+        set((state) => ({
+          strategies: state.strategies.filter((x) => x.id !== id),
+          server: state.server.filter((x) => x.id !== id),
+        })),
       upsert: (s) =>
         set((state) => {
           const i = state.strategies.findIndex((x) => x.id === s.id);

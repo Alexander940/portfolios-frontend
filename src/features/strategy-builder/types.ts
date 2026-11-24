@@ -600,6 +600,74 @@ export interface StrategyListItem {
   template_version: number | null;
 }
 
+// ---- Strategy sharing (portfolios-backend#345/#348) ----
+
+/** The caller's effective role on a strategy (`StrategyDetailResponse.permission`). */
+export type StrategyPermission = 'owner' | 'co_owner' | 'viewer';
+
+/** Role a share grant can carry — ownership is never "shared". */
+export type StrategySharePermission = Exclude<StrategyPermission, 'owner'>;
+
+/** `StrategyShareResponse` — a collaborator grant (with the collaborator's email). */
+export interface StrategyShare {
+  share_id: string;
+  strategy_id: string;
+  shared_with_user_id: string;
+  email: string;
+  permission: StrategySharePermission;
+  created_at: string; // ISO
+}
+
+/** `StrategyShareList` — `GET /strategies/{id}/shares`. */
+export interface StrategyShareList {
+  items: StrategyShare[];
+  total: number;
+}
+
+export interface StrategyShareCreate {
+  email: string;
+  permission: StrategySharePermission;
+}
+
+export interface StrategyShareUpdate {
+  permission: StrategySharePermission;
+}
+
+/** One row of `GET /strategies/shared-with-me`: a `StrategyListItem` plus the
+ *  caller's grant and the owner's email. */
+export interface SharedStrategyListItem extends StrategyListItem {
+  permission: StrategySharePermission;
+  owner_email: string;
+}
+
+/** `SharedStrategyList` — paginated «shared with me». */
+export interface SharedStrategyList {
+  items: SharedStrategyListItem[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+/** `GET /strategies/{id}` — one strategy with its latest version's spec.
+ *  `permission`/`owner_email` are optional on the client so an older backend
+ *  (pre-#344) still type-checks; the current one always sends `permission`. */
+export interface StrategyDetailResponse {
+  strategy_id: string;
+  name: string;
+  description: string | null;
+  latest_version: number;
+  created_at: string; // ISO
+  updated_at: string; // ISO
+  version: number;
+  content_hash: string;
+  spec: StrategySpec;
+  template_slug: string | null;
+  template_version: number | null;
+  permission?: StrategyPermission;
+  /** null for system strategies. */
+  owner_email?: string | null;
+}
+
 // ---- Strategy Templates (Fase 2, issues #57/#58/#59) ----
 
 /** Readable chips for a template card in the gallery (`GET /templates/`). */

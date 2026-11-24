@@ -30,11 +30,31 @@ interface Props {
    *  preserved on save via the spec merge (issue #59, #34 gap). */
   preservedFilters?: string[];
   onCancel: () => void;
-  onSave: (cfg: BuilderConfig) => void;
+  /** «Save draft» (local). Omitted → the button is not rendered (a strategy
+   *  the caller does not own must never get a local copy under its id, #349). */
+  onSave?: (cfg: BuilderConfig) => void;
   onSaveBacktest: (cfg: BuilderConfig) => void;
+  /** Viewer of a shared strategy (#349): every control is disabled (one
+   *  `<fieldset disabled>` covers the subcomponents too) and the only action
+   *  is «Run backtest» — no save, no PUT. */
+  readOnly?: boolean;
+  /** Run the backtest as saved (read-only mode). */
+  onRun?: (cfg: BuilderConfig) => void;
+  /** Saved strategy being edited — sent as `strategy_id` to resolve-universe. */
+  strategyId?: string | null;
 }
 
-export function BuilderForm({ initialCfg, busy, preservedFilters, onCancel, onSave, onSaveBacktest }: Props) {
+export function BuilderForm({
+  initialCfg,
+  busy,
+  preservedFilters,
+  onCancel,
+  onSave,
+  onSaveBacktest,
+  readOnly = false,
+  onRun,
+  strategyId = null,
+}: Props) {
   const [cfg, setCfg] = useState<BuilderConfig>(initialCfg);
   const [open, setOpen] = useState<Record<number, boolean>>({
     1: true,
@@ -155,7 +175,11 @@ export function BuilderForm({ initialCfg, busy, preservedFilters, onCancel, onSa
 
   return (
     <div className="sb-build-grid">
-      <div className="sb-form">
+      {/* A disabled <fieldset> disables every native control inside it —
+          including SectorWeighting / ExclusionPicker / FundamentalFilterGroup
+          and the buttons that open SelectionFilterModal — without threading a
+          prop through each one (#349). */}
+      <fieldset className="sb-form" disabled={readOnly} data-testid="sb-form">
         {preservedFilters && preservedFilters.length > 0 && (
           <div className="sb-preserved-note">
             <Icon name="warn" size={13} />
@@ -557,6 +581,7 @@ export function BuilderForm({ initialCfg, busy, preservedFilters, onCancel, onSa
               sectorDeltas={cfg.sectorDeltas}
               sectorCaps={cfg.sectorCaps}
               onChange={set}
+              strategyId={strategyId}
             />
           )}
           <div style={{ marginTop: 18, display: 'flex', gap: 16, flexWrap: 'wrap' }}>
@@ -909,13 +934,19 @@ export function BuilderForm({ initialCfg, busy, preservedFilters, onCancel, onSa
             />
           </div>
         </Section>
-      </div>
+      </fieldset>
 
       {/* SUMMARY */}
       <div className="sb-summary">
         <div className="sb-summary-card">
           <div className="sb-summary-title">Strategy</div>
-          <input className="sb-name-input" value={cfg.name} onChange={(e) => set({ name: e.target.value })} placeholder="Strategy name" />
+          <input
+            className="sb-name-input"
+            value={cfg.name}
+            disabled={readOnly}
+            onChange={(e) => set({ name: e.target.value })}
+            placeholder="Strategy name"
+          />
           {isBasket && (
             <div className="sb-summary-row">
               <span className="k">Universe</span>
@@ -971,12 +1002,27 @@ export function BuilderForm({ initialCfg, busy, preservedFilters, onCancel, onSa
         </div>
 
         <div className="sb-cta-col">
-          <button type="button" className="sb-btn accent" disabled={!canBacktest} onClick={() => onSaveBacktest(cfg)}>
-            <Icon name="play" size={14} /> {busy ? 'Running…' : 'Save & backtest'}
-          </button>
-          <button type="button" className="sb-btn" disabled={busy} onClick={() => onSave(cfg)}>
-            Save draft
-          </button>
+          {readOnly ? (
+            <button
+              type="button"
+              className="sb-btn accent"
+              disabled={!canBacktest || !onRun}
+              onClick={() => onRun?.(cfg)}
+            >
+              <Icon name="play" size={14} /> {busy ? 'Running…' : 'Run backtest'}
+            </button>
+          ) : (
+            <>
+              <button type="button" className="sb-btn accent" disabled={!canBacktest} onClick={() => onSaveBacktest(cfg)}>
+                <Icon name="play" size={14} /> {busy ? 'Running…' : 'Save & backtest'}
+              </button>
+              {onSave && (
+                <button type="button" className="sb-btn" disabled={busy} onClick={() => onSave(cfg)}>
+                  Save draft
+                </button>
+              )}
+            </>
+          )}
           <button type="button" className="sb-btn" onClick={onCancel} style={{ border: 0, background: 'none' }}>
             Cancel
           </button>
