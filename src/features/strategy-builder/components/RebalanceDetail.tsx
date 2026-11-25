@@ -1,18 +1,20 @@
 // Per-rebalance detail (issue #278, fase 4): left rail with every rebalance,
 // header (decision → execution, period), 8 metrics, the books Antes / Después
 // side by side (a selector under 720 px), the rebalance's fills (FillsTable,
-// with the D5 «ocultar ajustes» toggle) and the period's off-calendar exits.
+// with the D5 «ocultar ajustes» toggle) and the off-calendar exits booked on
+// this rebalance — the ones since the previous one — with their P&L
+// (portfolios-backend#351).
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import { formatUsd } from '../mapping';
-import { fmtFracPct, fmtFracPctPlain, fmtPp, signCls } from '../rebalances';
+import { fmtFracPct, fmtFracPctPlain, fmtPp, fmtUsdExact, signCls } from '../rebalances';
 import { downloadTradesCsv, getRebalance } from '../service';
 import type {
+  OffCalendarExit,
   PositionAfter,
   PositionBefore,
   RebalanceDetailOut,
   RebalanceIndexRow,
-  TradeRow,
 } from '../types';
 import { FillsTable } from './FillsTable';
 
@@ -198,6 +200,8 @@ function Metrics({ d, tickerOf }: { d: RebalanceDetailOut; tickerOf: (id: string
   const valB = num(m, 'value_before');
   const valA = num(m, 'value_after');
   const realized = num(m, 'realized_pnl');
+  const realizedReb = num(m, 'realized_pnl_rebalance');
+  const realizedOff = num(m, 'realized_pnl_off_calendar');
   const contrib = (k: string) => {
     const c = m[k] as { symbol_id?: string; contribution?: number } | null | undefined;
     return c && typeof c.contribution === 'number' ? `${tickerOf(c.symbol_id)} ${fmtPp(c.contribution)}` : '—';
@@ -229,12 +233,26 @@ function Metrics({ d, tickerOf }: { d: RebalanceDetailOut; tickerOf: (id: string
           ? `${fmtFracPctPlain(cashB / valB)} → ${fmtFracPctPlain(cashA / valA)} del libro`
           : undefined,
     },
-    {
-      k: 'P&L realizado en las salidas',
-      v: usd(realized),
-      cls: signCls(realized),
-      sub: exitList || 'sin salidas',
-    },
+    realizedReb != null && realizedOff != null
+      ? {
+          // #351: total = the rebalance's own sells + the off-calendar exits
+          // since the previous rebalance.
+          k: 'P&L realizado',
+          v: fmtUsdExact(realized),
+          cls: signCls(realized),
+          sub: (
+            <span data-testid="sb-rb-pnl-split">
+              rebalanceo <span className={signCls(realizedReb)}>{fmtUsdExact(realizedReb)}</span> · fuera de calendario{' '}
+              <span className={signCls(realizedOff)}>{fmtUsdExact(realizedOff)}</span>
+            </span>
+          ),
+        }
+      : {
+          k: 'P&L realizado en las salidas',
+          v: usd(realized),
+          cls: signCls(realized),
+          sub: exitList || 'sin salidas',
+        },
     { k: 'Mejor · peor contribución', v: contrib('best_contrib'), cls: 'pos', sub: `peor: ${contrib('worst_contrib')}` },
   ];
   return (
@@ -372,7 +390,18 @@ function AfterBook({ d }: { d: RebalanceDetailOut }) {
             {fmtFracPctPlain(p.weight)} <span className="dim">· {fmtFracPctPlain(p.target_weight)}</span>
           </td>
           <td>{chip(p.cambio)}</td>
-          <td className={`num ${signCls(p.period_return)}`}>{fmtFracPct(p.period_return)}</td>
+          <td className={`num ${signCls(p.period_return)}`}>
+            {fmtFracPct(p.period_return)}
+            {p.exit_reason && (
+              <span
+                className="sb-chip neg sb-rb-exit-chip"
+                data-testid="sb-rb-exit-chip"
+                title={`Salió fuera de calendario el ${p.exit_date ?? '—'}: el retorno es hasta esa venta`}
+              >
+                {p.exit_reason}
+              </span>
+            )}
+          </td>
           <td className={`num ${signCls(p.contribution)}`}>{fmtPp(p.contribution)}</td>
         </tr>
       )}
@@ -382,23 +411,108 @@ function AfterBook({ d }: { d: RebalanceDetailOut }) {
 
 // ---------------------------------------------------------------- stops
 
-function Stops({ stops }: { stops: TradeRow[] }) {
+function ExitsTable({ exits, testId }: { exits: OffCalendarExit[]; testId: string }) {
+  const total = exits.reduce((s, e) => s + e.pnl, 0);
+  return (
+    <div className="sb-rb-exits-scroll">
+      <table className="tbl sb-rb-exits-table" data-testid={testId}>
+        <thead>
+          <tr>
+            <th>Símbolo</th>
+            <th>Motivo</th>
+            <th>Fecha</th>
+            <th className="num sb-rb-exits-wide">Acciones</th>
+            <th className="num sb-rb-exits-wide">Costo medio</th>
+            <th className="num">Precio de venta</th>
+            <th className="num">P&amp;L</th>
+          </tr>
+        </thead>
+        <tbody>
+          {exits.map((e, i) => (
+            <tr key={`${e.symbol_id}-${e.date}-${i}`} data-testid="sb-rb-exit-row">
+              <td style={{ fontWeight: 600 }}>{symLabel(e.ticker, e.symbol_id)}</td>
+              <td>
+                <span className="sb-chip neg">{e.reason}</span>
+              </td>
+              <td className="dim">{e.date}</td>
+              <td className="num sb-rb-exits-wide">{fmtShares(e.shares)}</td>
+              <td className="num sb-rb-exits-wide">${fmt2(e.cost_basis)}</td>
+              <td className="num">${fmt2(e.price)}</td>
+              {/* $ and % share a cell: with a long reason chip a ninth column
+                  fell outside the panel at 1280 px. */}
+              <td className={`num ${signCls(e.pnl)}`}>
+                {fmtUsdExact(e.pnl)} <span className="sb-rb-exit-pct">{fmtFracPct(e.pnl_pct)}</span>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+        <tfoot>
+          <tr data-testid={`${testId}-total`}>
+            <td colSpan={3}>Total</td>
+            <td className="sb-rb-exits-wide" />
+            <td className="sb-rb-exits-wide" />
+            <td />
+            <td className={`num ${signCls(total)}`}>{fmtUsdExact(total)}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  );
+}
+
+function Stops({ d }: { d: RebalanceDetailOut }) {
+  // #351: a result computed (or recomputed) with the off-calendar accounting
+  // carries `realized_pnl_off_calendar`; an older one only has the plain list.
+  const accounted = num(d.metrics, 'realized_pnl_off_calendar') != null;
+  const exits = d.off_calendar_exits ?? [];
+  const after = d.off_calendar_exits_after ?? [];
+
+  if (!accounted) {
+    return (
+      <div className="sb-rb-stops" data-testid="sb-rb-stops">
+        <div className="card-title">Salidas fuera de calendario</div>
+        {d.stops.length === 0 ? (
+          <div className="card-sub">Ninguna en el período.</div>
+        ) : (
+          <>
+            <ul>
+              {d.stops.map((t, i) => (
+                <li key={`${t.symbol_id}-${t.date}-${i}`}>
+                  <b>{symLabel(t.ticker, t.symbol_id)}</b> {t.reason && <span className="sb-chip neg">{t.reason}</span>}{' '}
+                  <span className="dim">
+                    {t.date} · apertura ${fmt2(t.price)} · {fmtShares(t.shares)} acciones · {usd(t.value)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <div className="card-sub sb-rb-stops-legacy" data-testid="sb-rb-stops-legacy">
+              Vuelve a correr el backtest para ver el P&amp;L de estas salidas.
+            </div>
+          </>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="sb-rb-stops" data-testid="sb-rb-stops">
       <div className="card-title">Salidas fuera de calendario</div>
-      {stops.length === 0 ? (
-        <div className="card-sub">Ninguna en el período.</div>
+      <div className="card-sub">
+        Desde el rebalanceo anterior. Su P&amp;L se contabiliza en este rebalanceo.
+      </div>
+      {exits.length === 0 ? (
+        <div className="card-sub sb-rb-stops-empty">Ninguna desde el rebalanceo anterior.</div>
       ) : (
-        <ul>
-          {stops.map((t, i) => (
-            <li key={`${t.symbol_id}-${t.date}-${i}`}>
-              <b>{symLabel(t.ticker, t.symbol_id)}</b> {t.reason && <span className="sb-chip neg">{t.reason}</span>}{' '}
-              <span className="dim">
-                {t.date} · apertura ${fmt2(t.price)} · {fmtShares(t.shares)} acciones · {usd(t.value)}
-              </span>
-            </li>
-          ))}
-        </ul>
+        <ExitsTable exits={exits} testId="sb-rb-stops-table" />
+      )}
+      {after.length > 0 && (
+        <div className="sb-rb-stops-after" data-testid="sb-rb-stops-after">
+          <div className="card-title">Posteriores a este rebalanceo</div>
+          <div className="card-sub">
+            No hay un rebalanceo siguiente: no suman en el P&amp;L de este rebalanceo, sí en el total del backtest.
+          </div>
+          <ExitsTable exits={after} testId="sb-rb-stops-after-table" />
+        </div>
       )}
     </div>
   );
@@ -538,7 +652,7 @@ export function RebalanceDetail({
                 </div>
               </div>
 
-              <Stops stops={d.stops} />
+              <Stops d={d} />
             </>
           )}
         </div>

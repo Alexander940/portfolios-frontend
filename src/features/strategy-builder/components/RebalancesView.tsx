@@ -17,6 +17,7 @@ import {
   fmtFracPctPlain,
   REBALANCE_SORT_OPTIONS,
   REBALANCES_PAGE_SIZE,
+  fmtUsdExact,
   signCls,
   sortRebalances,
   type RebalanceSortKey,
@@ -92,6 +93,20 @@ function SummaryCards({ data }: { data: RebalancesIndexResponse }) {
       sub: 'sólo ejecutados',
     },
     { id: 'costs', k: 'Costos acumulados', v: formatUsd(Math.round(s.total_costs)), sub: 'comisión + slippage' },
+    // #351: only when the result carries the off-calendar accounting.
+    ...(s.total_realized_pnl != null
+      ? [
+          {
+            id: 'realized',
+            k: 'P&L realizado total',
+            v: fmtUsdExact(s.total_realized_pnl),
+            cls: signCls(s.total_realized_pnl),
+            sub: `rebalanceos ${fmtUsdExact(s.total_realized_pnl_rebalance)} · fuera de calendario ${fmtUsdExact(
+              s.total_realized_pnl_off_calendar,
+            )}`,
+          },
+        ]
+      : []),
     {
       id: 'best',
       k: 'Mejor período',
@@ -184,6 +199,9 @@ function IndexTable({
             <th className="num">Stops</th>
             <th className="num">Rotación</th>
             <th className="num">Costos</th>
+            <th className="num" title="Ventas del rebalanceo + salidas fuera de calendario desde el anterior">
+              P&amp;L realizado
+            </th>
             <th className="num">Ret. período</th>
             <th className="num">SPY</th>
             <th className="num">Exceso</th>
@@ -222,6 +240,9 @@ function IndexTable({
               <td className="num">{dash(r.n_stops)}</td>
               <td className="num">{fmtFracPctPlain(r.turnover_pct)}</td>
               <td className="num dim">{r.costs == null ? '—' : formatUsd(Math.round(r.costs))}</td>
+              <td className={`num ${signCls(r.realized_pnl ?? null)}`} data-testid="sb-rb-realized">
+                {fmtUsdExact(r.realized_pnl)}
+              </td>
               <td className={`num ${signCls(r.period_return)}`}>{fmtFracPct(r.period_return)}</td>
               <td className="num dim">{fmtFracPct(r.bench_return)}</td>
               <td className={`num ${signCls(r.excess)}`}>{fmtFracPct(r.excess)}</td>
@@ -411,7 +432,7 @@ export function RebalancesView({ jobId, cadence, onRerun }: Props) {
 
       <div className="card-sub sb-rb-foot">
         Filas en gris: rebalanceo saltado por banda de drift (sin fills). Stops cuenta las salidas fuera de
-        calendario dentro del período.
+        calendario desde el rebalanceo anterior; su P&amp;L entra en el «P&amp;L realizado» de esa fila.
       </div>
     </div>
   );
